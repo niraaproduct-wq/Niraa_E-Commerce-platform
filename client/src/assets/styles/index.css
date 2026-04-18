@@ -1,0 +1,15 @@
+/* Basic styles */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body { font-family: Arial, sans-serif; }
+
+.navbar { background: #333; color: white; padding: 1rem; display: flex; justify-content: space-between; }
+
+.nav-links a { color: white; margin-left: 1rem; text-decoration: none; }
+
+.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; padding: 2rem; }
+
+.product-card { border: 1px solid #ddd; padding: 1rem; text-align: center; }
+
+.footer { background: #333; color: white; text-align: center; padding: 1rem; position: fixed; bottom: 0; width: 100%; }
+

@@ -1,0 +1,55 @@
+/* Theme overrides and mobile-first responsive utilities for NIRAA */
+
+:root {
+  /* ensure variables from global.css are available */
+}
+
+/* Primary button */
+.btn-primary {
+  background: var(--teal);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+}
+
+/* Hero */
+.hero { padding: 28px 12px; display: grid; gap: 16px; }
+
+/* Product grid — mobile first */
+.product-grid { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 0; }
+.product-grid .product-card { width: 100%; }
+
+.product-card img { max-height: 200px; object-fit: contain; }
+
+/* Checkout responsive */
+.checkout .container { padding: 16px; }
+
+/* Admin pages */
+.admin .container { padding: 14px; }
+
+/* Layout container tweaks for small screens */
+.container { padding-left: 16px; padding-right: 16px; }
+
+@media (min-width: 640px) {
+  .product-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 900px) {
+  .product-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 1200px) {
+  .product-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* Minor utility */
+.muted { color: var(--gray-600); }
+
+/* Persistent WhatsApp button (mobile-first) */
+.whatsapp-float { /* positioning is mostly inline */ }
+@media (min-width: 769px) {
+  .whatsapp-float { display: none !important; }
+}
