@@ -1,4 +1,7 @@
-export const API_BASE_URL = 'http://localhost:5000/api';
+// Base URL for all API calls.
+// In development Vite proxies /api → localhost:5000, so no absolute URL is needed.
+// In production set VITE_API_BASE_URL to your deployed backend URL in client/.env
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const PHONE_1 = '+91 94433 67890';
 export const PHONE_2 = '+91 94432 12345';
@@ -6,4 +9,3 @@ export const WHATSAPP_NUMBER = '+91 94433 67890';
 
 export { formatPrice } from './formatPrice.js';
 export { placeholderImage } from './placeholderImage.js';
-

@@ -14,7 +14,9 @@ const userRoutes = require('./routes/userRoutes');
 const locationRoutes = require('./routes/locationRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 
-dotenv.config({ path: '../.env' });
+const path = require('path');
+
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const app = express();
 
