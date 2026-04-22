@@ -11,7 +11,6 @@ import About         from '../pages/About.jsx';
 import Contact       from '../pages/Contact.jsx';
 import Loyalty       from '../pages/Loyalty.jsx';
 import Login         from '../pages/Login.jsx';
-import { AdminRoutes } from '../pages/admin/AdminPages.jsx';
 import ProtectedRoute from './Protectedroute.jsx';
 import ScrollToTop    from '../components/ScrollToTop.jsx';
 import FloatingWhatsApp from '../components/FloatingWhatsApp.jsx';
@@ -38,9 +37,6 @@ export default function AppRoutes() {
         {/* Protected User Routes */}
         <Route path="/profile" element={<ProtectedRoute><><Navbar /><Profile /><Footer /></></ProtectedRoute>} />
         <Route path="/profile/orders" element={<ProtectedRoute><><Navbar /><ProfileOrders /><Footer /></></ProtectedRoute>} />
-
-        {/* Admin routes */}
-        <Route path="/admin/*" element={<AdminRoutes />} />
       </Routes>
       <FloatingWhatsApp />
     </>

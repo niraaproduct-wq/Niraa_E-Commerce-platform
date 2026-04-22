@@ -12,13 +12,13 @@ const AdminLayout = ({ children }) => {
       <aside style={{ width: 250, background: 'var(--teal-dark)', color: '#fff', padding: 20 }}>
         <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 30px', fontSize: '1.8rem' }}>NIRAA Admin</h2>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <a href="/admin" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.1)', fontWeight: 700 }}>Dashboard</a>
-          <a href="/admin/builder" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Website Builder</a>
-          <a href="/admin/products" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Products</a>
-          <a href="/admin/orders" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Orders</a>
-          <a href="/admin/customers" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Customers</a>
-          <a href="/admin/marketing" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Marketing</a>
-          <a href="/" style={{ color: '#a3d4ce', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, marginTop: 40, fontSize: '0.9rem' }}>← Back to Website</a>
+          <a href="/" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.1)', fontWeight: 700 }}>Dashboard</a>
+          <a href="/builder" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Website Builder</a>
+          <a href="/products" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Products</a>
+          <a href="/orders" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Orders</a>
+          <a href="/customers" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Customers</a>
+          <a href="/marketing" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Marketing</a>
+          <a href="https://niraa-e-commerce-platform-mocha.vercel.app" style={{ color: '#a3d4ce', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, marginTop: 40, fontSize: '0.9rem' }}>← Back to Website</a>
         </nav>
       </aside>
       <main style={{ flex: 1, padding: 30 }}>
@@ -184,7 +184,7 @@ const AdminDashboard = () => {
           alignItems: 'center'
         }}>
           <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--gray-800)' }}>Recent Orders</h2>
-          <a href="/admin/orders" style={{ 
+          <a href="/orders" style={{ 
             color: 'var(--teal)', 
             textDecoration: 'none', 
             fontWeight: 600,
@@ -352,7 +352,7 @@ const AdminLogin = ({ setAuth }) => {
         localStorage.setItem('niraa_user', JSON.stringify(data.user));
         localStorage.setItem('niraa_admin_auth', 'true');
         setAuth(true);
-        navigate('/admin/dashboard');
+        navigate('/dashboard');
       } else {
         alert(data.message || 'Invalid PIN');
       }
@@ -392,14 +392,14 @@ export const AdminRoutes = () => {
     return (
       <Routes>
         <Route path="/login" element={<AdminLogin setAuth={setAuth} />} />
-        <Route path="*" element={<Navigate to="/admin/login" />} />
+        <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     );
   }
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/admin/dashboard" />} />
+      <Route path="/" element={<Navigate to="/dashboard" />} />
       <Route path="/dashboard" element={<AdminDashboard />} />
       <Route path="/products" element={<AdminProducts />} />
       <Route path="/inventory" element={<AdminInventory />} />
@@ -407,7 +407,7 @@ export const AdminRoutes = () => {
       <Route path="/customers" element={<AdminCustomers />} />
       <Route path="/marketing" element={<AdminMarketing />} />
       <Route path="/builder" element={<AdminBuilder />} />
-      <Route path="*" element={<Navigate to="/admin/dashboard" />} />
+      <Route path="*" element={<Navigate to="/dashboard" />} />
     </Routes>
   );
 };
