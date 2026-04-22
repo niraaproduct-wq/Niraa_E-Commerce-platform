@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { API_BASE_URL } from '../../utils/constants';
+import { API_BASE_URL } from '../utils/constants';
 import AdminBuilder from './AdminBuilder';
 import AdminCustomers from './AdminCustomers';
 import AdminProducts from './AdminProducts';

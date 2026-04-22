@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { formatPrice } from '../../utils/formatPrice.js';
-import { API_BASE_URL } from '../../utils/constants.js';
+import { formatPrice } from '../utils/formatPrice.js';
+import { API_BASE_URL } from '../utils/constants.js';
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);

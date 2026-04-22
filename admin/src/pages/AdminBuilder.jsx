@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FaPlus, FaEdit, FaTrash, FaSave, FaTimes, FaArrowsAlt, FaEye, FaColumns } from 'react-icons/fa';
-import { API_BASE_URL } from '../../utils/constants';
+import { API_BASE_URL } from '../utils/constants';
 import toast from 'react-hot-toast';
-import { useAdmin } from '../../context/AdminContext';
+import { useAdmin } from '../context/AdminContext';
 
 // Section types
 const SECTION_TYPES = {
