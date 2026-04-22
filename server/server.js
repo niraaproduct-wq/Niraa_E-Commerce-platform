@@ -23,7 +23,9 @@ const app = express();
 // Middleware
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://niraa-e-commerce-platform-mocha.vercel.app'
+  'http://localhost:5174',
+  'https://niraa-e-commerce-platform-mocha.vercel.app',
+  'https://niraaadmin.vercel.app'
 ];
 
 if (process.env.CLIENT_URL) {
