@@ -21,44 +21,28 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const app = express();
 
 // Middleware
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'https://niraa-e-commerce-platform-mocha.vercel.app',
-  'https://niraaadmin.vercel.app'
-];
-
-if (process.env.CLIENT_URL) {
-  allowedOrigins.push(process.env.CLIENT_URL);
-}
-
-console.log("CORS Allowed Origins:", allowedOrigins);
-
 app.use(cors({
-  origin: (origin, callback) => {
-    // allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'https://niraa-e-commerce-platform-mocha.vercel.app',
+    'https://niraaadmin.vercel.app'
+  ],
   credentials: true,
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/api/auth',      authRoutes);
-app.use('/api/products',  productRoutes);
-app.use('/api/orders',    orderRoutes);
-app.use('/api/sections',  sectionRoutes);
-app.use('/api/admin',     adminRoutes);
-app.use('/api/users',     userRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/sections', sectionRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/locations', locationRoutes);
-app.use('/api/payments',  paymentRoutes);
-app.use('/api/test',      testRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/test', testRoutes);
 
 // Health check
 app.get('/', (req, res) => {
