@@ -1,22 +1,27 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { formatPrice } from '../../utils/formatPrice.js';
+import { API_BASE_URL } from '../../utils/constants.js';
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
   const [updatingId, setUpdatingId] = useState(null);
-  const getToken = () => JSON.parse(localStorage.getItem('niraa_user') || 'null')?.token;
+  const getToken = () => localStorage.getItem('niraa_token');
+  const user = JSON.parse(localStorage.getItem('niraa_user') || 'null');
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
+    if (!isAdmin) return;
     (async () => {
       try {
         const token = getToken();
-        const res = await fetch('http://localhost:5000/api/orders', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        const res = await fetch(`${API_BASE_URL}/orders`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
         const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Failed to load orders');
         setOrders(data || []);
       } catch (err) { setOrders([]); }
     })();
-  }, []);
+  }, [isAdmin]);
 
   const statusMeta = useMemo(
     () => ({
@@ -40,7 +45,7 @@ export default function AdminOrders() {
     try {
       const token = getToken();
       setUpdatingId(id);
-      const res = await fetch(`http://localhost:5000/api/orders/${id}/status`, {
+      const res = await fetch(`${API_BASE_URL}/orders/${id}/status`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status })
       });
@@ -54,6 +59,11 @@ export default function AdminOrders() {
 
   return (
     <div className="admin-orders container" style={{ padding: 18 }}>
+      {!isAdmin && (
+        <div style={{ marginBottom: 12, color: '#9f1239', background: '#fff1f2', border: '1px solid #fecdd3', padding: 10, borderRadius: 10, fontWeight: 700 }}>
+          Admin access required. Please login with an admin account.
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', color: 'var(--teal-dark)' }}>Orders</h2>

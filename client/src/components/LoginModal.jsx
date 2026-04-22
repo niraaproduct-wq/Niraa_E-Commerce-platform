@@ -107,7 +107,7 @@ export default function LoginModal({ isOpen, onClose }) {
         throw new Error(data.message || 'Verification failed');
       }
 
-      login(data); // Save user to context & local storage
+      login(data.user, data.token); // Save user to context & local storage
       toast.success(data.isNewUser ? 'Welcome to Niraa!' : 'Welcome back!');
       handleClose();
     } catch (err) {

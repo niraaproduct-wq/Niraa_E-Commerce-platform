@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { formatPrice } from '../utils/formatPrice.js';
@@ -11,11 +11,12 @@ import LoginModal from '../components/LoginModal.jsx';
 const Checkout = () => {
   const { items, subtotal, clearCart } = useCart();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const formRef = useRef(null);
   const whatsAppOverrideRef = useRef(false);
 
   const [form, setForm] = useState({ 
-    name: user?.name || '', 
+    name: user?.name || user?.firstName ? `${user?.firstName || ''} ${user?.lastName || ''}`.trim() : '', 
     phone: user?.phone || '', 
     street: user?.address?.street || '', 
     city: user?.address?.city || 'Dharmapuri', 
@@ -45,7 +46,8 @@ const Checkout = () => {
     e.preventDefault();
     if (!user) {
       toast.error('Please login or signup to place an order');
-      return setIsLoginModalOpen(true);
+      navigate('/login', { state: { from: '/checkout' } });
+      return;
     }
     if (!form.name || !form.phone || !form.street || !form.pincode) return toast.error('Please fill required fields');
     

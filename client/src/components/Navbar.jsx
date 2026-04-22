@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { FiShoppingCart, FiMenu, FiX, FiUser } from 'react-icons/fi';
@@ -7,6 +7,7 @@ import { AiOutlineWhatsApp } from 'react-icons/ai';
 import { WHATSAPP_NUMBER } from '../utils/constants.js';
 import logoImage from '../assets/images/logo.jpeg';
 import LoginModal from './LoginModal.jsx';
+import UserDropdown from './UserDropdown.jsx';
 
 const NAV_LINKS = [
   { to: '/',          label: 'Home'     },
@@ -19,6 +20,7 @@ export default function Navbar() {
   const { totalItems }      = useCart();
   const { user, logout }    = useAuth();
   const { pathname }        = useLocation();
+  const navigate            = useNavigate();
   const [open, setOpen]     = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -61,9 +63,9 @@ export default function Navbar() {
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           </div>
-          <div>
+            <div>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.2rem', color: 'var(--teal-dark)', letterSpacing: '0.06em' }}>NIRAA</div>
-            <div style={{ fontSize: '0.6rem', color: 'var(--gray-400)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: -2 }}>Fresh home care essentials</div>
+            <div style={{ fontSize: '0.6rem', color: 'var(--gray-400)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: -2 }}>Wellness & Home Essentials</div>
           </div>
         </Link>
 
@@ -86,17 +88,17 @@ export default function Navbar() {
             <span className="hide-mobile" style={{ fontWeight: 700 }}>WhatsApp</span>
           </a>
 
-          {/* User Auth */}
-          {user ? (
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: 8 }} onClick={logout}>
-               <FiUser size={20} color="var(--teal-dark)" />
-               <span className="hide-mobile" style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--teal-dark)' }}>{user.name?.split(' ')[0]} (Out)</span>
-            </div>
+           {/* User Auth */}
+           {user ? (
+             <UserDropdown user={user} />
           ) : (
-             <button onClick={() => setIsLoginOpen(true)} style={{ background: 'none', border: 'none', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: 'var(--teal-dark)', padding: 8 }}>
-                 <FiUser size={20} />
-                 <span className="hide-mobile" style={{ fontSize: '0.85rem', fontWeight: 600 }}>Login</span>
-             </button>
+             <button 
+               onClick={() => navigate('/login')} 
+               style={{ background: 'var(--teal-light)', border: 'none', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: 'var(--teal-dark)', padding: '8px 16px', borderRadius: '8px', fontWeight: 600 }}
+             >
+                  <FiUser size={18} />
+                  <span className="hide-mobile">Login</span>
+              </button>
           )}
 
           <Link to="/cart" style={{ position: 'relative', display: 'flex', alignItems: 'center', padding: 8 }}>

@@ -144,11 +144,10 @@ export default function About() {
             fontFamily: 'var(--font-display)', fontSize: 'clamp(1.5rem, 4vw, 2.2rem)',
             fontWeight: 900, color: '#fff', margin: '0 0 10px', lineHeight: 1.15,
           }}>
-            Clean Homes, Happy Families.
+            Built on Science. Designed for Everyday Living.
           </h1>
           <p style={{ color: '#aadecd', fontSize: '0.95rem', margin: '0 0 16px', maxWidth: 500 }}>
-            NIRAA started in Dharmapuri with a simple mission — affordable, safe, and effective cleaning
-            products that every family can trust.
+            At Niraa, our products are built on science, tested for performance, and designed for everyday trust.
           </p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <Link to="/products" style={{
@@ -196,16 +195,16 @@ export default function About() {
             <h2 style={{
               fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 800,
               color: 'var(--gray-800)', marginBottom: 12,
-            }}>Born in Dharmapuri, Built for You</h2>
+            }}>Who We Are</h2>
             <p style={{ color: 'var(--gray-600)', lineHeight: 1.7, margin: '0 0 12px' }}>
-              NIRAA was born from a desire to give Dharmapuri families access to quality cleaning products
-              that are safe, effective, and honestly priced — without depending on big-city brands with
-              inflated costs.
+              NIRAA PRODUCTS is a research-driven home care brand founded by Tamil Selvan J,
+              B.E | M.Tech | MS (IIT Madras), an R&D and production specialist with deep expertise in
+              scientific formulation, process optimization, and industrial production.
             </p>
             <p style={{ color: 'var(--gray-600)', lineHeight: 1.7, margin: 0 }}>
-              We understand the local water quality, the dust levels, the types of flooring in our homes.
-              Every NIRAA product is formulated with these real-world conditions in mind, ensuring you get
-              visible results from the very first use.
+              With experience across both research and manufacturing environments, we transform scientific
+              innovation into practical, market-ready solutions that deliver consistent cleaning performance
+              for real Indian homes.
             </p>
           </div>
 
@@ -223,10 +222,10 @@ export default function About() {
             }}>What Drives Us</h2>
             <div style={{ display: 'grid', gap: 10 }}>
               {[
-                { emoji: '🏠', text: 'Clean homes with safe, family-friendly formulas' },
-                { emoji: '🌿', text: 'Eco-friendly choices — refill packs & biodegradable ingredients' },
-                { emoji: '💰', text: 'Affordable pricing with smart combo offers that save money' },
-                { emoji: '🤝', text: 'Build trust through quality, not advertising' },
+                { emoji: '🧪', text: 'Manufactured with R&D precision and performance-first formulation' },
+                { emoji: '🇮🇳', text: 'Made in India with globally aligned quality standards' },
+                { emoji: '✔', text: 'Safe for daily use with dependable, repeatable results' },
+                { emoji: '🤝', text: 'Powerful cleaning solutions designed for everyday trust' },
               ].map((m, i) => (
                 <div key={i} style={{
                   display: 'flex', alignItems: 'center', gap: 12,
@@ -238,6 +237,62 @@ export default function About() {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── FOUNDER SPOTLIGHT ───────────────── */}
+      <section style={{ marginBottom: 36 }}>
+        <div style={{
+          background: 'linear-gradient(135deg, #0b231f 0%, #1e5c53 100%)',
+          borderRadius: 24,
+          padding: '26px 22px',
+          color: '#fff',
+          boxShadow: '0 10px 30px rgba(11,35,31,0.2)',
+        }}>
+          <div style={{
+            fontSize: '0.72rem',
+            color: '#4ade80',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            marginBottom: 6,
+          }}>
+            Founder Spotlight
+          </div>
+
+          <h2 style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 'clamp(1.2rem, 3vw, 1.6rem)',
+            fontWeight: 900,
+            color: '#fff',
+            margin: '0 0 8px',
+          }}>
+            Tamil Selvan J
+          </h2>
+
+          <p style={{ color: '#aadecd', fontSize: '0.9rem', margin: '0 0 14px', fontWeight: 700 }}>
+            B.E | M.Tech | MS (IIT Madras) | R&D & Production Specialist
+          </p>
+
+          <div style={{
+            background: 'rgba(255,255,255,0.08)',
+            border: '1px solid rgba(255,255,255,0.18)',
+            borderRadius: 16,
+            padding: '16px 18px',
+          }}>
+            <p style={{ margin: '0 0 10px', lineHeight: 1.7, color: '#e6fff7', fontSize: '0.92rem' }}>
+              Tamil Selvan J brings a strong blend of technical expertise, research experience, and industry knowledge
+              to the development of high-quality home care and personal care products.
+            </p>
+            <p style={{ margin: '0 0 10px', lineHeight: 1.7, color: '#e6fff7', fontSize: '0.92rem' }}>
+              With advanced qualifications including MS from IIT Madras, he has built a solid foundation in scientific
+              formulation, process optimization, and product performance. His exposure to globally aligned standards
+              enables NIRAA to deliver consistent and dependable results.
+            </p>
+            <p style={{ margin: 0, lineHeight: 1.7, color: '#e6fff7', fontSize: '0.92rem', fontWeight: 600 }}>
+              At Niraa, our products are built on science, tested for performance, and designed for everyday trust.
+            </p>
           </div>
         </div>
       </section>
@@ -372,9 +427,10 @@ export default function About() {
           <div style={{
             fontFamily: 'var(--font-display)', fontSize: 'clamp(1.3rem, 3vw, 1.8rem)',
             fontWeight: 900, marginBottom: 8,
-          }}>Ready to experience NIRAA?</div>
+          }}>Powerful Cleaning. Scientifically Formulated.</div>
           <div style={{ color: '#aadecd', fontWeight: 600, fontSize: '0.9rem', marginBottom: 16 }}>
-            Browse our products and join 500+ happy families today.
+            At NIRAA PRODUCTS, we combine scientific expertise with real-world performance to create
+            high-quality home care solutions you can trust every day.
           </div>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link to="/products" style={{

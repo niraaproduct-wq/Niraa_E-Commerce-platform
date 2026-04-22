@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../../utils/constants';
+import AdminBuilder from './AdminBuilder';
+import AdminCustomers from './AdminCustomers';
+import AdminProducts from './AdminProducts';
+import AdminOrdersPage from './AdminOrders';
 
 const AdminLayout = ({ children }) => {
   return (
@@ -8,8 +13,10 @@ const AdminLayout = ({ children }) => {
         <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 30px', fontSize: '1.8rem' }}>NIRAA Admin</h2>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <a href="/admin" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.1)', fontWeight: 700 }}>Dashboard</a>
-          <a href="/admin/inventory" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Inventory</a>
+          <a href="/admin/builder" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Website Builder</a>
+          <a href="/admin/products" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Products</a>
           <a href="/admin/orders" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Orders</a>
+          <a href="/admin/customers" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Customers</a>
           <a href="/admin/marketing" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Marketing</a>
           <a href="/" style={{ color: '#a3d4ce', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, marginTop: 40, fontSize: '0.9rem' }}>← Back to Website</a>
         </nav>
@@ -21,31 +28,220 @@ const AdminLayout = ({ children }) => {
   );
 };
 
-const AdminDashboard = () => (
-  <AdminLayout>
-    <h1 style={{ color: 'var(--gray-800)', marginTop: 0 }}>Dashboard</h1>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginTop: 20 }}>
-      {/* Metrics */}
-      {[
-        { title: 'Total Sales Today', value: '₹4,500', trend: '+15%' },
-        { title: 'Orders Today', value: '12', trend: '+2' },
-        { title: 'Active Subscriptions', value: '28', trend: '+5' },
-      ].map((m, i) => (
-        <div key={i} style={{ background: '#fff', padding: 24, borderRadius: 16, border: '1px solid var(--gray-200)', boxShadow: 'var(--shadow-sm)' }}>
-          <div style={{ color: 'var(--gray-600)', fontWeight: 600 }}>{m.title}</div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 10 }}>
-            <div style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--teal-dark)', lineHeight: 1 }}>{m.value}</div>
-            <div style={{ color: 'var(--green)', fontWeight: 800, fontSize: '0.9rem' }}>{m.trend}</div>
-          </div>
+const AdminDashboard = () => {
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalOrders: 0,
+    totalProducts: 0,
+    pendingOrders: 0,
+    deliveredOrders: 0,
+    totalSales: 0
+  });
+  const [recentOrders, setRecentOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDashboardStats();
+  }, []);
+
+  const fetchDashboardStats = async () => {
+    try {
+      const token = localStorage.getItem('niraa_token');
+      const response = await fetch(`${API_BASE_URL}/admin/dashboard`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setStats(data.stats);
+        setRecentOrders(data.recentOrders || []);
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const statCards = [
+    { 
+      title: 'Total Customers', 
+      value: stats.totalUsers, 
+      icon: '👥',
+      color: '#2d9a8e',
+      bgGradient: 'linear-gradient(135deg, #2d9a8e 0%, #1a7a6e 100%)'
+    },
+    { 
+      title: 'Total Orders', 
+      value: stats.totalOrders, 
+      icon: '📦',
+      color: '#c8a84b',
+      bgGradient: 'linear-gradient(135deg, #c8a84b 0%, #a8883b 100%)'
+    },
+    { 
+      title: 'Pending Orders', 
+      value: stats.pendingOrders, 
+      icon: '⏳',
+      color: '#f59e0b',
+      bgGradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+    },
+    { 
+      title: 'Total Products', 
+      value: stats.totalProducts, 
+      icon: '🛍️',
+      color: '#3b82f6',
+      bgGradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
+    },
+    { 
+      title: 'Delivered', 
+      value: stats.deliveredOrders, 
+      icon: '✅',
+      color: '#10b981',
+      bgGradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+    },
+    { 
+      title: 'Total Sales', 
+      value: `₹${stats.totalSales || 0}`, 
+      icon: '💰',
+      color: '#8b5cf6',
+      bgGradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
+    }
+  ];
+
+  if (loading) {
+    return (
+      <AdminLayout>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
+          <div style={{ fontSize: '1.2rem', color: 'var(--gray-500)' }}>Loading dashboard...</div>
         </div>
-      ))}
-    </div>
-    
-    <div style={{ marginTop: 30, background: '#fff', padding: 24, borderRadius: 16, border: '1px solid var(--gray-200)', boxShadow: 'var(--shadow-sm)', height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ color: 'var(--gray-400)', fontWeight: 600 }}>Revenue Graph Placeholder (Chart.js would go here)</div>
-    </div>
-  </AdminLayout>
-);
+      </AdminLayout>
+    );
+  }
+
+  return (
+    <AdminLayout>
+      <div style={{ marginBottom: 30 }}>
+        <h1 style={{ color: 'var(--gray-800)', marginTop: 0, marginBottom: 8, fontSize: '2rem' }}>Dashboard</h1>
+        <p style={{ color: 'var(--gray-600)', margin: 0 }}>Welcome back! Here's what's happening with your store today.</p>
+      </div>
+
+      {/* Stats Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, marginBottom: 30 }}>
+        {statCards.map((stat, i) => (
+          <div key={i} style={{ 
+            background: stat.bgGradient, 
+            padding: 24, 
+            borderRadius: 20, 
+            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+            color: '#fff',
+            transform: 'translateY(0)',
+            transition: 'all 0.3s ease',
+            cursor: 'pointer',
+            ':hover': {
+              transform: 'translateY(-4px)',
+              boxShadow: '0 12px 40px rgba(0,0,0,0.15)'
+            }
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: '0.9rem', opacity: 0.9, fontWeight: 500, marginBottom: 4 }}>{stat.title}</div>
+                <div style={{ fontSize: '2.5rem', fontWeight: 900, lineHeight: 1 }}>{stat.value}</div>
+              </div>
+              <div style={{ fontSize: '2.5rem', opacity: 0.9 }}>{stat.icon}</div>
+            </div>
+            <div style={{ 
+              height: 4, 
+              background: 'rgba(255,255,255,0.3)', 
+              borderRadius: 2,
+              overflow: 'hidden',
+              marginTop: 12
+            }}>
+              <div style={{ 
+                height: '100%', 
+                width: `${60 + Math.random() * 40}%`, 
+                background: '#fff', 
+                borderRadius: 2 
+              }} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Recent Orders */}
+      <div style={{ 
+        background: '#fff', 
+        borderRadius: 20, 
+        boxShadow: 'var(--shadow-md)',
+        overflow: 'hidden'
+      }}>
+        <div style={{ 
+          padding: '20px 24px', 
+          borderBottom: '1px solid var(--gray-100)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--gray-800)' }}>Recent Orders</h2>
+          <a href="/admin/orders" style={{ 
+            color: 'var(--teal)', 
+            textDecoration: 'none', 
+            fontWeight: 600,
+            fontSize: '0.9rem'
+          }}>
+            View All Orders →
+          </a>
+        </div>
+        
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'var(--gray-50)' }}>
+                <th style={{ textAlign: 'left', padding: '16px 24px', fontWeight: 600, fontSize: '0.85rem', color: 'var(--gray-600)' }}>Order ID</th>
+                <th style={{ textAlign: 'left', padding: '16px 24px', fontWeight: 600, fontSize: '0.85rem', color: 'var(--gray-600)' }}>Customer</th>
+                <th style={{ textAlign: 'left', padding: '16px 24px', fontWeight: 600, fontSize: '0.85rem', color: 'var(--gray-600)' }}>Total</th>
+                <th style={{ textAlign: 'left', padding: '16px 24px', fontWeight: 600, fontSize: '0.85rem', color: 'var(--gray-600)' }}>Status</th>
+                <th style={{ textAlign: 'left', padding: '16px 24px', fontWeight: 600, fontSize: '0.85rem', color: 'var(--gray-600)' }}>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentOrders.length > 0 ? recentOrders.slice(0, 5).map((order, i) => (
+                <tr key={order._id} style={{ borderBottom: '1px solid var(--gray-100)', transition: 'background 0.2s' }}>
+                  <td style={{ padding: '16px 24px', fontWeight: 700, color: 'var(--gray-800)' }}>#{order._id.slice(-6).toUpperCase()}</td>
+                  <td style={{ padding: '16px 24px', color: 'var(--gray-700)' }}>{order.customer?.name || order.customerName || 'Guest'}</td>
+                  <td style={{ padding: '16px 24px', fontWeight: 700, color: 'var(--teal-dark)' }}>₹{order.total}</td>
+                  <td style={{ padding: '16px 24px' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '6px 12px',
+                      borderRadius: 20,
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      background: order.status === 'delivered' ? '#dcfce7' : ['pending', 'placed', 'confirmed'].includes(order.status) ? '#fef3c7' : '#dbeafe',
+                      color: order.status === 'delivered' ? '#166534' : ['pending', 'placed', 'confirmed'].includes(order.status) ? '#92400e' : '#1e40af'
+                    }}>
+                      {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
+                    </span>
+                  </td>
+                  <td style={{ padding: '16px 24px', color: 'var(--gray-500)', fontSize: '0.9rem' }}>
+                    {new Date(order.createdAt).toLocaleDateString('en-IN')}
+                  </td>
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan="5" style={{ padding: 40, textAlign: 'center', color: 'var(--gray-400)' }}>
+                    No orders yet. When customers place orders, they will appear here.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </AdminLayout>
+  );
+};
 
 const AdminInventory = () => (
   <AdminLayout>
@@ -68,7 +264,7 @@ const AdminInventory = () => (
   </AdminLayout>
 );
 
-const AdminOrders = () => (
+const AdminOrdersFlow = () => (
   <AdminLayout>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <h1 style={{ color: 'var(--gray-800)', marginTop: 0 }}>Active Orders Flow</h1>
@@ -141,14 +337,28 @@ const AdminLogin = ({ setAuth }) => {
   const [pin, setPin] = useState('');
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (pin === '1234') { // Mock secure pin
-      localStorage.setItem('niraa_admin_auth', 'true');
-      setAuth(true);
-      navigate('/admin/dashboard');
-    } else {
-      alert('Invalid PIN');
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/admin-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await response.json();
+      
+      if (response.ok) {
+        localStorage.setItem('niraa_token', data.token);
+        localStorage.setItem('niraa_user', JSON.stringify(data.user));
+        localStorage.setItem('niraa_admin_auth', 'true');
+        setAuth(true);
+        navigate('/admin/dashboard');
+      } else {
+        alert(data.message || 'Invalid PIN');
+      }
+    } catch (error) {
+      console.error('Admin login error:', error);
+      alert('Error connecting to server. Please try again.');
     }
   };
 
@@ -172,7 +382,11 @@ const AdminLogin = ({ setAuth }) => {
 };
 
 export const AdminRoutes = () => {
-  const [auth, setAuth] = useState(localStorage.getItem('niraa_admin_auth') === 'true');
+  const [auth, setAuth] = useState(() => {
+    const user = JSON.parse(localStorage.getItem('niraa_user') || 'null');
+    const token = localStorage.getItem('niraa_token');
+    return localStorage.getItem('niraa_admin_auth') === 'true' && !!token && user?.role === 'admin';
+  });
 
   if (!auth) {
     return (
@@ -185,10 +399,14 @@ export const AdminRoutes = () => {
 
   return (
     <Routes>
+      <Route path="/" element={<Navigate to="/admin/dashboard" />} />
       <Route path="/dashboard" element={<AdminDashboard />} />
+      <Route path="/products" element={<AdminProducts />} />
       <Route path="/inventory" element={<AdminInventory />} />
-      <Route path="/orders" element={<AdminOrders />} />
+      <Route path="/orders" element={<AdminOrdersPage />} />
+      <Route path="/customers" element={<AdminCustomers />} />
       <Route path="/marketing" element={<AdminMarketing />} />
+      <Route path="/builder" element={<AdminBuilder />} />
       <Route path="*" element={<Navigate to="/admin/dashboard" />} />
     </Routes>
   );

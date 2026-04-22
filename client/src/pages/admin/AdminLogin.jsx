@@ -19,7 +19,7 @@ export default function AdminLogin() {
         const data = await res.json();
         if (!res.ok) return alert(data.message || 'Login failed');
         // store user with token
-        login(data);
+        login(data.user, data.token);
         navigate('/admin');
       } catch (err) {
         alert('Login error');

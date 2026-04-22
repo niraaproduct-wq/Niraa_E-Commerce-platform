@@ -1,12 +1,55 @@
-const jwt    = require('jsonwebtoken');
-const User   = require('../models/User');
-const { saveUserToExcel } = require('../utils/excelHelper');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const firebaseStorage = require('../utils/firebaseStorage');
+const otpStorage = require('../utils/otpStorage');
+const smsService = require('../utils/smsService');
+const { publishEvent } = require('../utils/realtimeHub');
 
-const generateToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+// Helper: Generate JWT Token
+const generateToken = (user) => {
+  return jwt.sign(
+    { id: user.id, role: user.role || 'customer' },
+    process.env.JWT_SECRET,
+    { expiresIn: '30d' }
+  );
+};
 
-// In-memory store for OTPs (for simplicity without Redis)
-const otpStore = new Map();
+// Helper: Get user data for response (exclude sensitive fields)
+const sanitizeUser = (user) => {
+  return {
+    id: user.id,
+    phone: user.phone,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    isVerified: user.isVerified,
+    hasPassword: user.hasPassword,
+    address: user.address,
+    profileComplete: user.profileComplete,
+    createdAt: user.createdAt
+  };
+};
+
+// @desc    Check if phone exists
+// @route   POST /api/auth/check-phone
+// @access  Public
+const checkPhone = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ message: 'Phone is required' });
+
+    const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+    const validatedPhone = smsService.validatePhone(cleanPhone) || cleanPhone;
+
+    const user = await firebaseStorage.findUserByPhone(validatedPhone);
+    return res.status(200).json({ exists: !!user });
+  } catch (error) {
+    console.error('Check Phone Error:', error);
+    res.status(500).json({ message: 'Error checking phone', error: error.message });
+  }
+};
 
 // @desc    Send OTP to phone number
 // @route   POST /api/auth/send-otp
@@ -14,112 +57,391 @@ const otpStore = new Map();
 const sendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
-    if (!phone) return res.status(400).json({ message: 'Phone number is required' });
 
-    // Generate 4-digit OTP
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
-    
-    // Store it alongside expiry (10 minutes)
-    otpStore.set(phone, { otp, expiresAt: Date.now() + 10 * 60 * 1000 });
-    
-    // In a real app, send OTP via SMS endpoint (e.g. Twilio/Fast2SMS)
-    console.log(`[DEV ONLY] OTP for ${phone} is: ${otp}`);
+    if (!phone || phone.length < 10) {
+      return res.status(400).json({ message: 'Please enter a valid phone number' });
+    }
 
-    res.json({ message: 'OTP sent successfully', devOtp: otp }); // Exposing for dev/testing
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+    const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+    const validatedPhone = smsService.validatePhone(cleanPhone);
+
+    if (!validatedPhone) {
+      return res.status(400).json({
+        message: 'Please enter a valid Indian phone number (10 digits, starting with 6-9)'
+      });
+    }
+
+    const otp = otpStorage.generateOTP();
+    otpStorage.storeOTP(validatedPhone, otp);
+
+    const smsResult = await smsService.sendSMS(validatedPhone, otp);
+
+    if (!smsResult.success) {
+      console.error('SMS sending failed:', smsResult.message);
+      if (process.env.SMS_PROVIDER !== 'development') {
+        return res.status(500).json({
+          message: 'Failed to send OTP via SMS',
+          error: smsResult.message
+        });
+      }
+    }
+
+    res.status(200).json({
+      message: 'OTP sent successfully',
+      devOtp: smsResult.devOtp,
+      provider: smsResult.provider,
+      phone: validatedPhone
+    });
+  } catch (error) {
+    console.error('Send OTP Error:', error);
+    res.status(500).json({ message: 'Failed to send OTP', error: error.message });
   }
 };
 
-// @desc    Verify OTP and Login or Register
+// @desc    Verify OTP and login/signup user
 // @route   POST /api/auth/verify-otp
 // @access  Public
 const verifyOtp = async (req, res) => {
   try {
-    const { phone, otp, name, address } = req.body;
-    
-    if (!phone || !otp) return res.status(400).json({ message: 'Phone and OTP are required' });
+    const { phone, otp, name, firstName, lastName, address, password, loginPassword } = req.body;
 
-    const storedData = otpStore.get(phone);
-    if (!storedData) return res.status(400).json({ message: 'OTP not found or expired. Request a new one.' });
-    if (storedData.otp !== otp || Date.now() > storedData.expiresAt) {
-      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    if (!phone || !otp) {
+      return res.status(400).json({ message: 'Phone number and OTP are required' });
     }
 
-    // OTP is valid. Clear it.
-    otpStore.delete(phone);
+    const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+    const validatedPhone = smsService.validatePhone(cleanPhone);
 
-    // Check if user exists
-    let user = await User.findOne({ phone });
-    let isNewUser = false;
-
-    if (!user) {
-      // Must be a signup, require name at least
-      if (!name) return res.status(400).json({ message: 'Name is required for new users', needsSignupDetails: true });
-      
-      user = await User.create({ 
-        phone, 
-        name, 
-        address: address || { city: 'Dharmapuri' },
-        // generate a dummy email if needed although schema allows sparse now
-        // email: `${phone}@niraa.local.temp` 
+    if (!validatedPhone) {
+      return res.status(400).json({
+        message: 'Please enter a valid Indian phone number (10 digits, starting with 6-9)'
       });
-      isNewUser = true;
-      
-      // Save to Excel
-      await saveUserToExcel(user);
-    } else {
-      // Update location dynamically if passed during login
-      if (address) {
-        user.address = { ...user.address, ...address };
-        await user.save();
+    }
+
+    const otpResult = otpStorage.verifyStoredOTP(validatedPhone, otp, true);
+    if (!otpResult.valid) {
+      return res.status(401).json({ message: otpResult.message });
+    }
+
+    let user = await firebaseStorage.findUserByPhone(validatedPhone);
+
+    // New user — needs signup details
+    if (!user) {
+      const userFirstName = firstName || (name ? name.split(' ')[0] : '');
+      const userLastName = lastName || (name ? name.split(' ').slice(1).join(' ') : '');
+
+      if (!userFirstName) {
+        return res.status(400).json({
+          message: 'First name is required for new users',
+          needsSignupDetails: true
+        });
+      }
+
+      const newUser = {
+        phone: cleanPhone,
+        firstName: userFirstName,
+        lastName: userLastName,
+        name: name || `${userFirstName} ${userLastName}`,
+        isVerified: true,
+        role: 'customer',
+        address: address || {},
+        profileComplete: true
+      };
+
+      if (password) {
+        const salt = await bcrypt.genSalt(10);
+        newUser.password = await bcrypt.hash(password, salt);
+        newUser.hasPassword = true;
+      }
+
+      user = await firebaseStorage.createUser(newUser);
+      const token = generateToken(user);
+      publishEvent('customers.changed', { type: 'registered', userId: user.id });
+
+      return res.status(201).json({
+        message: 'Welcome to Niraa! Your account has been created.',
+        user: sanitizeUser(user),
+        token,
+        isNewUser: true
+      });
+    }
+
+    // Existing user — verify password if provided
+    if (loginPassword && user.hasPassword) {
+      const isPasswordValid = await bcrypt.compare(loginPassword, user.password || '');
+      if (!isPasswordValid) {
+        return res.status(401).json({ message: 'Incorrect password' });
       }
     }
 
-    res.json({
-      _id:   user._id,
-      name:  user.name,
-      phone: user.phone,
-      role:  user.role,
-      address: user.address,
-      token: generateToken(user._id),
-      isNewUser
+    await firebaseStorage.updateUser(user.id, { isVerified: true });
+
+    if (password && !user.hasPassword) {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      await firebaseStorage.updateUser(user.id, { password: hashedPassword, hasPassword: true });
+    }
+
+    if (name || address) {
+      const updateData = {};
+      if (name) {
+        const nameParts = name.split(' ');
+        updateData.firstName = nameParts[0];
+        updateData.lastName = nameParts.slice(1).join(' ');
+        updateData.name = name;
+      }
+      if (address) {
+        updateData.address = { ...user.address, ...address };
+      }
+      await firebaseStorage.updateUser(user.id, updateData);
+    }
+
+    const token = generateToken(user);
+    res.status(200).json({
+      message: 'Welcome back!',
+      user: sanitizeUser(user),
+      token,
+      isNewUser: false
     });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  } catch (error) {
+    console.error('Verify OTP Error:', error);
+    res.status(500).json({ message: 'OTP verification failed', error: error.message });
   }
 };
 
-
-// Old generic register & login kept for admin or legacy (can be removed if strictly phone only)
+// @desc    Register a new user
+// @route   POST /api/auth/register
+// @access  Public
 const register = async (req, res) => {
   try {
-    const { name, email, password, phone } = req.body;
-    const exists = await User.findOne({ email });
-    if (exists) return res.status(400).json({ message: 'Email already registered' });
+    const { firstName, lastName, phone, email, password, address } = req.body;
 
-    const user = await User.create({ name, email, password, phone });
-    await saveUserToExcel(user);
-    
-    res.status(201).json({ _id: user._id, name: user.name, email: user.email, role: user.role, token: generateToken(user._id) });
-  } catch (err) { res.status(500).json({ message: err.message }); }
+    if (!firstName || !phone) {
+      return res.status(400).json({ message: 'First name and phone are required' });
+    }
+
+    const existingUser = await firebaseStorage.findUserByPhone(phone);
+    if (existingUser) {
+      return res.status(400).json({ message: 'User with this phone already exists' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const user = await firebaseStorage.createUser({
+      firstName,
+      lastName: lastName || '',
+      phone,
+      email: email || '',
+      password: hashedPassword,
+      hasPassword: true,
+      isVerified: true,
+      role: 'customer',
+      address: address || {},
+      name: `${firstName} ${lastName || ''}`.trim(),
+      profileComplete: true
+    });
+
+    const token = generateToken(user);
+    publishEvent('customers.changed', { type: 'registered', userId: user.id });
+
+    res.status(201).json({
+      message: 'Registration successful!',
+      user: sanitizeUser(user),
+      token
+    });
+  } catch (error) {
+    console.error('Register Error:', error);
+    res.status(500).json({ message: 'Registration failed', error: error.message });
+  }
 };
 
+// @desc    Login user with phone/email and password
+// @route   POST /api/auth/login
+// @access  Public
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
-    if (!user || !(await user.matchPassword(password))) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+    const { phone, email, password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ message: 'Password is required' });
     }
-    res.json({ _id: user._id, name: user.name, email: user.email, phone: user.phone, role: user.role, address: user.address, token: generateToken(user._id) });
-  } catch (err) { res.status(500).json({ message: err.message }); }
+
+    let user = await firebaseStorage.findUserByPhone(phone);
+    if (!user && email) {
+      const allUsers = await firebaseStorage.getAllUsers();
+      user = allUsers.find(u => u.email === email) || null;
+    }
+
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password || '');
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    const token = generateToken(user);
+    res.status(200).json({
+      message: 'Login successful!',
+      user: sanitizeUser(user),
+      token
+    });
+  } catch (error) {
+    console.error('Login Error:', error);
+    res.status(500).json({ message: 'Login failed', error: error.message });
+  }
 };
 
+// @desc    Get user profile
+// @route   GET /api/auth/profile
+// @access  Private
 const getProfile = async (req, res) => {
-  const user = await User.findById(req.user._id).select('-password');
-  if (!user) return res.status(404).json({ message: 'User not found' });
-  res.json(user);
+  try {
+    const user = await firebaseStorage.findUserById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.status(200).json({ user: sanitizeUser(user) });
+  } catch (error) {
+    console.error('Get Profile Error:', error);
+    res.status(500).json({ message: 'Failed to get profile', error: error.message });
+  }
 };
 
-module.exports = { sendOtp, verifyOtp, register, login, getProfile };
+// @desc    Update user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+const updateProfile = async (req, res) => {
+  try {
+    const { firstName, lastName, name, email, address } = req.body;
+
+    const updateData = {};
+    if (firstName !== undefined) updateData.firstName = firstName;
+    if (lastName !== undefined) updateData.lastName = lastName;
+    if (name !== undefined) updateData.name = name;
+    if (email !== undefined) updateData.email = email;
+    if (address !== undefined) updateData.address = address;
+
+    const user = await firebaseStorage.updateUser(req.user.id, updateData);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    publishEvent('customers.changed', { type: 'profile_updated', userId: user.id });
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      user: sanitizeUser(user)
+    });
+  } catch (error) {
+    console.error('Update Profile Error:', error);
+    res.status(500).json({ message: 'Failed to update profile', error: error.message });
+  }
+};
+
+// @desc    Change password
+// @route   PUT /api/auth/change-password
+// @access  Private
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current and new password are required' });
+    }
+
+    const user = await firebaseStorage.findUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password || '');
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    await firebaseStorage.updateUser(req.user.id, { password: hashedPassword, hasPassword: true });
+
+    res.status(200).json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change Password Error:', error);
+    res.status(500).json({ message: 'Failed to change password', error: error.message });
+  }
+};
+
+// @desc    Set password (for newly registered users)
+// @route   POST /api/auth/set-password
+// @access  Private
+const setPassword = async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const user = await firebaseStorage.findUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    await firebaseStorage.updateUser(req.user.id, { password: hashedPassword, hasPassword: true });
+
+    res.status(200).json({ message: 'Password set successfully' });
+  } catch (error) {
+    console.error('Set Password Error:', error);
+    res.status(500).json({ message: 'Failed to set password', error: error.message });
+  }
+};
+
+// @desc    Admin login with PIN
+// @route   POST /api/auth/admin-login
+// @access  Public
+const adminLogin = async (req, res) => {
+  try {
+    const { pin } = req.body;
+
+    if (pin !== '1234') {
+      return res.status(401).json({ message: 'Invalid admin PIN' });
+    }
+
+    const adminUser = {
+      id: 'admin_12345',
+      name: 'System Admin',
+      role: 'admin',
+      email: 'admin@niraa.com'
+    };
+
+    const token = generateToken(adminUser);
+
+    res.status(200).json({
+      message: 'Admin login successful!',
+      user: adminUser,
+      token
+    });
+  } catch (error) {
+    console.error('Admin Login Error:', error);
+    res.status(500).json({ message: 'Admin login failed', error: error.message });
+  }
+};
+
+module.exports = {
+  sendOtp,
+  verifyOtp,
+  register,
+  login,
+  getProfile,
+  updateProfile,
+  changePassword,
+  setPassword,
+  checkPhone,
+  adminLogin
+};

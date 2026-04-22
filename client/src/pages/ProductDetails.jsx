@@ -182,7 +182,7 @@ const ProductDetails = () => {
             {product.rating > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
                 <div style={{ display: 'flex', gap: 2 }}>
-                  {[1,2,3,4,5].map(s => (
+                  {[1, 2, 3, 4, 5].map(s => (
                     <FiStar key={s} size={14} fill={s <= Math.round(product.rating) ? 'var(--gold)' : 'none'} color="var(--gold)" />
                   ))}
                 </div>

@@ -10,10 +10,13 @@ import Checkout      from '../pages/Checkout.jsx';
 import About         from '../pages/About.jsx';
 import Contact       from '../pages/Contact.jsx';
 import Loyalty       from '../pages/Loyalty.jsx';
+import Login         from '../pages/Login.jsx';
 import { AdminRoutes } from '../pages/admin/AdminPages.jsx';
 import ProtectedRoute from './Protectedroute.jsx';
 import ScrollToTop    from '../components/ScrollToTop.jsx';
 import FloatingWhatsApp from '../components/FloatingWhatsApp.jsx';
+import Profile        from '../pages/Profile.jsx';
+import ProfileOrders  from '../pages/ProfileOrders.jsx';
 
 export default function AppRoutes() {
   return (
@@ -30,6 +33,11 @@ export default function AppRoutes() {
         <Route path="/contact" element={<><Navbar /><Contact /><Footer /></>} />
 
         <Route path="/loyalty" element={<><Navbar /><Loyalty /><Footer /></>} />
+        <Route path="/login" element={<Login />} />
+
+        {/* Protected User Routes */}
+        <Route path="/profile" element={<ProtectedRoute><><Navbar /><Profile /><Footer /></></ProtectedRoute>} />
+        <Route path="/profile/orders" element={<ProtectedRoute><><Navbar /><ProfileOrders /><Footer /></></ProtectedRoute>} />
 
         {/* Admin routes */}
         <Route path="/admin/*" element={<AdminRoutes />} />

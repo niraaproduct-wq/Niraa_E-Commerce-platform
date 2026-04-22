@@ -22,7 +22,7 @@ export default function Footer() {
             </div>
             <div>
               <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 700, letterSpacing: '0.06em', color: '#fff' }}>NIRAA</div>
-              <div style={{ fontSize: '0.75rem', color: '#a8d5d0', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: -2 }}>Fresh home care essentials</div>
+              <div style={{ fontSize: '0.75rem', color: '#a8d5d0', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: -2 }}>Wellness & essentials</div>
             </div>
           </div>
           <div style={{ marginBottom: 14 }} />

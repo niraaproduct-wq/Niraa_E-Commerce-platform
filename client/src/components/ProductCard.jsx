@@ -99,7 +99,7 @@ export default function ProductCard({ product, compact = false }) {
           {/* Rating */}
           {product.rating > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 10 }}>
-              {[1,2,3,4,5].map(s => (
+              {[1, 2, 3, 4, 5].map(s => (
                 <FiStar key={s} size={11}
                   fill={s <= Math.round(product.rating) ? '#f59e0b' : 'none'}
                   color={s <= Math.round(product.rating) ? '#f59e0b' : '#d1d5db'}

@@ -1,51 +1,71 @@
-const Product = require('../models/Product');
-const mockProducts = require('../utils/mockProducts');
+const { getFirebase } = require('../config/firebase');
+
+const PRODUCTS_COLLECTION = 'products';
+
+// Helper to normalize Firestore doc
+const toPlainProduct = (doc) => {
+  if (!doc.exists) return null;
+  return { id: doc.id, _id: doc.id, ...doc.data() };
+};
 
 // @desc    Get all products
 // @route   GET /api/products
 // @access  Public
 const getProducts = async (req, res) => {
   try {
-    // FORCE MOCK DATA FOR DEMO PURPOSES
-    const demoMode = true; 
-    if (demoMode || process.env.DB_CONNECTED === 'false') {
-      const page = Number(req.query.page) || 1;
-      const limit = Number(req.query.limit) || mockProducts.length;
-      const start = (page - 1) * limit;
-      // Inject fake _id for react keys
-      const paged = mockProducts.slice(start, start + limit).map((p, idx) => ({ ...p, _id: p.slug || String(idx) }));
-      return res.json({ products: paged, total: mockProducts.length, page, pages: Math.ceil(mockProducts.length / limit) });
-    }
     const { category, featured, search, page = 1, limit = 20 } = req.query;
-    const query = { isActive: true };
+    const { db } = getFirebase();
+    
+    let query = db.collection(PRODUCTS_COLLECTION).where('isActive', '==', true);
+    
+    if (category) {
+      query = query.where('category', '==', category);
+    }
+    if (featured) {
+      query = query.where('isFeatured', '==', true);
+    }
+    
+    // Firestore does not do nice regex searching natively, so we fetch then filter in memory for search
+    // In production with larger datasets, use Algolia/Elasticsearch or specifically crafted tokens.
+    const snapshot = await query.get();
+    let products = snapshot.docs.map(toPlainProduct);
+    
+    if (search) {
+      const searchLower = search.toLowerCase();
+      products = products.filter(p => p.name && p.name.toLowerCase().includes(searchLower));
+    }
+    
+    // Sort and paginate in memory since we already fetched
+    products.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    
+    const total = products.length;
+    const skip = (Number(page) - 1) * Number(limit);
+    const paginatedProducts = products.slice(skip, skip + Number(limit));
 
-    if (category)  query.category  = category;
-    if (featured)  query.isFeatured = true;
-    if (search)    query.name = { $regex: search, $options: 'i' };
-
-    const skip  = (page - 1) * limit;
-    const total = await Product.countDocuments(query);
-    const products = await Product.find(query).skip(skip).limit(Number(limit)).sort({ createdAt: -1 });
-
-    res.json({ products, total, page: Number(page), pages: Math.ceil(total / limit) });
+    res.json({ 
+      products: paginatedProducts, 
+      total, 
+      page: Number(page), 
+      pages: Math.ceil(total / Number(limit)) 
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
 
-// @desc    Get single product by slug
-// @route   GET /api/products/:slug
+// @desc    Get single product by id
+// @route   GET /api/products/:id
 // @access  Public
 const getProduct = async (req, res) => {
   try {
-    const demoMode = true;
-    if (demoMode || process.env.DB_CONNECTED === 'false') {
-      const p = mockProducts.find((m) => m.slug === req.params.slug);
-      if (!p) return res.status(404).json({ message: 'Product not found' });
-      return res.json({ ...p, _id: p.slug });
+    const { db } = getFirebase();
+    const doc = await db.collection(PRODUCTS_COLLECTION).doc(req.params.id).get();
+    const product = toPlainProduct(doc);
+    
+    if (!product || !product.isActive) {
+      return res.status(404).json({ message: 'Product not found' });
     }
-    const product = await Product.findOne({ slug: req.params.slug, isActive: true });
-    if (!product) return res.status(404).json({ message: 'Product not found' });
+    
     res.json(product);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -57,8 +77,26 @@ const getProduct = async (req, res) => {
 // @access  Admin
 const createProduct = async (req, res) => {
   try {
-    const product = await Product.create(req.body);
-    res.status(201).json(product);
+    const { db } = getFirebase();
+    
+    const productData = { ...req.body };
+    productData.isActive = true;
+    productData.createdAt = new Date().toISOString();
+    
+    // Cloudinary injected this via multer-storage-cloudinary
+    if (req.file && req.file.path) {
+      productData.image = req.file.path;
+    } else if (req.body.image) {
+      productData.image = req.body.image; // fallback for string urls
+    }
+
+    // Convert string numbers to real numbers
+    if (productData.price) productData.price = Number(productData.price);
+    if (productData.countInStock) productData.countInStock = Number(productData.countInStock);
+    
+    const docRef = await db.collection(PRODUCTS_COLLECTION).add(productData);
+    
+    res.status(201).json({ id: docRef.id, ...productData });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -69,9 +107,29 @@ const createProduct = async (req, res) => {
 // @access  Admin
 const updateProduct = async (req, res) => {
   try {
-    const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-    if (!product) return res.status(404).json({ message: 'Product not found' });
-    res.json(product);
+    const { db } = getFirebase();
+    const docRef = db.collection(PRODUCTS_COLLECTION).doc(req.params.id);
+    
+    const existing = await docRef.get();
+    if (!existing.exists) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    
+    const updateData = { ...req.body };
+    updateData.updatedAt = new Date().toISOString();
+    
+    // If a new file was uploaded, update the image field
+    if (req.file && req.file.path) {
+      updateData.image = req.file.path;
+    }
+
+    if (updateData.price) updateData.price = Number(updateData.price);
+    if (updateData.countInStock) updateData.countInStock = Number(updateData.countInStock);
+    
+    await docRef.update(updateData);
+    
+    const updated = await docRef.get();
+    res.json(toPlainProduct(updated));
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -82,7 +140,10 @@ const updateProduct = async (req, res) => {
 // @access  Admin
 const deleteProduct = async (req, res) => {
   try {
-    await Product.findByIdAndUpdate(req.params.id, { isActive: false });
+    const { db } = getFirebase();
+    const docRef = db.collection(PRODUCTS_COLLECTION).doc(req.params.id);
+    await docRef.update({ isActive: false, updatedAt: new Date().toISOString() });
+    
     res.json({ message: 'Product removed' });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -94,13 +155,29 @@ const deleteProduct = async (req, res) => {
 // @access  Public
 const addReview = async (req, res) => {
   try {
+    const { db, admin } = getFirebase();
     const { name, rating, comment } = req.body;
-    const product = await Product.findById(req.params.id);
-    if (!product) return res.status(404).json({ message: 'Product not found' });
-
-    product.reviews.push({ name, rating: Number(rating), comment });
-    await product.save();
-    res.status(201).json({ message: 'Review added', rating: product.rating, numReviews: product.numReviews });
+    
+    const docRef = db.collection(PRODUCTS_COLLECTION).doc(req.params.id);
+    const existing = await docRef.get();
+    
+    if (!existing.exists) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    
+    const review = {
+      name,
+      rating: Number(rating),
+      comment,
+      createdAt: new Date().toISOString()
+    };
+    
+    // Use Firestore arrayUnion
+    await docRef.update({
+      reviews: admin.firestore.FieldValue.arrayUnion(review)
+    });
+    
+    res.status(201).json({ message: 'Review added' });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }

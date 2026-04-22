@@ -21,6 +21,22 @@ const adminOnly = (req, res, next) => {
   res.status(403).json({ message: 'Admin access required' });
 };
 
+// Legacy middleware name for backward compatibility
+const requireAuth = (req, res, next) => {
+  const token = req.header('Authorization')?.replace('Bearer ', '');
+  
+  if (!token) {
+    return res.status(401).json({ message: 'No token, authorization denied' });
+  }
 
-module.exports = { protect, adminOnly };
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    res.status(401).json({ message: 'Token is not valid' });
+  }
+};
+
+module.exports = { protect, adminOnly, requireAuth };
 
