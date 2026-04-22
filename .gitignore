@@ -49,6 +49,7 @@ lib-cov/
 # Firebase / Keys
 *.json
 !package.json
+!vercel.json
 niraa-4144f-firebase-adminsdk-*.json
 firebase*.json
 
