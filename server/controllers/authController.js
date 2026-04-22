@@ -119,6 +119,8 @@ const verifyOtp = async (req, res) => {
     }
 
     const otpResult = otpStorage.verifyStoredOTP(validatedPhone, otp, true);
+    console.log(`Verifying OTP for ${validatedPhone}: Entered=${otp}, Result=${otpResult.valid}, Message=${otpResult.message}`);
+    
     if (!otpResult.valid) {
       return res.status(401).json({ message: otpResult.message });
     }
