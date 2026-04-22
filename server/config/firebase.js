@@ -5,9 +5,14 @@ const initFirebase = () => {
   try {
     // Check if already initialized
     if (admin.apps.length === 0) {
-      // Use service account file directly
-      const serviceAccount = require('../../niraa-4144f-firebase-adminsdk-fbsvc-5bf04678ac.json');
+      // Load service account from environment variable (production safe)
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
       
+      // Fix newline characters in private key
+      if (serviceAccount.private_key) {
+        serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+      }
+
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         storageBucket: process.env.FIREBASE_STORAGE_BUCKET
