@@ -5,7 +5,12 @@ const initFirebase = () => {
   try {
     // Check if already initialized
     if (admin.apps.length === 0) {
-      // Load service account from environment variable (production safe)
+      console.log("Firebase ENV:", process.env.FIREBASE_SERVICE_ACCOUNT ? "Detected" : "Missing");
+      
+      if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+        throw new Error("FIREBASE_SERVICE_ACCOUNT environment variable is missing!");
+      }
+
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
       
       // Fix newline characters in private key
