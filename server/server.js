@@ -25,8 +25,8 @@ app.use(cors({
   origin: [
     'http://localhost:5173',
     'http://localhost:5174',
-    'https://niraa-e-commerce-platform-mocha.vercel.app',
-    'https://niraaadmin.vercel.app'
+    'https://niraa-customer.vercel.app',
+    'https://niraa-admin.vercel.app'
   ],
   credentials: true,
 }));

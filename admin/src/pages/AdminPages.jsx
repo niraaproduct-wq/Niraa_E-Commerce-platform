@@ -18,7 +18,7 @@ const AdminLayout = ({ children }) => {
           <Link to="/orders" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Orders</Link>
           <Link to="/customers" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Customers</Link>
           <Link to="/marketing" style={{ color: '#fff', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, fontWeight: 600 }}>Marketing</Link>
-          <a href="https://niraa-e-commerce-platform-mocha.vercel.app" style={{ color: '#a3d4ce', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, marginTop: 40, fontSize: '0.9rem' }}>← Back to Website</a>
+          <a href="https://niraa-customer.vercel.app" style={{ color: '#a3d4ce', textDecoration: 'none', padding: '10px 14px', borderRadius: 8, marginTop: 40, fontSize: '0.9rem' }}>← Back to Website</a>
         </nav>
       </aside>
       <main style={{ flex: 1, padding: 30 }}>
