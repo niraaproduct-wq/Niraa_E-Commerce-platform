@@ -149,7 +149,7 @@ const AdminToolbar = () => {
            <button
              onClick={() => {
                // Navigate to admin builder / add section
-               window.location.href = '/admin/builder';
+               window.location.href = '/builder';
              }}
              style={{
                background: 'rgba(255,255,255,0.2)',
