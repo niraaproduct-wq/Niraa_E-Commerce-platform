@@ -208,7 +208,7 @@ const AdminDashboard = () => {
             <tbody>
               {recentOrders.length > 0 ? recentOrders.slice(0, 5).map((order, i) => (
                 <tr key={order._id} style={{ borderBottom: '1px solid var(--gray-100)', transition: 'background 0.2s' }}>
-                  <td style={{ padding: '16px 24px', fontWeight: 700, color: 'var(--gray-800)' }}>#{order._id.slice(-6).toUpperCase()}</td>
+                  <td style={{ padding: '16px 24px', fontWeight: 700, color: 'var(--gray-800)' }}>#{String(order._id || order.id || '').slice(-6).toUpperCase()}</td>
                   <td style={{ padding: '16px 24px', color: 'var(--gray-700)' }}>{order.customer?.name || order.customerName || 'Guest'}</td>
                   <td style={{ padding: '16px 24px', fontWeight: 700, color: 'var(--teal-dark)' }}>₹{order.total}</td>
                   <td style={{ padding: '16px 24px' }}>

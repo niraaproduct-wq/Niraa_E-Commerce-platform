@@ -16,7 +16,7 @@ const getDashboardStats = async (req, res) => {
       db.collection('products').where('isActive', '==', true).get()
     ]);
 
-    const orders = ordersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const orders = ordersSnap.docs.map(d => ({ id: d.id, _id: d.id, ...d.data() }));
 
     const totalSales = orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
     const pendingOrders = orders.filter(o => ['placed', 'pending', 'confirmed'].includes(o.status)).length;
