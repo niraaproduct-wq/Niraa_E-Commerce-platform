@@ -27,6 +27,8 @@ const Login = () => {
   const [otp, setOtp] = useState('');
   const [loginPassword, setLoginPassword] = useState(''); // for existing user step 3
   const [devOtp, setDevOtp] = useState('');
+  const [loginMethod, setLoginMethod] = useState('otp'); // 'otp' or 'password'
+  const [tempUser, setTempUser] = useState(null); // for new users before password set
   
   // Profile fields (for new users)
   const [firstName, setFirstName] = useState('');
@@ -170,18 +172,15 @@ const Login = () => {
     }
   };
 
-  // Step 3: Verify OTP (and Login Password for existing users)
+  // Step 3: Verify OTP
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     if (otp.length < 4) return toast.error('Please enter a valid OTP');
-    if (isExistingUser && !loginPassword.trim()) return toast.error('Please enter your password');
 
     setLoading(true);
     try {
       const payload = { phone, otp };
-      if (isExistingUser) {
-        payload.loginPassword = loginPassword;
-      } else {
+      if (!isExistingUser) {
         payload.firstName = firstName;
         payload.lastName = lastName;
         payload.address = address;
@@ -196,17 +195,43 @@ const Login = () => {
       
       if (!res.ok) throw new Error(data.message || 'Verification failed');
       
-      login(data.user);
-      localStorage.setItem('niraa_token', data.token);
-      
       if (isExistingUser) {
+        login(data.user, data.token);
         toast.success('Welcome back! 🌿');
         navigate('/');
       } else {
+        // Delay global login for new users until password is set
+        localStorage.setItem('niraa_token', data.token);
+        setTempUser(data.user);
         setStep(4);
       }
     } catch (err) {
       toast.error(err.message || 'Verification failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // New: Handle Password-only Login for Existing Users
+  const handlePasswordLogin = async (e) => {
+    e.preventDefault();
+    if (!loginPassword.trim()) return toast.error('Please enter your password');
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, password: loginPassword })
+      });
+      const data = await res.json();
+      
+      if (!res.ok) throw new Error(data.message || 'Login failed');
+      
+      login(data.user, data.token);
+      toast.success('Welcome back! 🌿');
+      navigate('/');
+    } catch (err) {
+      toast.error(err.message || 'Incorrect password or login failed');
     } finally {
       setLoading(false);
     }
@@ -227,6 +252,9 @@ const Login = () => {
         body: JSON.stringify({ newPassword: password })
       });
       if (!res.ok) throw new Error('Failed to save password');
+      
+      // Finalize login for new user
+      login(tempUser, token);
       toast.success('Account created successfully! 🎉');
       navigate('/');
     } catch (err) {
@@ -432,33 +460,53 @@ const Login = () => {
           </form>
         )}
 
-        {/* Step 3: OTP Verification (+ Password for Existing Users) */}
+        {/* Step 3: OTP Verification / Password Login */}
         {step === 3 && (
-          <form onSubmit={handleVerifyOtp} style={styles.form}>
+          <form onSubmit={isExistingUser && loginMethod === 'password' ? handlePasswordLogin : handleVerifyOtp} style={styles.form}>
             <div style={styles.otpInfo}>
               <p style={styles.otpText}>
-                OTP sent to <strong>{phone}</strong>
+                {isExistingUser && loginMethod === 'password' ? 'Login with password for ' : 'OTP sent to '}
+                <strong>{phone}</strong>
               </p>
               <button type="button" onClick={handleChangePhone} style={styles.changePhoneBtn}>
                 Change
               </button>
             </div>
 
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Enter OTP</label>
-              <input
-                type="text"
-                className="field"
-                placeholder="Enter 4-digit OTP"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                style={styles.input}
-                required
-              />
-              {devOtp && <p style={styles.devOtp}>Dev OTP: {devOtp}</p>}
-            </div>
-
             {isExistingUser && (
+              <div style={styles.loginMethodToggle}>
+                <button 
+                  type="button" 
+                  onClick={() => setLoginMethod('otp')}
+                  style={loginMethod === 'otp' ? styles.activeMethodBtn : styles.methodBtn}
+                >
+                  Use OTP
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setLoginMethod('password')}
+                  style={loginMethod === 'password' ? styles.activeMethodBtn : styles.methodBtn}
+                >
+                  Use Password
+                </button>
+              </div>
+            )}
+
+            {(!isExistingUser || loginMethod === 'otp') ? (
+              <div style={styles.inputGroup}>
+                <label style={styles.label}>Enter OTP</label>
+                <input
+                  type="text"
+                  className="field"
+                  placeholder="Enter 4-digit OTP"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  style={styles.input}
+                  required
+                />
+                {devOtp && <p style={styles.devOtp}>Dev OTP: {devOtp}</p>}
+              </div>
+            ) : (
               <div style={styles.inputGroup}>
                 <label style={styles.label}>Password</label>
                 <div style={styles.inputWrapper}>
@@ -476,16 +524,18 @@ const Login = () => {
               </div>
             )}
 
-            <button type="submit" className="btn btn--primary" disabled={loading || otp.length < 4} style={styles.button}>
-              {loading ? 'Verifying...' : 'Verify & Continue'}
+            <button type="submit" className="btn btn--primary" disabled={loading || (loginMethod === 'otp' && otp.length < 4)} style={styles.button}>
+              {loading ? 'Verifying...' : 'Login'}
             </button>
 
-            <div style={styles.resendSection}>
-              <span style={styles.resendText}>Didn't receive OTP? </span>
-              <button type="button" onClick={handleResendOtp} style={styles.resendBtn} disabled={loading}>
-                Resend
-              </button>
-            </div>
+            {(!isExistingUser || loginMethod === 'otp') && (
+              <div style={styles.resendSection}>
+                <span style={styles.resendText}>Didn't receive OTP? </span>
+                <button type="button" onClick={handleResendOtp} style={styles.resendBtn} disabled={loading}>
+                  Resend
+                </button>
+              </div>
+            )}
           </form>
         )}
 
@@ -659,6 +709,37 @@ const styles = {
     fontSize: '0.875rem',
     fontWeight: '600',
     cursor: 'pointer'
+  },
+  loginMethodToggle: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '8px',
+    background: '#f1f5f9',
+    padding: '4px',
+    borderRadius: '10px',
+    marginBottom: '8px'
+  },
+  methodBtn: {
+    padding: '8px',
+    fontSize: '0.85rem',
+    fontWeight: '600',
+    borderRadius: '8px',
+    border: 'none',
+    background: 'transparent',
+    color: 'var(--gray-600)',
+    cursor: 'pointer',
+    transition: 'all 0.2s'
+  },
+  activeMethodBtn: {
+    padding: '8px',
+    fontSize: '0.85rem',
+    fontWeight: '600',
+    borderRadius: '8px',
+    border: 'none',
+    background: '#fff',
+    color: 'var(--teal-dark)',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+    cursor: 'default'
   },
   devOtp: {
     margin: '4px 0 0',

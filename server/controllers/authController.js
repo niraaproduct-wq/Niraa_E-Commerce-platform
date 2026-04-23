@@ -40,11 +40,14 @@ const checkPhone = async (req, res) => {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ message: 'Phone is required' });
 
-    const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+    const cleanPhone = phone.replace(/[\\s\\-\\(\\)]/g, '');
     const validatedPhone = smsService.validatePhone(cleanPhone) || cleanPhone;
 
     const user = await firebaseStorage.findUserByPhone(validatedPhone);
-    return res.status(200).json({ exists: !!user });
+    return res.status(200).json({ 
+      exists: !!user,
+      hasPassword: !!(user && user.hasPassword)
+    });
   } catch (error) {
     console.error('Check Phone Error:', error);
     res.status(500).json({ message: 'Error checking phone', error: error.message });
@@ -103,7 +106,7 @@ const sendOtp = async (req, res) => {
 // @access  Public
 const verifyOtp = async (req, res) => {
   try {
-    const { phone, otp, name, firstName, lastName, address, password, loginPassword } = req.body;
+    const { phone, otp, name, firstName, lastName, address, password, loginPassword, email } = req.body;
 
     if (!phone || !otp) {
       return res.status(400).json({ message: 'Phone number and OTP are required' });
@@ -120,7 +123,7 @@ const verifyOtp = async (req, res) => {
 
     const otpResult = otpStorage.verifyStoredOTP(validatedPhone, otp, true);
     console.log(`Verifying OTP for ${validatedPhone}: Entered=${otp}, Result=${otpResult.valid}, Message=${otpResult.message}`);
-    
+
     if (!otpResult.valid) {
       return res.status(401).json({ message: otpResult.message });
     }
@@ -144,6 +147,7 @@ const verifyOtp = async (req, res) => {
         firstName: userFirstName,
         lastName: userLastName,
         name: name || `${userFirstName} ${userLastName}`,
+        email: email || '',
         isVerified: true,
         role: 'customer',
         address: address || {},
