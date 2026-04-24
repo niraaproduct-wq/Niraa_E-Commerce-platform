@@ -58,6 +58,10 @@ const checkPhone = async (req, res) => {
 // @route   POST /api/auth/send-otp
 // @access  Public
 const sendOtp = async (req, res) => {
+  if (process.env.OTP_LEGACY_DISABLED === 'true') {
+    return res.status(403).json({ message: 'Deprecated endpoint' });
+  }
+
   try {
     const { phone } = req.body;
 
@@ -105,6 +109,10 @@ const sendOtp = async (req, res) => {
 // @route   POST /api/auth/verify-otp
 // @access  Public
 const verifyOtp = async (req, res) => {
+  if (process.env.OTP_LEGACY_DISABLED === 'true') {
+    return res.status(403).json({ message: 'Deprecated endpoint' });
+  }
+
   try {
     const { phone, otp, name, firstName, lastName, address, password, loginPassword, email } = req.body;
 
@@ -408,6 +416,46 @@ const setPassword = async (req, res) => {
   }
 };
 
+// @desc    Reset password with OTP verification (high-security flow)
+// @route   PUT /api/auth/reset-password-with-otp
+// @access  Private
+const resetPasswordWithOtp = async (req, res) => {
+  try {
+    const { otp, newPassword } = req.body;
+
+    if (!otp || !newPassword) {
+      return res.status(400).json({ message: 'OTP and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const user = await firebaseStorage.findUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Validate OTP against the user's registered phone
+    const cleanPhone = user.phone.replace(/[\s\-\(\)]/g, '');
+    const validatedPhone = smsService.validatePhone(cleanPhone) || cleanPhone;
+    const otpResult = otpStorage.verifyStoredOTP(validatedPhone, otp, true);
+
+    if (!otpResult.valid) {
+      return res.status(401).json({ message: otpResult.message || 'Invalid or expired OTP' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+    await firebaseStorage.updateUser(req.user.id, { password: hashedPassword, hasPassword: true });
+
+    res.status(200).json({ message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Reset Password With OTP Error:', error);
+    res.status(500).json({ message: 'Failed to update password', error: error.message });
+  }
+};
+
 // @desc    Admin login with PIN
 // @route   POST /api/auth/admin-login
 // @access  Public
@@ -439,6 +487,117 @@ const adminLogin = async (req, res) => {
   }
 };
 
+// @desc    Verify Firebase ID Token and login/signup user
+// @route   POST /api/auth/verify-firebase
+// @access  Public
+const verifyFirebase = async (req, res) => {
+  try {
+    const { idToken, name, firstName, lastName, address, password, email } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({ message: 'Firebase ID Token is required' });
+    }
+
+    // Verify token using firebase-admin
+    const { getFirebase } = require('../config/firebase');
+    const { auth } = getFirebase();
+    
+    let decodedToken;
+    try {
+      decodedToken = await auth.verifyIdToken(idToken);
+    } catch (err) {
+      console.error('Firebase token verification failed:', err.message);
+      return res.status(401).json({ message: 'Invalid or expired Firebase token' });
+    }
+
+    const phone = decodedToken.phone_number;
+    if (!phone) {
+      return res.status(400).json({ message: 'Phone number not found in token' });
+    }
+
+    const cleanPhone = phone.replace(/[\s\-\(\)\+]/g, '').slice(-10); // get last 10 digits
+    const validatedPhone = smsService.validatePhone(cleanPhone) || cleanPhone;
+
+    let user = await firebaseStorage.findUserByPhone(validatedPhone);
+
+    // New user — needs signup details
+    if (!user) {
+      const userFirstName = firstName || (name ? name.split(' ')[0] : '');
+      const userLastName = lastName || (name ? name.split(' ').slice(1).join(' ') : '');
+
+      if (!userFirstName) {
+        return res.status(400).json({
+          message: 'First name is required for new users',
+          needsSignupDetails: true
+        });
+      }
+
+      const newUser = {
+        phone: cleanPhone,
+        firstName: userFirstName,
+        lastName: userLastName,
+        name: name || `${userFirstName} ${userLastName}`.trim(),
+        email: email || '',
+        isVerified: true,
+        role: 'customer',
+        address: address || {},
+        profileComplete: true
+      };
+
+      if (password) {
+        const salt = await bcrypt.genSalt(10);
+        newUser.password = await bcrypt.hash(password, salt);
+        newUser.hasPassword = true;
+      }
+
+      user = await firebaseStorage.createUser(newUser);
+      const token = generateToken(user);
+      publishEvent('customers.changed', { type: 'registered', userId: user.id });
+
+      return res.status(201).json({
+        message: 'Welcome to Niraa! Your account has been created.',
+        user: sanitizeUser(user),
+        token,
+        isNewUser: true
+      });
+    }
+
+    // Existing user
+    await firebaseStorage.updateUser(user.id, { isVerified: true });
+
+    if (password && !user.hasPassword) {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      await firebaseStorage.updateUser(user.id, { password: hashedPassword, hasPassword: true });
+    }
+
+    if (name || address) {
+      const updateData = {};
+      if (name) {
+        const nameParts = name.split(' ');
+        updateData.firstName = nameParts[0];
+        updateData.lastName = nameParts.slice(1).join(' ');
+        updateData.name = name;
+      }
+      if (address) {
+        updateData.address = { ...user.address, ...address };
+      }
+      await firebaseStorage.updateUser(user.id, updateData);
+    }
+
+    const token = generateToken(user);
+    res.status(200).json({
+      message: 'Welcome back!',
+      user: sanitizeUser(user),
+      token,
+      isNewUser: false
+    });
+  } catch (error) {
+    console.error('Verify Firebase Error:', error);
+    res.status(500).json({ message: 'Firebase authentication failed', error: error.message });
+  }
+};
+
 module.exports = {
   sendOtp,
   verifyOtp,
@@ -449,5 +608,7 @@ module.exports = {
   changePassword,
   setPassword,
   checkPhone,
-  adminLogin
+  adminLogin,
+  resetPasswordWithOtp,
+  verifyFirebase
 };

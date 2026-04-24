@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FiEdit2, FiSave, FiX } from 'react-icons/fi';
+import { FiEdit2, FiSave, FiX, FiLock, FiShield, FiChevronRight } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext.jsx';
 import { API_BASE_URL } from '../utils/constants.js';
 import toast from 'react-hot-toast';
@@ -16,6 +16,16 @@ const Profile = () => {
     city: user?.address?.city || '',
     pincode: user?.address?.pincode || ''
   });
+
+  // Password Change State
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [passwordStep, setPasswordStep] = useState('initial'); // initial, otp, new-password
+  const [passwordForm, setPasswordForm] = useState({
+    otp: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [otpLoading, setOtpLoading] = useState(false);
 
   useEffect(() => {
     setFormData({
@@ -83,6 +93,69 @@ const Profile = () => {
     } catch (error) {
       console.error('Error saving profile:', error);
       toast.error('Server error. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSendOtp = async () => {
+    setOtpLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: user.phone })
+      });
+      
+      if (response.ok) {
+        toast.success('OTP sent to your registered phone');
+        setPasswordStep('otp');
+      } else {
+        const data = await response.json();
+        toast.error(data.message || 'Failed to send OTP');
+      }
+    } catch (error) {
+      toast.error('Error sending OTP');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      return toast.error('Passwords do not match');
+    }
+    if (passwordForm.newPassword.length < 6) {
+      return toast.error('Password must be at least 6 characters');
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('niraa_token');
+      const response = await fetch(`${API_BASE_URL}/auth/reset-password-with-otp`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          otp: passwordForm.otp,
+          newPassword: passwordForm.newPassword
+        })
+      });
+
+      if (response.ok) {
+        toast.success('Password updated successfully!');
+        setShowPasswordSection(false);
+        setPasswordStep('initial');
+        setPasswordForm({ otp: '', newPassword: '', confirmPassword: '' });
+      } else {
+        const data = await response.json();
+        toast.error(data.message || 'Failed to update password');
+      }
+    } catch (error) {
+      toast.error('Error updating password');
     } finally {
       setLoading(false);
     }
@@ -401,9 +474,216 @@ const Profile = () => {
                   opacity: loading ? 0.6 : 1
                 }}
               >
-                {loading ? 'Saving Profile...' : 'Save Changes'}
+                {loading ? 'Saving...' : 'Save Changes'}
               </button>
             </form>
+          )}
+        </div>
+
+        {/* Change Password Section */}
+        <div style={{
+          marginTop: 24,
+          background: '#fff',
+          borderRadius: 20,
+          boxShadow: 'var(--shadow-sm)',
+          padding: 24,
+          border: '1px solid var(--gray-100)'
+        }}>
+          {!showPasswordSection ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 12,
+                  background: 'var(--gray-50)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--gray-600)'
+                }}>
+                  <FiLock size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--gray-800)' }}>Security</h3>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', margin: 0 }}>Update your account password</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowPasswordSection(true)}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--gray-200)',
+                  padding: '8px 16px',
+                  borderRadius: 10,
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  color: 'var(--gray-700)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--teal)';
+                  e.currentTarget.style.color = 'var(--teal)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--gray-200)';
+                  e.currentTarget.style.color = 'var(--gray-700)';
+                }}
+              >
+                Change Password
+                <FiChevronRight size={14} />
+              </button>
+            </div>
+          ) : (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--gray-800)' }}>
+                  Change Password
+                </h3>
+                <button 
+                  onClick={() => {
+                    setShowPasswordSection(false);
+                    setPasswordStep('initial');
+                  }}
+                  style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer' }}
+                >
+                  <FiX size={20} />
+                </button>
+              </div>
+
+              {passwordStep === 'initial' && (
+                <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                  <div style={{ 
+                    width: 60, height: 60, borderRadius: '50%', background: '#f0fdf4', 
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                    margin: '0 auto 16px', color: '#16a34a' 
+                  }}>
+                    <FiShield size={30} />
+                  </div>
+                  <p style={{ fontSize: '0.95rem', color: 'var(--gray-600)', marginBottom: 20 }}>
+                    For your security, we'll send a verification code to <b>{user.phone}</b> before you can change your password.
+                  </p>
+                  <button
+                    onClick={handleSendOtp}
+                    disabled={otpLoading}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      background: 'var(--teal)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      opacity: otpLoading ? 0.7 : 1
+                    }}
+                  >
+                    {otpLoading ? 'Sending OTP...' : 'Send Verification Code'}
+                  </button>
+                </div>
+              )}
+
+              {passwordStep === 'otp' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>Enter OTP</label>
+                    <input
+                      type="text"
+                      placeholder="6-digit code"
+                      value={passwordForm.otp}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, otp: e.target.value })}
+                      style={{
+                        padding: '14px 16px',
+                        border: '2px solid var(--gray-200)',
+                        borderRadius: 12,
+                        fontSize: '1rem',
+                        textAlign: 'center',
+                        letterSpacing: '4px'
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={() => setPasswordStep('new-password')}
+                    disabled={passwordForm.otp.length < 4}
+                    style={{
+                      padding: '14px',
+                      background: 'var(--teal)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      opacity: passwordForm.otp.length < 4 ? 0.6 : 1
+                    }}
+                  >
+                    Verify OTP
+                  </button>
+                  <button 
+                    onClick={handleSendOtp}
+                    style={{ background: 'none', border: 'none', color: 'var(--teal)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Resend Code
+                  </button>
+                </div>
+              )}
+
+              {passwordStep === 'new-password' && (
+                <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>New Password</label>
+                    <input
+                      type="password"
+                      placeholder="Minimum 6 characters"
+                      value={passwordForm.newPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                      style={{
+                        padding: '14px 16px',
+                        border: '2px solid var(--gray-200)',
+                        borderRadius: 12,
+                        fontSize: '0.95rem'
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <label style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>Confirm Password</label>
+                    <input
+                      type="password"
+                      placeholder="Repeat new password"
+                      value={passwordForm.confirmPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                      style={{
+                        padding: '14px 16px',
+                        border: '2px solid var(--gray-200)',
+                        borderRadius: 12,
+                        fontSize: '0.95rem'
+                      }}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    style={{
+                      marginTop: 8,
+                      padding: '14px',
+                      background: 'linear-gradient(135deg, var(--teal) 0%, var(--teal-dark) 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      opacity: loading ? 0.7 : 1
+                    }}
+                  >
+                    {loading ? 'Updating...' : 'Update Password'}
+                  </button>
+                </form>
+              )}
+            </div>
           )}
         </div>
       </div>

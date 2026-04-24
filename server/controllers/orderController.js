@@ -107,10 +107,44 @@ const getOrderStats = async (req, res) => {
   }
 };
 
+// @desc    Get orders for current user
+// @route   GET /api/orders/my
+// @access  Private
+const getMyOrders = async (req, res) => {
+  try {
+    const { db } = getFirebase();
+    
+    // We use the authenticated user's ID to look up their phone number
+    // Then we query orders by customerPhone since placeOrder saves customerPhone
+    const userSnapshot = await db.collection('users').doc(req.user.id).get();
+    
+    if (!userSnapshot.exists) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    const userData = userSnapshot.data();
+    
+    const snapshot = await db.collection(ORDERS_COLLECTION)
+      .where('customerPhone', '==', userData.phone)
+      .get();
+      
+    const orders = snapshot.docs.map(toPlainOrder);
+    
+    // Sort client-side if needed since Firestore requires composite index for where + orderBy
+    orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    
+    res.json(orders);
+  } catch (err) {
+    console.error('Get My Orders Error:', err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   placeOrder,
   getAllOrders,
   getOrder,
   updateOrderStatus,
   getOrderStats,
+  getMyOrders,
 };

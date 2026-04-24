@@ -17,6 +17,14 @@ import FloatingWhatsApp from '../components/FloatingWhatsApp.jsx';
 import Profile        from '../pages/Profile.jsx';
 import ProfileOrders  from '../pages/ProfileOrders.jsx';
 
+const AdminRedirect = () => {
+  React.useEffect(() => {
+    // Redirect to the admin port (5174)
+    window.location.href = window.location.protocol + '//' + window.location.hostname + ':5174';
+  }, []);
+  return <div style={{ padding: 40, textAlign: 'center', fontFamily: 'sans-serif' }}>Redirecting to Admin Panel...</div>;
+};
+
 export default function AppRoutes() {
   return (
     <>
@@ -37,6 +45,9 @@ export default function AppRoutes() {
         {/* Protected User Routes */}
         <Route path="/profile" element={<ProtectedRoute><><Navbar /><Profile /><Footer /></></ProtectedRoute>} />
         <Route path="/profile/orders" element={<ProtectedRoute><><Navbar /><ProfileOrders /><Footer /></></ProtectedRoute>} />
+
+        {/* Redirect to Admin Panel */}
+        <Route path="/admin" element={<AdminRedirect />} />
       </Routes>
       <FloatingWhatsApp />
     </>

@@ -133,7 +133,10 @@ export default function AdminCustomers() {
   useEffect(() => {
     if (!isAdmin) return;
     const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const wsHost = API_BASE_URL.replace(/^https?:\/\//, '').replace(/\/api$/, '');
+    let wsHost = window.location.hostname === 'localhost' ? 'localhost:5000' : window.location.host;
+    if (API_BASE_URL.startsWith('http')) {
+      wsHost = API_BASE_URL.replace(/^https?:\/\//, '').replace(/\/api$/, '');
+    }
     const ws = new WebSocket(`${wsProtocol}://${wsHost}/ws`);
 
     ws.onopen = () => setConnectionStatus('online');

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { API_BASE_URL } from '../utils/constants.js';
 import Loader from '../components/Loader.jsx';
+import { mockProducts } from '../utils/mockProducts.js';
 
 const ProfileOrders = () => {
   const { user } = useAuth();
@@ -150,17 +151,26 @@ const ProfileOrders = () => {
                   </div>
                 </div>
 
-                {order.items?.slice(0, 2).map((item, idx) => (
+                {order.items?.slice(0, 2).map((item, idx) => {
+                  const catalogProduct = mockProducts.find(p => p._id === item.product);
+                  const itemImage = item.image || item.images?.[0] || catalogProduct?.image || catalogProduct?.images?.[0] || null;
+                  return (
                   <div key={idx} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '8px 0' }}>
                     <div style={{
                       width: 48,
                       height: 48,
                       borderRadius: 8,
                       background: 'var(--gray-100)',
-                      overflow: 'hidden'
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
                     }}>
-                      {item.image && (
-                        <img src={item.image} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      {itemImage ? (
+                        <img src={itemImage} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <span style={{ fontSize: '1.4rem' }}>🧴</span>
                       )}
                     </div>
                     <div style={{ flex: 1 }}>
@@ -173,7 +183,8 @@ const ProfileOrders = () => {
                       ₹{item.price * item.quantity}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
 
                 {order.items?.length > 2 && (
                   <div style={{ textAlign: 'center', color: 'var(--gray-500)', fontSize: '0.85rem', padding: '8px 0' }}>
@@ -193,7 +204,7 @@ const ProfileOrders = () => {
                     {order.items?.reduce((sum, i) => sum + i.quantity, 0)} items
                   </div>
                   <div style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--teal-dark)' }}>
-                    Total: ₹{order.totalAmount}
+                    Total: ₹{order.total ?? order.totalAmount ?? 0}
                   </div>
                 </div>
               </div>

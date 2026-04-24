@@ -112,16 +112,16 @@ const AdminDashboard = () => {
 
   if (loading) {
     return (
-      <AdminLayout>
+      <>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
           <div style={{ fontSize: '1.2rem', color: 'var(--gray-500)' }}>Loading dashboard...</div>
         </div>
-      </AdminLayout>
+      </>
     );
   }
 
   return (
-    <AdminLayout>
+    <>
       <div style={{ marginBottom: 30 }}>
         <h1 style={{ color: 'var(--gray-800)', marginTop: 0, marginBottom: 8, fontSize: '2rem' }}>Dashboard</h1>
         <p style={{ color: 'var(--gray-600)', margin: 0 }}>Welcome back! Here's what's happening with your store today.</p>
@@ -239,12 +239,12 @@ const AdminDashboard = () => {
           </table>
         </div>
       </div>
-    </AdminLayout>
+    </>
   );
 };
 
 const AdminInventory = () => (
-  <AdminLayout>
+  <>
     <h1 style={{ color: 'var(--gray-800)', marginTop: 0 }}>Inventory Alerts</h1>
     <div style={{ display: 'grid', gap: 16, marginTop: 20 }}>
       <div style={{ background: '#fffcf5', border: '1px solid #f6e0b5', padding: 16, borderRadius: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -261,11 +261,11 @@ const AdminInventory = () => (
         </div>
       </div>
     </div>
-  </AdminLayout>
+  </>
 );
 
 const AdminOrdersFlow = () => (
-  <AdminLayout>
+  <>
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <h1 style={{ color: 'var(--gray-800)', marginTop: 0 }}>Active Orders Flow</h1>
       <button style={{ background: 'var(--teal)', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 8, fontWeight: 700 }}>Refresh</button>
@@ -301,11 +301,11 @@ const AdminOrdersFlow = () => (
         </div>
       ))}
     </div>
-  </AdminLayout>
+  </>
 );
 
 const AdminMarketing = () => (
-  <AdminLayout>
+  <>
     <h1 style={{ color: 'var(--gray-800)', marginTop: 0 }}>Growth & Marketing</h1>
     
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 20 }}>
@@ -330,7 +330,7 @@ const AdminMarketing = () => (
         </button>
       </div>
     </div>
-  </AdminLayout>
+  </>
 );
 
 const AdminLogin = ({ setAuth }) => {
@@ -383,31 +383,42 @@ const AdminLogin = ({ setAuth }) => {
 
 export const AdminRoutes = () => {
   const [auth, setAuth] = useState(() => {
-    const user = JSON.parse(localStorage.getItem('niraa_user') || 'null');
-    const token = localStorage.getItem('niraa_token');
-    return localStorage.getItem('niraa_admin_auth') === 'true' && !!token && user?.role === 'admin';
+    try {
+      const userStr = localStorage.getItem('niraa_user');
+      const user = userStr && userStr !== 'undefined' ? JSON.parse(userStr) : null;
+      const token = localStorage.getItem('niraa_token');
+      const adminAuth = localStorage.getItem('niraa_admin_auth') === 'true';
+      return adminAuth && !!token && user?.role === 'admin';
+    } catch (error) {
+      console.error('Error parsing admin auth state:', error);
+      return false;
+    }
   });
 
   if (!auth) {
     return (
       <Routes>
         <Route path="/login" element={<AdminLogin setAuth={setAuth} />} />
+        <Route path="/admin" element={<Navigate to="/login" />} />
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     );
   }
 
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" />} />
-      <Route path="/dashboard" element={<AdminDashboard />} />
-      <Route path="/products" element={<AdminProducts />} />
-      <Route path="/inventory" element={<AdminInventory />} />
-      <Route path="/orders" element={<AdminOrdersPage />} />
-      <Route path="/customers" element={<AdminCustomers />} />
-      <Route path="/marketing" element={<AdminMarketing />} />
-      <Route path="/builder" element={<AdminBuilder />} />
-      <Route path="*" element={<Navigate to="/dashboard" />} />
-    </Routes>
+    <AdminLayout>
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" />} />
+        <Route path="/dashboard" element={<AdminDashboard />} />
+        <Route path="/products" element={<AdminProducts />} />
+        <Route path="/inventory" element={<AdminInventory />} />
+        <Route path="/orders" element={<AdminOrdersPage />} />
+        <Route path="/customers" element={<AdminCustomers />} />
+        <Route path="/marketing" element={<AdminMarketing />} />
+        <Route path="/builder" element={<AdminBuilder />} />
+        <Route path="/admin" element={<Navigate to="/dashboard" />} />
+        <Route path="*" element={<Navigate to="/dashboard" />} />
+      </Routes>
+    </AdminLayout>
   );
 };

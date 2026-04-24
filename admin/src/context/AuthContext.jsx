@@ -11,7 +11,7 @@ export function AuthProvider({ children }) {
     const token = localStorage.getItem('niraa_token');
     const userData = localStorage.getItem('niraa_user');
     
-    if (token && userData) {
+    if (token && userData && userData !== 'undefined') {
       try {
         setUser(JSON.parse(userData));
       } catch (error) {

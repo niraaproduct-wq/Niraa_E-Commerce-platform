@@ -1,20 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../utils/constants';
 import toast from 'react-hot-toast';
 import { FaPhone, FaLock, FaUser, FaMapMarkerAlt, FaEnvelope } from 'react-icons/fa';
+import { auth } from '../config/firebase';
+import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 
 const Login = () => {
   const { login, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from || '/';
   
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
-      navigate('/');
+      navigate(from, { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, navigate, from]);
 
   const [isExistingUser, setIsExistingUser] = useState(null);
   const [mode, setMode] = useState('login'); // 'login' or 'signup'
@@ -26,9 +30,31 @@ const Login = () => {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [loginPassword, setLoginPassword] = useState(''); // for existing user step 3
-  const [devOtp, setDevOtp] = useState('');
   const [loginMethod, setLoginMethod] = useState('otp'); // 'otp' or 'password'
   const [tempUser, setTempUser] = useState(null); // for new users before password set
+  
+  // Setup reCAPTCHA
+  useEffect(() => {
+    if (!window.recaptchaVerifier) {
+      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        size: 'invisible'
+      });
+    }
+  }, []);
+
+  const sendFirebaseOtp = async (phoneNumber) => {
+    try {
+      const appVerifier = window.recaptchaVerifier;
+      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
+      const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
+      window.confirmationResult = confirmationResult;
+      return true;
+    } catch (error) {
+      console.error("Firebase OTP Error:", error);
+      toast.error(error.message || 'Failed to send OTP. Please try again.');
+      return false;
+    }
+  };
   
   // Profile fields (for new users)
   const [firstName, setFirstName] = useState('');
@@ -124,14 +150,11 @@ const Login = () => {
       if (mode === 'login') {
         if (data.exists) {
           // Send OTP immediately for existing user
-          const resOtp = await fetch(`${API_BASE_URL}/auth/send-otp`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone })
-          });
-          const otpData = await resOtp.json();
-          setDevOtp(otpData.devOtp);
-          setStep(3); 
-          toast.success(`OTP sent to ${phone}! (Dev: ${otpData.devOtp})`);
+          const success = await sendFirebaseOtp(phone);
+          if (success) {
+            setStep(3); 
+            toast.success(`OTP sent to ${phone}!`);
+          }
         } else {
           toast.error('This number is not registered. Please create a new account.');
         }
@@ -157,14 +180,11 @@ const Login = () => {
     if (!address.pincode) return toast.error('Pincode is required');
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/send-otp`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone })
-      });
-      const otpData = await res.json();
-      setDevOtp(otpData.devOtp);
-      setStep(3);
-      toast.success(`OTP sent! (Dev: ${otpData.devOtp})`);
+      const success = await sendFirebaseOtp(phone);
+      if (success) {
+        setStep(3);
+        toast.success(`OTP sent!`);
+      }
     } catch (err) {
       toast.error('Failed to send OTP');
     } finally {
@@ -179,7 +199,12 @@ const Login = () => {
 
     setLoading(true);
     try {
-      const payload = { phone, otp };
+      // 1. Verify with Firebase
+      const result = await window.confirmationResult.confirm(otp);
+      const idToken = await result.user.getIdToken();
+
+      // 2. Send token to backend
+      const payload = { idToken };
       if (!isExistingUser) {
         payload.firstName = firstName;
         payload.lastName = lastName;
@@ -187,7 +212,7 @@ const Login = () => {
         payload.email = email;
       }
 
-      const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+      const res = await fetch(`${API_BASE_URL}/auth/verify-firebase`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
@@ -198,7 +223,7 @@ const Login = () => {
       if (isExistingUser) {
         login(data.user, data.token);
         toast.success('Welcome back! 🌿');
-        navigate('/');
+        navigate(from, { replace: true });
       } else {
         // Delay global login for new users until password is set
         localStorage.setItem('niraa_token', data.token);
@@ -229,7 +254,7 @@ const Login = () => {
       
       login(data.user, data.token);
       toast.success('Welcome back! 🌿');
-      navigate('/');
+      navigate(from, { replace: true });
     } catch (err) {
       toast.error(err.message || 'Incorrect password or login failed');
     } finally {
@@ -256,7 +281,7 @@ const Login = () => {
       // Finalize login for new user
       login(tempUser, token);
       toast.success('Account created successfully! 🎉');
-      navigate('/');
+      navigate(from, { replace: true });
     } catch (err) {
       toast.error(err.message || 'Failed to set password');
     } finally {
@@ -264,18 +289,13 @@ const Login = () => {
     }
   };
 
-  // Resend OTP
   const handleResendOtp = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/send-otp`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to resend OTP');
-      setDevOtp(data.devOtp);
-      toast.success(`New OTP sent! (Dev: ${data.devOtp})`);
+      const success = await sendFirebaseOtp(phone);
+      if (success) {
+        toast.success(`New OTP sent!`);
+      }
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -504,7 +524,6 @@ const Login = () => {
                   style={styles.input}
                   required
                 />
-                {devOtp && <p style={styles.devOtp}>Dev OTP: {devOtp}</p>}
               </div>
             ) : (
               <div style={styles.inputGroup}>
@@ -593,6 +612,7 @@ const Login = () => {
             By continuing, you agree to our <a href="/terms" style={styles.link}>Terms of Service</a> and <a href="/privacy" style={styles.link}>Privacy Policy</a>
           </p>
         </div>
+        <div id="recaptcha-container"></div>
       </div>
     </div>
   );

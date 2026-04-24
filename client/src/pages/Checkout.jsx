@@ -63,14 +63,14 @@ const Checkout = () => {
 
     const payload = {
       customerName: form.name,
-      customerPhone: form.phone,
+      customerPhone: form.phone.replace(/\D/g, '').slice(-10),
       address: { street: form.street, city: form.city, pincode: form.pincode },
       items: items.map(i => ({ 
         product: i._id, 
         variantId: i.variantId, 
         name: i.name, 
         variantDesc: i.variantDesc, 
-        image: i.image, 
+        image: i.image || i.images?.[0] || '', 
         price: i.price, 
         quantity: i.qty 
       })),
