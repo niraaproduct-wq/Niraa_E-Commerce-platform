@@ -4,8 +4,6 @@ import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../utils/constants';
 import toast from 'react-hot-toast';
 import { FaPhone, FaLock, FaUser, FaMapMarkerAlt, FaEnvelope } from 'react-icons/fa';
-import { auth } from '../config/firebase';
-import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 
 const Login = () => {
   const { login, user } = useAuth();
@@ -24,44 +22,31 @@ const Login = () => {
   const [mode, setMode] = useState('login'); // 'login' or 'signup'
   
   // Step tracking
-  const [step, setStep] = useState(1); // 1: Phone, 2: Profile (new), 3: OTP+, 4: Create Password (new)
+  const [step, setStep] = useState(1); // 1: Phone, 2: Profile (new), 3: OTP
   
   // Form states
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
-  const [loginPassword, setLoginPassword] = useState(''); // for existing user step 3
+  const [loginPassword, setLoginPassword] = useState('');
   const [loginMethod, setLoginMethod] = useState('otp'); // 'otp' or 'password'
-  const [tempUser, setTempUser] = useState(null); // for new users before password set
+  const [tempUser, setTempUser] = useState(null);
   
-  // Setup reCAPTCHA
-  useEffect(() => {
-    if (!window.recaptchaVerifier) {
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible'
-      });
-    }
-  }, []);
-
-  const sendFirebaseOtp = async (phoneNumber) => {
-    try {
-      const appVerifier = window.recaptchaVerifier;
-      const formattedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-      const confirmationResult = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
-      window.confirmationResult = confirmationResult;
-      return true;
-    } catch (error) {
-      console.error("Firebase OTP Error:", error);
-      toast.error(error.message || 'Failed to send OTP. Please try again.');
-      return false;
-    }
+  // Backend OTP methods (using Fast2SMS)
+  const sendOtpToPhone = async (phoneNumber) => {
+    const res = await fetch(`${API_BASE_URL}/auth/send-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: phoneNumber })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
+    return data;
   };
   
   // Profile fields (for new users)
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   
   // Address fields
   const [address, setAddress] = useState({
@@ -149,11 +134,12 @@ const Login = () => {
       
       if (mode === 'login') {
         if (data.exists) {
-          // Send OTP immediately for existing user
-          const success = await sendFirebaseOtp(phone);
-          if (success) {
-            setStep(3); 
-            toast.success(`OTP sent to ${phone}!`);
+          // Send OTP via backend (Fast2SMS)
+          const result = await sendOtpToPhone(phone);
+          setStep(3); 
+          toast.success(`OTP sent to ${phone}!`);
+          if (result.devOtp) {
+            toast.success(`Dev mode: OTP is ${result.devOtp}`, { duration: 5000 });
           }
         } else {
           toast.error('This number is not registered. Please create a new account.');
@@ -180,11 +166,9 @@ const Login = () => {
     if (!address.pincode) return toast.error('Pincode is required');
     setLoading(true);
     try {
-      const success = await sendFirebaseOtp(phone);
-      if (success) {
-        setStep(3);
-        toast.success(`OTP sent!`);
-      }
+      await sendOtpToPhone(phone);
+      setStep(3);
+      toast.success(`OTP sent!`);
     } catch (err) {
       toast.error('Failed to send OTP');
     } finally {
@@ -199,37 +183,27 @@ const Login = () => {
 
     setLoading(true);
     try {
-      // 1. Verify with Firebase
-      const result = await window.confirmationResult.confirm(otp);
-      const idToken = await result.user.getIdToken();
+      const payload = {
+        phone,
+        otp,
+        firstName,
+        lastName,
+        address,
+        email
+      };
 
-      // 2. Send token to backend
-      const payload = { idToken };
-      if (!isExistingUser) {
-        payload.firstName = firstName;
-        payload.lastName = lastName;
-        payload.address = address;
-        payload.email = email;
-      }
-
-      const res = await fetch(`${API_BASE_URL}/auth/verify-firebase`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+      const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       const data = await res.json();
       
       if (!res.ok) throw new Error(data.message || 'Verification failed');
       
-      if (isExistingUser) {
-        login(data.user, data.token);
-        toast.success('Welcome back! 🌿');
-        navigate(from, { replace: true });
-      } else {
-        // Delay global login for new users until password is set
-        localStorage.setItem('niraa_token', data.token);
-        setTempUser(data.user);
-        setStep(4);
-      }
+      login(data.user, data.token);
+      toast.success(data.isNewUser ? 'Welcome to Niraa!' : 'Welcome back!');
+      navigate(from, { replace: true });
     } catch (err) {
       toast.error(err.message || 'Verification failed');
     } finally {
@@ -253,7 +227,7 @@ const Login = () => {
       if (!res.ok) throw new Error(data.message || 'Login failed');
       
       login(data.user, data.token);
-      toast.success('Welcome back! 🌿');
+      toast.success('Welcome back!');
       navigate(from, { replace: true });
     } catch (err) {
       toast.error(err.message || 'Incorrect password or login failed');
@@ -262,40 +236,11 @@ const Login = () => {
     }
   };
 
-  // Step 4: Create Password (New Users)
-  const handleCreatePassword = async (e) => {
-    e.preventDefault();
-    if (password !== confirmPassword) return toast.error('Passwords do not match');
-    if (password.length < 6) return toast.error('Password must be at least 6 characters');
-    
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('niraa_token');
-      const res = await fetch(`${API_BASE_URL}/auth/set-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ newPassword: password })
-      });
-      if (!res.ok) throw new Error('Failed to save password');
-      
-      // Finalize login for new user
-      login(tempUser, token);
-      toast.success('Account created successfully! 🎉');
-      navigate(from, { replace: true });
-    } catch (err) {
-      toast.error(err.message || 'Failed to set password');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleResendOtp = async () => {
     setLoading(true);
     try {
-      const success = await sendFirebaseOtp(phone);
-      if (success) {
-        toast.success(`New OTP sent!`);
-      }
+      await sendOtpToPhone(phone);
+      toast.success(`New OTP sent!`);
     } catch (err) {
       toast.error(err.message);
     } finally {
@@ -303,7 +248,6 @@ const Login = () => {
     }
   };
 
-  // Go back to phone
   const handleChangePhone = () => {
     setStep(1);
     setOtp('');
@@ -558,61 +502,12 @@ const Login = () => {
           </form>
         )}
 
-        {/* Step 4: Create Password (New Users Only) */}
-        {step === 4 && (
-          <form onSubmit={handleCreatePassword} style={styles.form}>
-            <div style={styles.passwordSection}>
-              <h4 style={styles.passwordTitle}>Set Your Password</h4>
-              <p style={styles.passwordDesc}>Create a secure password for your account.</p>
-
-              <div style={styles.nameRow}>
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Password</label>
-                  <div style={styles.inputWrapper}>
-                    <FaLock style={styles.inputIcon} />
-                    <input
-                      type="password"
-                      className="field"
-                      placeholder="Min 6 chars"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      style={styles.input}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div style={styles.inputGroup}>
-                  <label style={styles.label}>Confirm Password</label>
-                  <div style={styles.inputWrapper}>
-                    <FaLock style={styles.inputIcon} />
-                    <input
-                      type="password"
-                      className="field"
-                      placeholder="Re-enter password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      style={styles.input}
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <button type="submit" className="btn btn--primary" disabled={loading} style={styles.button}>
-              {loading ? 'Creating...' : 'Create Account'}
-            </button>
-          </form>
-        )}
-
         {/* Footer */}
         <div style={styles.footer}>
           <p style={styles.footerText}>
             By continuing, you agree to our <a href="/terms" style={styles.link}>Terms of Service</a> and <a href="/privacy" style={styles.link}>Privacy Policy</a>
           </p>
         </div>
-        <div id="recaptcha-container"></div>
       </div>
     </div>
   );
