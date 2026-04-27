@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { API_BASE_URL } from '../utils/constants.js';
 import Loader from '../components/Loader.jsx';
-import { mockProducts } from '../utils/mockProducts.js';
+
 import { FiPackage, FiChevronDown, FiChevronUp, FiExternalLink } from 'react-icons/fi';
 
 const STATUS_CONFIG = {
@@ -119,8 +119,7 @@ function OrderCard({ order }) {
       {/* Items Preview */}
       <div style={{ padding: '14px 20px' }}>
         {order.items?.slice(0, expanded ? order.items.length : 2).map((item, idx) => {
-          const catalogProduct = mockProducts.find(p => p._id === item.product);
-          const itemImage = item.image || item.images?.[0] || catalogProduct?.image || catalogProduct?.images?.[0] || null;
+          const itemImage = item.image || item.images?.[0] || null;
 
           return (
             <div key={idx} style={{

@@ -59,8 +59,21 @@ const getProducts = async (req, res) => {
 const getProduct = async (req, res) => {
   try {
     const { db } = getFirebase();
-    const doc = await db.collection(PRODUCTS_COLLECTION).doc(req.params.id).get();
-    const product = toPlainProduct(doc);
+    let productDoc = await db.collection(PRODUCTS_COLLECTION).doc(req.params.id).get();
+    let product = toPlainProduct(productDoc);
+    
+    // Fallback: search by slug if ID lookup yields no active product
+    if (!product || !product.isActive) {
+      const slugQuery = await db.collection(PRODUCTS_COLLECTION)
+        .where('slug', '==', req.params.id)
+        .where('isActive', '==', true)
+        .limit(1)
+        .get();
+      
+      if (!slugQuery.empty) {
+        product = toPlainProduct(slugQuery.docs[0]);
+      }
+    }
     
     if (!product || !product.isActive) {
       return res.status(404).json({ message: 'Product not found' });

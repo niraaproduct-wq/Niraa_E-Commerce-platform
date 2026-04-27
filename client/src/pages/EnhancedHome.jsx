@@ -4,7 +4,8 @@ import EnhancedProductCard from '../components/EnhancedProductCard';
 import { formatPrice } from '../utils/formatPrice.js';
 import { WHATSAPP_NUMBER } from '../utils/constants.js';
 import bannerImage from '../assets/images/banner.jpeg';
-import { mockProducts, getCombos, getIndividualProducts, CATEGORIES } from '../utils/mockProducts.js';
+import { CATEGORIES } from '../utils/categories.js';
+import { getProducts } from '../utils/productApi.js';
 import { useAdmin } from '../context/AdminContext';
 import { FaEdit, FaPlus, FaTrash, FaSave, FaTimes, FaWhatsapp, FaLeaf, FaShieldAlt, FaTruck, FaStar } from 'react-icons/fa';
 
@@ -864,8 +865,25 @@ const StatCounter = ({ num, suffix, label }) => {
 /* ─── MAIN PAGE ───────────────────────────────────────────── */
 export default function EnhancedHome() {
   const { isAdminMode, isEditing, editingItem, startEditing, stopEditing } = useAdmin();
-  const combos = useMemo(() => getCombos(), []);
-  const individuals = useMemo(() => getIndividualProducts(), []);
+  const [combos, setCombos] = useState([]);
+  const [individuals, setIndividuals] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        const data = await getProducts({ limit: 100 });
+        const prods = data?.products || [];
+        setCombos(prods.filter(p => p.isCombo));
+        setIndividuals(prods.filter(p => !p.isCombo));
+      } catch (err) {
+        console.error("EnhancedHome fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAll();
+  }, []);
 
   const mainCombo = combos.find(c => c._id === 'combo-complete-home') || combos[0];
   const waText = `Hello NIRAA, I want to order the Complete Home Combo. Please contact me!`;
@@ -875,6 +893,8 @@ export default function EnhancedHome() {
   const handleDelete = (itemId) => { if (window.confirm('Delete this item?')) console.log('Deleting:', itemId); };
   const handleAddBanner = () => console.log('Adding banner');
   const handleAddProduct = () => console.log('Adding product');
+
+  if (loading) return <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 600, color: 'var(--teal)', fontFamily: 'var(--font-display)' }}>Loading NIRAA Premium Experience...</div>;
 
   return (
     <>

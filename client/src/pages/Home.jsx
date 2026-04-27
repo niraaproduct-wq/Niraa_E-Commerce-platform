@@ -4,7 +4,8 @@ import ProductCard from '../components/ProductCard';
 import { formatPrice } from '../utils/formatPrice.js';
 import { WHATSAPP_NUMBER } from '../utils/constants.js';
 import bannerImage from '../assets/images/banner.jpeg';
-import { mockProducts, getCombos, getIndividualProducts, CATEGORIES } from '../utils/mockProducts.js';
+import { CATEGORIES } from '../utils/categories.js';
+import { getProducts } from '../utils/productApi.js';
 
 const TRUSTS = [
   { icon: '🌿', title: 'Eco-Friendly', desc: 'Safe for families & planet.', accent: '#0d7a6a' },
@@ -72,9 +73,26 @@ const SectionHeading = ({ label, title, cta, to }) => (
 );
 
 export default function Home() {
-  const allProducts = mockProducts;
-  const combos = useMemo(() => getCombos(), []);
-  const individuals = useMemo(() => getIndividualProducts(), []);
+  const [combos, setCombos] = useState([]);
+  const [individuals, setIndividuals] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        const data = await getProducts({ limit: 100 });
+        const prods = data?.products || [];
+        setCombos(prods.filter(p => p.isCombo));
+        setIndividuals(prods.filter(p => !p.isCombo));
+      } catch (err) {
+        console.error("Home fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAll();
+  }, []);
+
   const mainCombo = combos.find(c => c._id === 'combo-complete-home') || combos[0];
   const waText = `Hello NIRAA, I want to order the Complete Home Combo. Please contact me!`;
   const waLink = `https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}?text=${encodeURIComponent(waText)}`;
@@ -84,6 +102,8 @@ export default function Home() {
     const t = setInterval(() => setActiveTestimonial(p => (p + 1) % TESTIMONIALS_MINI.length), 3500);
     return () => clearInterval(t);
   }, []);
+
+  if (loading) return <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 600, color: 'var(--teal)' }}>Loading NIRAA Products...</div>;
 
   return (
     <main className="container page">

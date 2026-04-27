@@ -4,7 +4,7 @@ import { formatPrice } from '../utils/formatPrice';
 import toast from 'react-hot-toast';
 import { useCart } from '../context/CartContext';
 import { WHATSAPP_NUMBER } from '../utils/constants.js';
-import { mockProducts } from '../utils/mockProducts.js';
+import { getProductById, getProducts } from '../utils/productApi.js';
 import { FiShoppingCart, FiZap, FiStar, FiCheck, FiArrowLeft, FiTruck, FiShield, FiDroplet } from 'react-icons/fi';
 import { AiOutlineWhatsApp } from 'react-icons/ai';
 
@@ -25,21 +25,42 @@ const ProductDetails = () => {
   const [qty, setQty] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
   const [zoomPos, setZoomPos] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [related, setRelated] = useState([]);
   const navigate = useNavigate();
   const { addToCart, items, updateQty } = useCart();
 
   useEffect(() => {
-    const data = mockProducts.find(p => p.slug === slug);
-    if (data) {
-      setProduct(data);
-      setMainImage(data.images?.[0] || data.image);
-      setQty(1);
-      setSelectedVariant(data.variants?.[0] || null);
-    } else {
-      setProduct(null);
-    }
+    const fetchDetails = async () => {
+      setLoading(true);
+      try {
+        const data = await getProductById(slug);
+        setProduct(data);
+        setMainImage(data.images?.[0] || data.image);
+        setQty(1);
+        setSelectedVariant(data.variants?.[0] || null);
+
+        // Fetch related products
+        const relatedData = await getProducts({ category: data.category, limit: 5 });
+        setRelated(relatedData.products.filter(p => p._id !== data._id).slice(0, RELATED_COUNT));
+      } catch (err) {
+        console.error("Product fetch error:", err);
+        setProduct(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDetails();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [slug]);
+
+  if (loading) return (
+    <main className="container page">
+      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 700, color: 'var(--teal)' }}>
+        Loading product details...
+      </div>
+    </main>
+  );
 
   if (!product) return (
     <main className="container page">
@@ -96,11 +117,6 @@ const ProductDetails = () => {
     if (product?.images?.length) return product.images;
     if (product?.image) return [product.image];
     return [];
-  }, [product]);
-
-  // Related products (same category, excluding current)
-  const related = useMemo(() => {
-    return mockProducts.filter(p => p.category === product.category && p._id !== product._id).slice(0, RELATED_COUNT);
   }, [product]);
 
   const TABS = [

@@ -1,17 +1,42 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
 import { formatPrice } from '../utils/formatPrice.js';
 import { WHATSAPP_NUMBER } from '../utils/constants.js';
-import { mockProducts, getIndividualProducts, getCombos, CATEGORIES } from '../utils/mockProducts.js';
+import { CATEGORIES } from '../utils/categories.js';
+import { getProducts } from '../utils/productApi.js';
 
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const activeCategory = searchParams.get('category') || 'all';
 
-  const individuals = useMemo(() => getIndividualProducts(), []);
-  const combos = useMemo(() => getCombos(), []);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setLoading(true);
+      try {
+        const params = {
+          category: activeCategory !== 'all' && activeCategory !== 'combo' ? activeCategory : undefined,
+          featured: activeCategory === 'featured' ? true : undefined,
+          search: searchQuery || undefined,
+          limit: 100
+        };
+        const data = await getProducts(params);
+        setProducts(data?.products || []);
+      } catch (err) {
+        console.error("Products fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProducts();
+  }, [activeCategory, searchQuery]);
+
+  const individuals = useMemo(() => (Array.isArray(products) ? products : []).filter(p => !p.isCombo), [products]);
+  const combos = useMemo(() => (Array.isArray(products) ? products : []).filter(p => p.isCombo), [products]);
 
   const grouped = useMemo(() => {
     return CATEGORIES.map(cat => ({
@@ -23,21 +48,14 @@ export default function Products() {
   const showAll = activeCategory === 'all';
   const showCombos = activeCategory === 'combo' || showAll;
 
-  const filteredGroups = useMemo(() => {
-    const baseGroups = showAll ? grouped : grouped.filter(g => g.id === activeCategory);
-    if (!searchQuery.trim()) return baseGroups;
-    const q = searchQuery.toLowerCase();
-    return baseGroups.map(g => ({
-      ...g,
-      products: g.products.filter(p =>
-        p.name?.toLowerCase().includes(q) ||
-        p.description?.toLowerCase().includes(q) ||
-        p.category?.toLowerCase().includes(q)
-      ),
-    })).filter(g => g.products.length > 0);
-  }, [grouped, showAll, activeCategory, searchQuery]);
+  // Since we are now filtering via API, we don't need the complex filteredGroups useMemo
+  // But we still want to group individuals by category for display if showing "all" or a specific category
+  const displayedGroups = useMemo(() => {
+    if (activeCategory === 'combo') return [];
+    return grouped;
+  }, [grouped, activeCategory]);
 
-  const totalProducts = individuals.length + combos.length;
+  const totalProducts = products.length;
   const waText = `Hello NIRAA, I'd like to order cleaning products from your website. Please contact me.`;
   const waLink = `https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}?text=${encodeURIComponent(waText)}`;
 
@@ -294,7 +312,12 @@ export default function Products() {
       </div>
 
       {/* ─── CATEGORY SECTIONS ───────────────── */}
-      {filteredGroups.map(group => (
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--teal)', fontWeight: 700 }}>
+          Finding the best cleaning products for you...
+        </div>
+      ) : (
+        displayedGroups.map(group => (
         <section key={group.id} className="cat-section">
           <div className="cat-header">
             <div className="cat-icon-wrap">{group.icon}</div>
@@ -315,7 +338,7 @@ export default function Products() {
             ))}
           </div>
         </section>
-      ))}
+      )))}
 
       {/* ─── COMBO SECTION ───────────────────── */}
       {showCombos && combos.length > 0 && (
@@ -360,7 +383,7 @@ export default function Products() {
       )}
 
       {/* ─── NO RESULTS ──────────────────────── */}
-      {filteredGroups.length === 0 && !showCombos && (
+      {!loading && displayedGroups.length === 0 && !showCombos && (
         <div style={{
           textAlign: 'center', padding: '60px 20px',
           background: '#fff', borderRadius: 24,
