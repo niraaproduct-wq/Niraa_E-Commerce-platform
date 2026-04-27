@@ -13,6 +13,7 @@ const testRoutes = require('./routes/testRoutes');
 const userRoutes = require('./routes/userRoutes');
 const locationRoutes = require('./routes/locationRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const marketingRoutes = require('./routes/marketingRoutes');
 
 const path = require('path');
 
@@ -43,6 +44,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/test', testRoutes);
+app.use('/api/marketing', marketingRoutes);
 
 // Health check
 app.get('/', (req, res) => {

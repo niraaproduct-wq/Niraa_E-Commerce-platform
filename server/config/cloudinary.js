@@ -1,4 +1,4 @@
-const cloudinary = require("cloudinary").v2;
+const cloudinary = require('cloudinary').v2;
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -6,4 +6,33 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+/**
+ * Upload a Buffer (from multer memoryStorage) to Cloudinary.
+ * @param {Buffer} buffer
+ * @param {object} options  e.g. { folder: 'niraa/banners' }
+ * @returns {Promise<object>} Cloudinary upload result
+ */
+const uploadBuffer = (buffer, options = {}) =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(options, (err, result) => {
+      if (err) return reject(err);
+      resolve(result);
+    });
+    stream.end(buffer);
+  });
+
+/**
+ * Delete an image from Cloudinary by its public_id.
+ * Silently ignores missing/null IDs.
+ * @param {string|null} publicId
+ */
+const deleteImage = (publicId) => {
+  if (!publicId) return Promise.resolve();
+  return cloudinary.uploader.destroy(publicId).catch((err) =>
+    console.warn('[Cloudinary] deleteImage failed:', err.message)
+  );
+};
+
 module.exports = cloudinary;
+module.exports.uploadBuffer = uploadBuffer;
+module.exports.deleteImage = deleteImage;

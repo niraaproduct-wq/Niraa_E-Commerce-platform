@@ -1,8 +1,70 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../utils/constants';
 import toast from 'react-hot-toast';
-import { FaPlus, FaEdit, FaTrash, FaSave, FaTimes, FaSearch } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaSave, FaTimes, FaSearch, FaBox, FaTag, FaImage, FaExclamationTriangle } from 'react-icons/fa';
 
+/* ─── Design Tokens ─────────────────────────────────────────── */
+const T = {
+  font: `'DM Sans', 'Instrument Sans', system-ui, sans-serif`,
+  mono: `'DM Mono', monospace`,
+  teal: '#0F6E56',
+  tealLight: '#E1F5EE',
+  tealMid: '#1D9E75',
+  tealDark: '#085041',
+  gray50: '#FAFAF9',
+  gray100: '#F5F4F2',
+  gray200: '#E8E6E1',
+  gray300: '#D1CFC8',
+  gray400: '#A8A59D',
+  gray600: '#6B6862',
+  gray700: '#4A4845',
+  gray800: '#2E2D2A',
+  gray900: '#1A1917',
+  amber: '#EF9F27',
+  amberLight: '#FAEEDA',
+  red: '#E24B4A',
+  redLight: '#FCEBEB',
+  green: '#639922',
+  greenLight: '#EAF3DE',
+  blue: '#378ADD',
+  blueLight: '#E6F1FB',
+  white: '#FFFFFF',
+  shadow: '0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06)',
+  shadowMd: '0 2px 8px rgba(0,0,0,0.08), 0 8px 32px rgba(0,0,0,0.08)',
+  radius: '10px',
+  radiusLg: '16px',
+  radiusXl: '20px',
+};
+
+/* ─── Category Config ────────────────────────────────────────── */
+const CATEGORIES = [
+  { value: 'floor-cleaner', label: 'Floor Cleaner', color: T.blue, bg: T.blueLight },
+  { value: 'toilet-cleaner', label: 'Toilet Cleaner', color: '#993556', bg: '#FBEAF0' },
+  { value: 'dish-wash', label: 'Dish Wash', color: T.teal, bg: T.tealLight },
+  { value: 'detergent', label: 'Detergent', color: '#854F0B', bg: T.amberLight },
+  { value: 'combo', label: 'Combo', color: '#533AB7', bg: '#EEEDFE' },
+  { value: 'other', label: 'Other', color: T.gray600, bg: T.gray100 },
+];
+
+const getCat = (val) => CATEGORIES.find(c => c.value === val) || { label: val, color: T.gray600, bg: T.gray100 };
+
+/* ─── Shared Field styles ────────────────────────────────────── */
+const field = {
+  display: 'flex', flexDirection: 'column', gap: 6,
+};
+const label = {
+  fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
+  color: T.gray600, fontFamily: T.font,
+};
+const input = {
+  padding: '10px 14px', border: `1.5px solid ${T.gray200}`, borderRadius: T.radius,
+  fontSize: 14, fontFamily: T.font, color: T.gray800, background: T.white,
+  outline: 'none', transition: 'border 0.15s',
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+═══════════════════════════════════════════════════════════════ */
 const AdminProducts = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -10,728 +72,556 @@ const AdminProducts = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [readOnlyMode, setReadOnlyMode] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+
   const user = JSON.parse(localStorage.getItem('niraa_user') || 'null');
   const isAdmin = user?.role === 'admin';
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    price: '',
-    comparePrice: '',
-    category: '',
-    stock: '',
-    images: [],
-    isActive: true,
-    isFeatured: false,
-  });
-  const [uploadingImage, setUploadingImage] = useState(false);
 
-  const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setUploadingImage(true);
-    const uploadData = new FormData();
-    uploadData.append('image', file);
-
-    try {
-      const token = localStorage.getItem('niraa_token');
-      const response = await fetch(`${API_BASE_URL}/admin/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: uploadData
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setFormData(prev => ({
-          ...prev,
-          images: [data.url]
-        }));
-        toast.success('Image uploaded successfully to Cloudinary!');
-      } else {
-        toast.error('Failed to upload image');
-      }
-    } catch (error) {
-      toast.error('Error uploading image');
-    } finally {
-      setUploadingImage(false);
-    }
+  const emptyForm = {
+    name: '', description: '', price: '', comparePrice: '',
+    category: '', stock: '', images: [], isActive: true, isFeatured: false,
   };
+  const [formData, setFormData] = useState(emptyForm);
 
+  /* ── Fetch ── */
   useEffect(() => {
-    if (!isAdmin) {
-      setLoading(false);
-      return;
-    }
+    if (!isAdmin) { setLoading(false); return; }
     fetchProducts();
   }, [isAdmin]);
 
   const fetchProducts = async () => {
     try {
       const token = localStorage.getItem('niraa_token');
-      const response = await fetch(`${API_BASE_URL}/admin/products`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      const res = await fetch(`${API_BASE_URL}/admin/products`, {
+        headers: { 'Authorization': `Bearer ${token}` },
       });
-
-      if (response.ok) {
-        const data = await response.json();
+      if (res.ok) {
+        const data = await res.json();
         setProducts(data.products || []);
         setReadOnlyMode(false);
       } else {
-        const fallback = await fetch(`${API_BASE_URL}/products`);
-        const fallbackData = await fallback.json();
-        setProducts(fallbackData.products || []);
+        const fb = await fetch(`${API_BASE_URL}/products`);
+        const fbData = await fb.json();
+        setProducts(fbData.products || []);
         setReadOnlyMode(true);
-        toast('Database offline: products are in read-only mode', { icon: 'ℹ️' });
+        toast('Database offline — read-only mode', { icon: 'ℹ️' });
       }
-    } catch (error) {
+    } catch {
       try {
-        const fallback = await fetch(`${API_BASE_URL}/products`);
-        const fallbackData = await fallback.json();
-        setProducts(fallbackData.products || []);
+        const fb = await fetch(`${API_BASE_URL}/products`);
+        const fbData = await fb.json();
+        setProducts(fbData.products || []);
         setReadOnlyMode(true);
-      } catch {
-        console.error('Error fetching products:', error);
-      }
-    } finally {
-      setLoading(false);
-    }
+      } catch (e) { console.error(e); }
+    } finally { setLoading(false); }
   };
 
-  const handleInputChange = (e) => {
+  /* ── Image upload ── */
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingImage(true);
+    const uploadData = new FormData();
+    uploadData.append('image', file);
+    try {
+      const token = localStorage.getItem('niraa_token');
+      const res = await fetch(`${API_BASE_URL}/admin/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: uploadData,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFormData(p => ({ ...p, images: [data.url] }));
+        toast.success('Image uploaded!');
+      } else { toast.error('Upload failed'); }
+    } catch { toast.error('Upload error'); }
+    finally { setUploadingImage(false); }
+  };
+
+  /* ── Form ── */
+  const handleInput = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value,
-    }));
+    setFormData(p => ({ ...p, [name]: type === 'checkbox' ? checked : value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (readOnlyMode) {
-      toast.error('Product editing is disabled while database is offline');
-      return;
-    }
+    if (readOnlyMode) { toast.error('Editing disabled in read-only mode'); return; }
     try {
       const token = localStorage.getItem('niraa_token');
       const url = editingProduct
         ? `${API_BASE_URL}/admin/products/${editingProduct._id}`
         : `${API_BASE_URL}/admin/products`;
-
-      const method = editingProduct ? 'PUT' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+      const res = await fetch(url, {
+        method: editingProduct ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(formData),
       });
-
-      if (response.ok) {
-        toast.success(editingProduct ? 'Product updated successfully!' : 'Product created successfully!');
-        fetchProducts();
-        resetForm();
+      if (res.ok) {
+        toast.success(editingProduct ? 'Product updated!' : 'Product created!');
+        fetchProducts(); resetForm();
       } else {
-        const data = await response.json();
-        toast.error(data.message || 'Failed to save product');
+        const d = await res.json();
+        toast.error(d.message || 'Save failed');
       }
-    } catch (error) {
-      toast.error('Error saving product');
-      console.error(error);
-    }
+    } catch { toast.error('Error saving'); }
   };
 
-  const handleEdit = (product) => {
-    setEditingProduct(product);
+  const handleEdit = (p) => {
+    setEditingProduct(p);
     setFormData({
-      name: product.name || '',
-      description: product.description || '',
-      price: product.price || '',
-      comparePrice: product.comparePrice || '',
-      category: product.category || '',
-      stock: product.stock || '',
-      images: product.images && product.images.length > 0 ? product.images : (product.image ? [product.image] : []),
-      isActive: product.isActive !== false,
-      isFeatured: product.isFeatured || false,
+      name: p.name || '', description: p.description || '',
+      price: p.price || '', comparePrice: p.comparePrice || '',
+      category: p.category || '', stock: p.stock || '',
+      images: p.images?.length ? p.images : p.image ? [p.image] : [],
+      isActive: p.isActive !== false, isFeatured: p.isFeatured || false,
     });
     setShowForm(true);
   };
 
-  const handleDelete = async (productId) => {
-    if (!window.confirm('Are you sure you want to delete this product?')) return;
-    if (readOnlyMode) {
-      toast.error('Product deletion is disabled while database is offline');
-      return;
-    }
-
+  const handleDelete = async (id) => {
+    if (readOnlyMode) { toast.error('Deletion disabled in read-only mode'); return; }
     try {
       const token = localStorage.getItem('niraa_token');
-      const response = await fetch(`${API_BASE_URL}/admin/products/${productId}`, {
+      const res = await fetch(`${API_BASE_URL}/admin/products/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
-
-      if (response.ok) {
-        toast.success('Product deleted successfully!');
-        fetchProducts();
-      } else {
-        toast.error('Failed to delete product');
-      }
-    } catch (error) {
-      toast.error('Error deleting product');
-      console.error(error);
-    }
+      if (res.ok) { toast.success('Product deleted'); fetchProducts(); }
+      else { toast.error('Delete failed'); }
+    } catch { toast.error('Error deleting'); }
+    finally { setDeleteConfirm(null); }
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      description: '',
-      price: '',
-      comparePrice: '',
-      category: '',
-      stock: '',
-      images: [],
-      isActive: true,
-      isFeatured: false,
-    });
-    setEditingProduct(null);
-    setShowForm(false);
-  };
+  const resetForm = () => { setFormData(emptyForm); setEditingProduct(null); setShowForm(false); };
 
-  const filteredProducts = products.filter(p =>
+  const filtered = products.filter(p =>
     p.name?.toLowerCase().includes(search.toLowerCase()) ||
     p.description?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const activeCount = products.filter(p => p.isActive).length;
+  const lowStockCount = products.filter(p => p.stock <= 10 && p.stock > 0).length;
+  const outCount = products.filter(p => p.stock === 0).length;
+
+  /* ══════════════ RENDER ══════════════ */
   return (
-    <div style={styles.container}>
+    <div style={{ fontFamily: T.font, color: T.gray800, minHeight: '100vh', background: T.gray50, padding: '32px 32px 64px' }}>
+
+      {/* ─ Not Admin Banner ─ */}
       {!isAdmin && (
-        <div style={{ marginBottom: 12, color: '#9f1239', background: '#fff1f2', border: '1px solid #fecdd3', padding: 10, borderRadius: 10, fontWeight: 700 }}>
-          Admin access required. Please login with an admin account.
+        <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10, background: T.redLight, border: `1.5px solid #F7C1C1`, borderRadius: T.radius, padding: '12px 16px' }}>
+          <FaExclamationTriangle style={{ color: T.red, fontSize: 14 }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#A32D2D' }}>Admin access required. Please login with an admin account.</span>
         </div>
       )}
-      <div style={styles.header}>
-        <h1 style={styles.title}>Product Management</h1>
+
+      {/* ─ Read-only Banner ─ */}
+      {readOnlyMode && (
+        <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10, background: T.amberLight, border: `1.5px solid #FAC775`, borderRadius: T.radius, padding: '12px 16px' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#854F0B' }}>Database offline — product management is in read-only mode.</span>
+        </div>
+      )}
+
+      {/* ─── Page Header ─── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.tealMid, marginBottom: 6 }}>
+            Niraa Admin
+          </div>
+          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: T.gray900, letterSpacing: '-0.02em' }}>
+            Product Management
+          </h1>
+          <p style={{ margin: '4px 0 0', fontSize: 14, color: T.gray400 }}>
+            {products.length} total products · {activeCount} active
+          </p>
+        </div>
         <button
           onClick={() => setShowForm(true)}
-          style={styles.addButton}
           disabled={readOnlyMode}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: T.teal, color: '#fff',
+            border: 'none', padding: '11px 20px', borderRadius: T.radius,
+            fontWeight: 600, cursor: readOnlyMode ? 'not-allowed' : 'pointer',
+            fontSize: 14, fontFamily: T.font, letterSpacing: '-0.01em',
+            opacity: readOnlyMode ? 0.5 : 1,
+            boxShadow: `0 1px 2px rgba(15,110,86,0.2), 0 4px 12px rgba(15,110,86,0.18)`,
+            transition: 'transform 0.1s',
+          }}
+          onMouseEnter={e => { if (!readOnlyMode) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; }}
         >
-          <FaPlus /> Add New Product
+          <FaPlus style={{ fontSize: 12 }} />
+          Add Product
         </button>
       </div>
 
-      {readOnlyMode && (
-        <div style={{ marginBottom: 12, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', padding: 10, borderRadius: 10, fontWeight: 700 }}>
-          Product management is in read-only mode because database write APIs are currently unavailable.
-        </div>
-      )}
-
-      {showForm && (
-        <div style={styles.formOverlay}>
-          <div style={styles.formContainer}>
-            <div style={styles.formHeader}>
-              <h2 style={styles.formTitle}>
-                {editingProduct ? 'Edit Product' : 'Add New Product'}
-              </h2>
-              <button onClick={resetForm} style={styles.closeButton}>
-                <FaTimes />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} style={styles.form}>
-              <div style={styles.formGrid}>
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Product Name *</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    style={styles.input}
-                    required
-                    placeholder="Enter product name"
-                  />
-                </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Category *</label>
-                  <select
-                    name="category"
-                    value={formData.category}
-                    onChange={handleInputChange}
-                    style={styles.input}
-                    required
-                  >
-                    <option value="">Select Category</option>
-                    <option value="floor-cleaner">Floor Cleaner</option>
-                    <option value="toilet-cleaner">Toilet Cleaner</option>
-                    <option value="dish-wash">Dish Wash</option>
-                    <option value="detergent">Detergent</option>
-                    <option value="combo">Combo</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Price (₹) *</label>
-                  <input
-                    type="number"
-                    name="price"
-                    value={formData.price}
-                    onChange={handleInputChange}
-                    style={styles.input}
-                    required
-                    placeholder="0.00"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Compare Price</label>
-                  <input
-                    type="number"
-                    name="comparePrice"
-                    value={formData.comparePrice}
-                    onChange={handleInputChange}
-                    style={styles.input}
-                    placeholder="0.00"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Stock Quantity *</label>
-                  <input
-                    type="number"
-                    name="stock"
-                    value={formData.stock}
-                    onChange={handleInputChange}
-                    style={styles.input}
-                    required
-                    placeholder="0"
-                    min="0"
-                  />
-                </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>Image URL / Upload</label>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input
-                      type="url"
-                      name="images"
-                      value={formData.images[0] || ''}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        images: [e.target.value]
-                      }))}
-                      style={{ ...styles.input, flex: 1 }}
-                      placeholder="https://res.cloudinary... or /assets/..."
-                    />
-                    <label style={{
-                      background: 'var(--teal)', color: '#fff', padding: '10px 16px',
-                      borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem',
-                      opacity: uploadingImage ? 0.7 : 1, whiteSpace: 'nowrap'
-                    }}>
-                      {uploadingImage ? 'Uploading...' : 'Upload File'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        style={{ display: 'none' }}
-                        disabled={uploadingImage}
-                      />
-                    </label>
-                  </div>
-                  {formData.images && formData.images[0] && (
-                    <img src={formData.images[0]} alt="Current Preview" style={{ width: 50, height: 50, objectFit: 'cover', marginTop: 8, borderRadius: 4 }} />
-                  )}
-                </div>
-              </div>
-
-              <div style={styles.formGroup}>
-                <label style={styles.label}>Description</label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  style={styles.textarea}
-                  rows="4"
-                  placeholder="Enter product description"
-                />
-              </div>
-
-              <div style={styles.checkboxGroup}>
-                <label style={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    name="isActive"
-                    checked={formData.isActive}
-                    onChange={handleInputChange}
-                    style={styles.checkbox}
-                  />
-                  Active (Show on website)
-                </label>
-                <label style={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    name="isFeatured"
-                    checked={formData.isFeatured}
-                    onChange={handleInputChange}
-                    style={styles.checkbox}
-                  />
-                  Featured Product
-                </label>
-              </div>
-
-              <div style={styles.formActions}>
-                <button type="button" onClick={resetForm} style={styles.cancelButton}>
-                  Cancel
-                </button>
-                <button type="submit" style={styles.submitButton}>
-                  <FaSave /> {editingProduct ? 'Update Product' : 'Create Product'}
-                </button>
-              </div>
-            </form>
+      {/* ─── Stat Cards ─── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
+        {[
+          { label: 'Total Products', value: products.length, color: T.teal, bg: T.tealLight },
+          { label: 'Low Stock', value: lowStockCount, color: '#854F0B', bg: T.amberLight },
+          { label: 'Out of Stock', value: outCount, color: T.red, bg: T.redLight },
+        ].map(s => (
+          <div key={s.label} style={{ background: T.white, border: `1.5px solid ${T.gray200}`, borderRadius: T.radiusLg, padding: '18px 20px', boxShadow: T.shadow }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: T.gray400, marginBottom: 8 }}>{s.label}</div>
+            <div style={{ fontSize: 30, fontWeight: 700, color: s.color, letterSpacing: '-0.03em', lineHeight: 1 }}>{s.value}</div>
           </div>
-        </div>
-      )}
+        ))}
+      </div>
 
-      <div style={styles.searchBar}>
-        <FaSearch style={styles.searchIcon} />
+      {/* ─── Search ─── */}
+      <div style={{ position: 'relative', marginBottom: 20 }}>
+        <FaSearch style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: T.gray400, fontSize: 13, pointerEvents: 'none' }} />
         <input
-          type="text"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search products..."
-          style={styles.searchInput}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search products by name or description…"
+          style={{
+            ...input, width: '100%', boxSizing: 'border-box',
+            paddingLeft: 40, fontSize: 14,
+            border: `1.5px solid ${T.gray200}`,
+            boxShadow: T.shadow,
+            borderRadius: T.radiusLg,
+          }}
         />
       </div>
 
-      {loading ? (
-        <div style={styles.loading}>Loading products...</div>
-      ) : (
-        <div style={styles.tableContainer}>
-          <table style={styles.table}>
+      {/* ─── Table ─── */}
+      <div style={{ background: T.white, border: `1.5px solid ${T.gray200}`, borderRadius: T.radiusLg, boxShadow: T.shadow, overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ padding: '60px 24px', textAlign: 'center', color: T.gray400, fontSize: 14 }}>
+            Loading products…
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: '60px 24px', textAlign: 'center' }}>
+            <FaBox style={{ fontSize: 28, color: T.gray300, marginBottom: 12 }} />
+            <p style={{ margin: 0, color: T.gray400, fontSize: 14 }}>No products found</p>
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
-              <tr>
-                <th style={styles.th}>Image</th>
-                <th style={styles.th}>Name</th>
-                <th style={styles.th}>Category</th>
-                <th style={styles.th}>Price</th>
-                <th style={styles.th}>Stock</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Actions</th>
+              <tr style={{ background: T.gray50, borderBottom: `1.5px solid ${T.gray200}` }}>
+                {['Product', 'Category', 'Price', 'Stock', 'Status', ''].map(h => (
+                  <th key={h} style={{ padding: '12px 20px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: T.gray400, whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {filteredProducts.map(product => (
-                <tr key={product._id}>
-                  <td style={styles.td}>
-                    <img
-                      src={product.images?.[0] || '/placeholder.jpg'}
-                      alt={product.name}
-                      style={styles.productImage}
-                    />
-                  </td>
-                  <td style={styles.td}>{product.name}</td>
-                  <td style={styles.td}>{product.category}</td>
-                  <td style={styles.td}>₹{product.price}</td>
-                  <td style={styles.td}>
-                    <span style={{
-                      ...styles.stockBadge,
-                      background: product.stock > 10 ? '#16a34a' : product.stock > 0 ? '#f59e0b' : '#ef4444',
-                    }}>
-                      {product.stock}
-                    </span>
-                  </td>
-                  <td style={styles.td}>
-                    <span style={{
-                      ...styles.statusBadge,
-                      background: product.isActive ? '#16a34a' : '#ef4444',
-                    }}>
-                      {product.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td style={styles.td}>
-                    <div style={styles.actionButtons}>
-                      <button
-                        onClick={() => handleEdit(product)}
-                        style={styles.editButton}
-                        title="Edit"
-                        disabled={readOnlyMode}
-                      >
-                        <FaEdit />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(product._id)}
-                        style={styles.deleteButton}
-                        title="Delete"
-                        disabled={readOnlyMode}
-                      >
-                        <FaTrash />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((product, i) => {
+                const cat = getCat(product.category);
+                const stockColor = product.stock > 10 ? T.green : product.stock > 0 ? '#BA7517' : T.red;
+                const stockBg = product.stock > 10 ? T.greenLight : product.stock > 0 ? T.amberLight : T.redLight;
+                return (
+                  <tr
+                    key={product._id}
+                    style={{ borderBottom: i < filtered.length - 1 ? `1px solid ${T.gray100}` : 'none', transition: 'background 0.1s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = T.gray50}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    {/* Product */}
+                    <td style={{ padding: '14px 20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <div style={{ width: 44, height: 44, borderRadius: 10, overflow: 'hidden', border: `1.5px solid ${T.gray200}`, flexShrink: 0, background: T.gray100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {product.images?.[0] || product.image
+                            ? <img src={product.images?.[0] || product.image} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : <FaImage style={{ color: T.gray300, fontSize: 14 }} />
+                          }
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 14, color: T.gray900, letterSpacing: '-0.01em' }}>{product.name}</div>
+                          {product.isFeatured && (
+                            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#533AB7', background: '#EEEDFE', padding: '2px 7px', borderRadius: 99, display: 'inline-block', marginTop: 3 }}>Featured</span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    {/* Category */}
+                    <td style={{ padding: '14px 20px' }}>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: cat.color, background: cat.bg, padding: '4px 10px', borderRadius: 99, whiteSpace: 'nowrap' }}>
+                        {cat.label}
+                      </span>
+                    </td>
+                    {/* Price */}
+                    <td style={{ padding: '14px 20px', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: T.gray900, letterSpacing: '-0.01em' }}>₹{product.price}</div>
+                      {product.comparePrice && (
+                        <div style={{ fontSize: 12, color: T.gray400, textDecoration: 'line-through', marginTop: 1 }}>₹{product.comparePrice}</div>
+                      )}
+                    </td>
+                    {/* Stock */}
+                    <td style={{ padding: '14px 20px' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: stockColor, background: stockBg, padding: '4px 10px', borderRadius: 99 }}>
+                        {product.stock}
+                      </span>
+                    </td>
+                    {/* Status */}
+                    <td style={{ padding: '14px 20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ width: 7, height: 7, borderRadius: '50%', background: product.isActive ? T.tealMid : T.gray300 }} />
+                        <span style={{ fontSize: 13, color: product.isActive ? T.tealDark : T.gray400, fontWeight: 500 }}>
+                          {product.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </td>
+                    {/* Actions */}
+                    <td style={{ padding: '14px 20px' }}>
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <ActionBtn
+                          onClick={() => handleEdit(product)}
+                          disabled={readOnlyMode}
+                          color={T.blue} bg={T.blueLight}
+                          title="Edit"
+                        ><FaEdit style={{ fontSize: 12 }} /></ActionBtn>
+                        <ActionBtn
+                          onClick={() => setDeleteConfirm(product._id)}
+                          disabled={readOnlyMode}
+                          color={T.red} bg={T.redLight}
+                          title="Delete"
+                        ><FaTrash style={{ fontSize: 12 }} /></ActionBtn>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-        </div>
+        )}
+      </div>
+
+      {/* ─── Delete Confirm Modal ─── */}
+      {deleteConfirm && (
+        <Modal onClose={() => setDeleteConfirm(null)}>
+          <div style={{ padding: '32px', textAlign: 'center', maxWidth: 360 }}>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', background: T.redLight, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <FaTrash style={{ color: T.red, fontSize: 18 }} />
+            </div>
+            <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: T.gray900 }}>Delete Product?</h3>
+            <p style={{ margin: '0 0 24px', fontSize: 14, color: T.gray400, lineHeight: 1.6 }}>This action cannot be undone. The product will be permanently removed.</p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                style={{ padding: '10px 20px', borderRadius: T.radius, border: `1.5px solid ${T.gray200}`, background: T.white, color: T.gray700, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: T.font }}
+              >Cancel</button>
+              <button
+                onClick={() => handleDelete(deleteConfirm)}
+                style={{ padding: '10px 20px', borderRadius: T.radius, border: 'none', background: T.red, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: T.font }}
+              >Delete</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ─── Form Drawer Modal ─── */}
+      {showForm && (
+        <Modal onClose={resetForm} wide>
+          {/* Header */}
+          <div style={{ padding: '24px 28px 20px', borderBottom: `1.5px solid ${T.gray200}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.tealMid, marginBottom: 4 }}>
+                {editingProduct ? 'Edit Product' : 'New Product'}
+              </div>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: T.gray900, letterSpacing: '-0.02em' }}>
+                {editingProduct ? editingProduct.name : 'Add to Catalogue'}
+              </h2>
+            </div>
+            <button onClick={resetForm} style={{ width: 36, height: 36, borderRadius: 99, border: `1.5px solid ${T.gray200}`, background: T.white, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: T.gray500 }}>
+              <FaTimes style={{ fontSize: 13 }} />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit}>
+            <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20, maxHeight: 'calc(90vh - 160px)', overflowY: 'auto' }}>
+
+              {/* Name + Category */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <Field label="Product Name *" focusedField={focusedField} id="name">
+                  <input type="text" name="name" value={formData.name} onChange={handleInput} onFocus={() => setFocusedField('name')} onBlur={() => setFocusedField(null)} required placeholder="e.g. Niraa Floor Magic" style={{ ...input, border: `1.5px solid ${focusedField === 'name' ? T.tealMid : T.gray200}` }} />
+                </Field>
+                <Field label="Category *" focusedField={focusedField} id="category">
+                  <select name="category" value={formData.category} onChange={handleInput} onFocus={() => setFocusedField('category')} onBlur={() => setFocusedField(null)} required style={{ ...input, border: `1.5px solid ${focusedField === 'category' ? T.tealMid : T.gray200}`, cursor: 'pointer', appearance: 'none' }}>
+                    <option value="">Select Category</option>
+                    {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </select>
+                </Field>
+              </div>
+
+              {/* Price + Compare + Stock */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+                <Field label="Price (₹) *" focusedField={focusedField} id="price">
+                  <input type="number" name="price" value={formData.price} onChange={handleInput} onFocus={() => setFocusedField('price')} onBlur={() => setFocusedField(null)} required placeholder="0.00" min="0" step="0.01" style={{ ...input, border: `1.5px solid ${focusedField === 'price' ? T.tealMid : T.gray200}` }} />
+                </Field>
+                <Field label="Compare Price" focusedField={focusedField} id="comparePrice">
+                  <input type="number" name="comparePrice" value={formData.comparePrice} onChange={handleInput} onFocus={() => setFocusedField('comparePrice')} onBlur={() => setFocusedField(null)} placeholder="0.00" min="0" step="0.01" style={{ ...input, border: `1.5px solid ${focusedField === 'comparePrice' ? T.tealMid : T.gray200}` }} />
+                </Field>
+                <Field label="Stock Qty *" focusedField={focusedField} id="stock">
+                  <input type="number" name="stock" value={formData.stock} onChange={handleInput} onFocus={() => setFocusedField('stock')} onBlur={() => setFocusedField(null)} required placeholder="0" min="0" style={{ ...input, border: `1.5px solid ${focusedField === 'stock' ? T.tealMid : T.gray200}` }} />
+                </Field>
+              </div>
+
+              {/* Image */}
+              <Field label="Product Image" focusedField={focusedField} id="images">
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                  <input
+                    type="url"
+                    value={formData.images[0] || ''}
+                    onChange={e => setFormData(p => ({ ...p, images: [e.target.value] }))}
+                    onFocus={() => setFocusedField('images')}
+                    onBlur={() => setFocusedField(null)}
+                    placeholder="https://res.cloudinary.com/..."
+                    style={{ ...input, flex: 1, border: `1.5px solid ${focusedField === 'images' ? T.tealMid : T.gray200}` }}
+                  />
+                  <label style={{
+                    display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
+                    background: uploadingImage ? T.gray100 : T.tealLight, color: T.tealDark,
+                    border: `1.5px solid ${T.tealMid}20`, borderRadius: T.radius,
+                    cursor: uploadingImage ? 'wait' : 'pointer', fontWeight: 600, fontSize: 13,
+                    whiteSpace: 'nowrap', fontFamily: T.font, transition: 'all 0.15s',
+                  }}>
+                    <FaImage style={{ fontSize: 12 }} />
+                    {uploadingImage ? 'Uploading…' : 'Upload'}
+                    <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} disabled={uploadingImage} />
+                  </label>
+                </div>
+                {formData.images[0] && (
+                  <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <img src={formData.images[0]} alt="Preview" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 8, border: `1.5px solid ${T.gray200}` }} />
+                    <span style={{ fontSize: 12, color: T.gray400 }}>Preview</span>
+                  </div>
+                )}
+              </Field>
+
+              {/* Description */}
+              <Field label="Description" focusedField={focusedField} id="description">
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInput}
+                  onFocus={() => setFocusedField('description')}
+                  onBlur={() => setFocusedField(null)}
+                  rows={4}
+                  placeholder="Describe the product, its benefits, usage…"
+                  style={{ ...input, resize: 'vertical', lineHeight: 1.6, border: `1.5px solid ${focusedField === 'description' ? T.tealMid : T.gray200}` }}
+                />
+              </Field>
+
+              {/* Toggles */}
+              <div style={{ display: 'flex', gap: 16 }}>
+                {[
+                  { name: 'isActive', label: 'Active', sub: 'Visible on website' },
+                  { name: 'isFeatured', label: 'Featured', sub: 'Show on homepage' },
+                ].map(tog => (
+                  <label key={tog.name} style={{
+                    flex: 1, display: 'flex', alignItems: 'center', gap: 14,
+                    padding: '14px 16px', borderRadius: T.radius,
+                    border: `1.5px solid ${formData[tog.name] ? T.tealMid + '60' : T.gray200}`,
+                    background: formData[tog.name] ? T.tealLight : T.white,
+                    cursor: 'pointer', transition: 'all 0.15s',
+                  }}>
+                    <div style={{
+                      width: 40, height: 22, borderRadius: 99,
+                      background: formData[tog.name] ? T.tealMid : T.gray200,
+                      position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+                    }}>
+                      <div style={{
+                        position: 'absolute', top: 3, left: formData[tog.name] ? 21 : 3,
+                        width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                        transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                      }} />
+                    </div>
+                    <input type="checkbox" name={tog.name} checked={formData[tog.name]} onChange={handleInput} style={{ display: 'none' }} />
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: T.gray800 }}>{tog.label}</div>
+                      <div style={{ fontSize: 12, color: T.gray400 }}>{tog.sub}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '16px 28px', borderTop: `1.5px solid ${T.gray200}`, display: 'flex', justifyContent: 'flex-end', gap: 10, background: T.gray50 }}>
+              <button type="button" onClick={resetForm} style={{ padding: '10px 20px', borderRadius: T.radius, border: `1.5px solid ${T.gray200}`, background: T.white, color: T.gray700, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: T.font }}>
+                Cancel
+              </button>
+              <button type="submit" style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 22px', borderRadius: T.radius,
+                border: 'none', background: T.teal, color: '#fff',
+                fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: T.font,
+                boxShadow: `0 2px 8px rgba(15,110,86,0.25)`,
+              }}>
+                <FaSave style={{ fontSize: 12 }} />
+                {editingProduct ? 'Save Changes' : 'Create Product'}
+              </button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );
 };
 
-const styles = {
-  container: {
-    padding: '20px',
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '20px',
-  },
-  title: {
-    margin: 0,
-    fontSize: '1.5rem',
-    fontWeight: '700',
-    color: 'var(--gray-800)',
-  },
-  addButton: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    background: 'var(--teal)',
-    color: '#fff',
-    border: 'none',
-    padding: '10px 20px',
-    borderRadius: '8px',
-    fontWeight: '700',
-    cursor: 'pointer',
-    fontSize: '0.9rem',
-  },
-  formOverlay: {
-    position: 'fixed',
-    inset: 0,
-    background: 'rgba(0,0,0,0.5)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-  },
-  formContainer: {
-    background: '#fff',
-    borderRadius: '16px',
-    width: '90%',
-    maxWidth: '700px',
-    maxHeight: '90vh',
-    overflow: 'auto',
-    padding: '24px',
-  },
-  formHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '20px',
-  },
-  formTitle: {
-    margin: 0,
-    fontSize: '1.25rem',
-    fontWeight: '700',
-    color: 'var(--gray-800)',
-  },
-  closeButton: {
-    background: 'none',
-    border: 'none',
-    fontSize: '1.2rem',
-    cursor: 'pointer',
-    color: 'var(--gray-500)',
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '16px',
-  },
-  formGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '16px',
-  },
-  formGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-  },
-  label: {
-    fontSize: '0.875rem',
-    fontWeight: '600',
-    color: 'var(--gray-700)',
-  },
-  input: {
-    padding: '10px 12px',
-    border: '1px solid var(--gray-300)',
-    borderRadius: '8px',
-    fontSize: '0.9rem',
-    fontFamily: 'inherit',
-  },
-  textarea: {
-    padding: '10px 12px',
-    border: '1px solid var(--gray-300)',
-    borderRadius: '8px',
-    fontSize: '0.9rem',
-    fontFamily: 'inherit',
-    resize: 'vertical',
-  },
-  checkboxGroup: {
-    display: 'flex',
-    gap: '20px',
-  },
-  checkboxLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    fontSize: '0.9rem',
-    color: 'var(--gray-700)',
-    cursor: 'pointer',
-  },
-  checkbox: {
-    width: '18px',
-    height: '18px',
-    cursor: 'pointer',
-  },
-  formActions: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: '12px',
-    marginTop: '20px',
-  },
-  cancelButton: {
-    padding: '10px 20px',
-    background: 'var(--gray-200)',
-    color: 'var(--gray-700)',
-    border: 'none',
-    borderRadius: '8px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    fontSize: '0.9rem',
-  },
-  submitButton: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '10px 20px',
-    background: 'var(--teal)',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '8px',
-    fontWeight: '700',
-    cursor: 'pointer',
-    fontSize: '0.9rem',
-  },
-  searchBar: {
-    position: 'relative',
-    marginBottom: '20px',
-  },
-  searchIcon: {
-    position: 'absolute',
-    left: '12px',
-    top: '50%',
-    transform: 'translateY(-50%)',
-    color: 'var(--gray-400)',
-  },
-  searchInput: {
-    width: '100%',
-    padding: '12px 12px 12px 40px',
-    border: '1px solid var(--gray-300)',
-    borderRadius: '8px',
-    fontSize: '0.9rem',
-  },
-  loading: {
-    textAlign: 'center',
-    padding: '40px',
-    color: 'var(--gray-500)',
-  },
-  tableContainer: {
-    background: '#fff',
-    borderRadius: '12px',
-    overflow: 'hidden',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-  },
-  table: {
-    width: '100%',
-    borderCollapse: 'collapse',
-  },
-  th: {
-    textAlign: 'left',
-    padding: '14px 16px',
-    background: 'var(--gray-100)',
-    fontWeight: '700',
-    fontSize: '0.85rem',
-    color: 'var(--gray-700)',
-    borderBottom: '1px solid var(--gray-200)',
-  },
-  td: {
-    padding: '14px 16px',
-    borderBottom: '1px solid var(--gray-100)',
-    fontSize: '0.9rem',
-  },
-  productImage: {
-    width: '50px',
-    height: '50px',
-    objectFit: 'cover',
-    borderRadius: '8px',
-  },
-  stockBadge: {
-    display: 'inline-block',
-    padding: '4px 8px',
-    borderRadius: '999px',
-    fontSize: '0.75rem',
-    fontWeight: '700',
-    color: '#fff',
-  },
-  statusBadge: {
-    display: 'inline-block',
-    padding: '4px 8px',
-    borderRadius: '999px',
-    fontSize: '0.75rem',
-    fontWeight: '700',
-    color: '#fff',
-  },
-  actionButtons: {
-    display: 'flex',
-    gap: '8px',
-  },
-  editButton: {
-    padding: '6px 10px',
-    background: '#3b82f6',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '0.85rem',
-  },
-  deleteButton: {
-    padding: '6px 10px',
-    background: '#ef4444',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontSize: '0.85rem',
-  },
-};
+/* ─── Sub-components ──────────────────────────────────────────── */
+
+const Field = ({ label: lbl, id, children }) => (
+  <div style={field}>
+    <label htmlFor={id} style={label}>{lbl}</label>
+    {children}
+  </div>
+);
+
+const ActionBtn = ({ children, onClick, disabled, color, bg, title }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    title={title}
+    style={{
+      width: 32, height: 32, borderRadius: 8, border: 'none',
+      background: disabled ? T.gray100 : bg,
+      color: disabled ? T.gray400 : color,
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      transition: 'transform 0.1s, opacity 0.1s',
+    }}
+    onMouseEnter={e => { if (!disabled) e.currentTarget.style.transform = 'scale(1.08)'; }}
+    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+  >
+    {children}
+  </button>
+);
+
+const Modal = ({ children, onClose, wide }) => (
+  <div
+    onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    style={{
+      position: 'fixed', inset: 0,
+      background: 'rgba(15, 14, 13, 0.5)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1000, backdropFilter: 'blur(4px)',
+      padding: 24,
+    }}
+  >
+    <div style={{
+      background: T.white,
+      borderRadius: T.radiusXl,
+      width: '100%',
+      maxWidth: wide ? 640 : 420,
+      maxHeight: '90vh',
+      overflow: 'hidden',
+      boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      {children}
+    </div>
+  </div>
+);
+
+const T2 = { gray300: '#D1CFC8', gray400: '#A8A59D', gray500: '#888680' };
+Object.assign(T, T2);
 
 export default AdminProducts;
