@@ -1,8 +1,119 @@
 import React, { useState, useEffect } from 'react';
-import { FiEdit2, FiSave, FiX, FiLock, FiShield, FiChevronRight } from 'react-icons/fi';
 import { useAuth } from '../context/AuthContext.jsx';
 import { API_BASE_URL } from '../utils/constants.js';
 import toast from 'react-hot-toast';
+
+const T = {
+  teal: '#1D9E75', tealDark: '#0F6E56', tealLight: '#E8F8F1',
+  gray50: '#F9F9F8', gray100: '#F2F1EF', gray200: '#E5E3DE',
+  gray300: '#C9C6BF', gray400: '#A8A59D', gray500: '#87847C',
+  gray600: '#6B6862', gray700: '#4A4845', gray800: '#2E2D2A', gray900: '#1A1917',
+  white: '#FFFFFF',
+  font: `'DM Sans', system-ui, sans-serif`,
+  fontDisplay: `'Fraunces', Georgia, serif`,
+  shadow: '0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06)',
+};
+
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800;900&family=DM+Sans:wght@400;500;600;700;800&display=swap');
+  
+  .profile-page * { box-sizing: border-box; }
+
+  .profile-card {
+    background: ${T.white}; border: 1.5px solid ${T.gray200};
+    border-radius: 24px; padding: 32px;
+    box-shadow: ${T.shadow};
+    transition: all 0.3s;
+  }
+
+  .field-label {
+    display: block; font-size: 11px; font-weight: 700;
+    letter-spacing: .07em; text-transform: uppercase;
+    color: ${T.gray500}; margin-bottom: 6px;
+  }
+  .field-input {
+    width: 100%; padding: 13px 16px;
+    border: 1.5px solid ${T.gray200}; border-radius: 12px;
+    font-size: 14px; font-family: ${T.font}; color: ${T.gray800};
+    background: ${T.white}; outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    box-sizing: border-box;
+  }
+  .field-input:focus {
+    border-color: ${T.teal};
+    box-shadow: 0 0 0 3px rgba(29,158,117,0.12);
+  }
+  .field-input:disabled {
+    background: ${T.gray50}; color: ${T.gray400}; cursor: not-allowed;
+  }
+
+  .info-block {
+    padding: 14px 16px; background: ${T.gray50};
+    border-radius: 12px; border: 1px solid ${T.gray200};
+    transition: all 0.2s;
+  }
+  .info-block:hover { border-color: rgba(29,158,117,0.3); }
+
+  .primary-btn {
+    width: 100%; padding: 14px; background: ${T.teal}; color: #fff;
+    border: none; border-radius: 12px; font-weight: 800; font-size: 15px;
+    cursor: pointer; font-family: ${T.font};
+    box-shadow: 0 4px 16px rgba(29,158,117,0.3);
+    transition: all 0.2s;
+  }
+  .primary-btn:hover:not(:disabled) { background: ${T.tealDark}; transform: translateY(-1px); }
+  .primary-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .ghost-btn {
+    padding: 11px 18px; background: ${T.white}; color: ${T.gray700};
+    border: 1.5px solid ${T.gray200}; border-radius: 12px;
+    font-weight: 700; font-size: 13px; cursor: pointer;
+    font-family: ${T.font}; display: flex; align-items: center; gap: 7px;
+    transition: all 0.2s;
+  }
+  .ghost-btn:hover { border-color: ${T.teal}; color: ${T.teal}; background: ${T.tealLight}; }
+  .ghost-btn.danger { color: #dc2626; border-color: #fecaca; }
+  .ghost-btn.danger:hover { background: #fef2f2; border-color: #dc2626; }
+
+  .edit-btn {
+    padding: 11px 20px; background: ${T.teal}; color: #fff;
+    border: none; border-radius: 12px; font-weight: 700; font-size: 13px;
+    cursor: pointer; font-family: ${T.font};
+    display: flex; align-items: center; gap: 7px;
+    box-shadow: 0 4px 12px rgba(29,158,117,0.3);
+    transition: all 0.2s;
+  }
+  .edit-btn:hover { background: ${T.tealDark}; transform: translateY(-1px); }
+
+  .avatar {
+    width: 96px; height: 96px; border-radius: 24px;
+    background: linear-gradient(135deg, ${T.teal} 0%, ${T.tealDark} 100%);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 2.2rem; font-weight: 900;
+    font-family: ${T.fontDisplay};
+    box-shadow: 0 8px 24px rgba(29,158,117,0.3);
+  }
+
+  .security-card {
+    background: ${T.white}; border: 1.5px solid ${T.gray200};
+    border-radius: 20px; padding: 24px; margin-top: 16px;
+    box-shadow: ${T.shadow};
+  }
+
+  .otp-input {
+    text-align: center; letter-spacing: 8px; font-size: 26px;
+    font-weight: 900; font-family: ${T.fontDisplay};
+  }
+
+  .stats-row {
+    display: grid; grid-template-columns: repeat(3,1fr); gap: 10px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: ${T.tealLight}; border-radius: 14px; padding: 14px;
+    text-align: center;
+  }
+`;
 
 const Profile = () => {
   const { user, updateProfile } = useAuth();
@@ -14,17 +125,11 @@ const Profile = () => {
     phone: user?.phone || '',
     address: user?.address?.addressLine1 || user?.address?.street || '',
     city: user?.address?.city || '',
-    pincode: user?.address?.pincode || ''
+    pincode: user?.address?.pincode || '',
   });
-
-  // Password Change State
   const [showPasswordSection, setShowPasswordSection] = useState(false);
-  const [passwordStep, setPasswordStep] = useState('initial'); // initial, otp, new-password
-  const [passwordForm, setPasswordForm] = useState({
-    otp: '',
-    newPassword: '',
-    confirmPassword: ''
-  });
+  const [passwordStep, setPasswordStep] = useState('initial');
+  const [passwordForm, setPasswordForm] = useState({ otp: '', newPassword: '', confirmPassword: '' });
   const [otpLoading, setOtpLoading] = useState(false);
 
   useEffect(() => {
@@ -34,652 +139,257 @@ const Profile = () => {
       phone: user?.phone || '',
       address: user?.address?.addressLine1 || user?.address?.street || '',
       city: user?.address?.city || '',
-      pincode: user?.address?.pincode || ''
+      pincode: user?.address?.pincode || '',
     });
   }, [user]);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleCancel = () => {
-    setFormData({
-      name: user?.name || '',
-      email: user?.email || '',
-      phone: user?.phone || '',
-      address: user?.address?.addressLine1 || '',
-      city: user?.address?.city || '',
-      pincode: user?.address?.pincode || ''
-    });
-    setIsEditing(false);
-  };
-
-  const handleSave = async (e) => {
+  const handleSave = async e => {
     e.preventDefault();
     setLoading(true);
-    
     try {
       const token = localStorage.getItem('niraa_token');
-      const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+      const res = await fetch(`${API_BASE_URL}/auth/profile`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          address: {
-            addressLine1: formData.address,
-            city: formData.city,
-            pincode: formData.pincode
-          }
-        })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ name: formData.name, email: formData.email, address: { addressLine1: formData.address, city: formData.city, pincode: formData.pincode } })
       });
-
-      if (response.ok) {
-        const data = await response.json();
+      if (res.ok) {
+        const data = await res.json();
         updateProfile(data.user);
-        toast.success('Profile saved successfully!');
+        toast.success('✓ Profile saved!');
         setIsEditing(false);
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        toast.error(errorData.message || 'Failed to save profile');
+        const errorData = await res.json().catch(() => ({}));
+        toast.error(errorData.message || 'Failed to save');
       }
-    } catch (error) {
-      console.error('Error saving profile:', error);
-      toast.error('Server error. Please try again later.');
-    } finally {
-      setLoading(false);
-    }
+    } catch { toast.error('Server error. Try again.'); }
+    finally { setLoading(false); }
   };
 
   const handleSendOtp = async () => {
     setOtpLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch(`${API_BASE_URL}/auth/send-otp`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: user.phone })
       });
-      
-      if (response.ok) {
-        toast.success('OTP sent to your registered phone');
-        setPasswordStep('otp');
-      } else {
-        const data = await response.json();
-        toast.error(data.message || 'Failed to send OTP');
-      }
-    } catch (error) {
-      toast.error('Error sending OTP');
-    } finally {
-      setOtpLoading(false);
-    }
+      if (res.ok) { toast.success('OTP sent to your phone'); setPasswordStep('otp'); }
+      else { const d = await res.json(); toast.error(d.message || 'Failed to send OTP'); }
+    } catch { toast.error('Error sending OTP'); }
+    finally { setOtpLoading(false); }
   };
 
-  const handleResetPassword = async (e) => {
+  const handleResetPassword = async e => {
     e.preventDefault();
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      return toast.error('Passwords do not match');
-    }
-    if (passwordForm.newPassword.length < 6) {
-      return toast.error('Password must be at least 6 characters');
-    }
-
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) return toast.error('Passwords do not match');
+    if (passwordForm.newPassword.length < 6) return toast.error('Min 6 characters');
     setLoading(true);
     try {
       const token = localStorage.getItem('niraa_token');
-      const response = await fetch(`${API_BASE_URL}/auth/reset-password-with-otp`, {
+      const res = await fetch(`${API_BASE_URL}/auth/reset-password-with-otp`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          otp: passwordForm.otp,
-          newPassword: passwordForm.newPassword
-        })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ otp: passwordForm.otp, newPassword: passwordForm.newPassword })
       });
-
-      if (response.ok) {
-        toast.success('Password updated successfully!');
+      if (res.ok) {
+        toast.success('🔒 Password updated!');
         setShowPasswordSection(false);
         setPasswordStep('initial');
         setPasswordForm({ otp: '', newPassword: '', confirmPassword: '' });
       } else {
-        const data = await response.json();
-        toast.error(data.message || 'Failed to update password');
+        const d = await res.json();
+        toast.error(d.message || 'Failed to update');
       }
-    } catch (error) {
-      toast.error('Error updating password');
-    } finally {
-      setLoading(false);
-    }
+    } catch { toast.error('Error updating password'); }
+    finally { setLoading(false); }
   };
 
+  const initials = user?.name?.charAt(0).toUpperCase() || 'U';
+
   return (
-    <div style={{ padding: '40px 0', background: 'var(--gray-50)', minHeight: '70vh' }}>
-      <div className="container" style={{ maxWidth: 600 }}>
-        <div style={{ marginBottom: 30 }}>
-          <h1 style={{ 
-            fontSize: '1.75rem', 
-            fontWeight: 700, 
-            color: 'var(--gray-800)',
-            marginBottom: 8
-          }}>
-            My Profile
-          </h1>
-          <p style={{ color: 'var(--gray-500)', margin: 0 }}>
-            Manage your account details and delivery address
-          </p>
+    <div className="profile-page" style={{ padding: '40px 0 80px', background: T.gray50, minHeight: '80vh', fontFamily: T.font }}>
+      <style>{css}</style>
+      <div className="container" style={{ maxWidth: 640, margin: '0 auto', padding: '0 16px' }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: T.teal }} />
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.12em', textTransform: 'uppercase', color: T.teal }}>Account</span>
+          </div>
+          <h1 style={{ fontFamily: T.fontDisplay, fontSize: '1.8rem', fontWeight: 900, color: T.gray900, margin: '0 0 4px', letterSpacing: '-.02em' }}>My Profile</h1>
+          <p style={{ color: T.gray400, margin: 0, fontSize: 14 }}>Manage your account details and delivery address</p>
         </div>
 
         {/* Profile Card */}
-        <div style={{
-          background: '#fff',
-          borderRadius: 20,
-          boxShadow: 'var(--shadow-md)',
-          padding: 32,
-          transition: 'all 0.3s ease'
-        }}>
-          {/* Avatar Header */}
-          <div style={{ textAlign: 'center', marginBottom: 32, position: 'relative' }}>
-            <div style={{
-              width: 110,
-              height: 110,
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, var(--teal) 0%, var(--teal-dark) 100%)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-              fontSize: '2.75rem',
-              fontWeight: 700,
-              marginBottom: 20,
-              boxShadow: '0 16px 40px rgba(42, 125, 114, 0.28)',
-              border: '4px solid #fff'
-            }}>
-              {user?.name?.charAt(0).toUpperCase() || 'U'}
+        <div className="profile-card">
+          {/* Avatar + name row */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div className="avatar">{initials}</div>
+              <div>
+                <div style={{ fontFamily: T.fontDisplay, fontSize: '1.4rem', fontWeight: 900, color: T.gray900 }}>{user?.name || 'User'}</div>
+                <div style={{ fontSize: 14, color: T.gray500, marginTop: 2 }}>📱 {user?.phone}</div>
+                {user?.email && <div style={{ fontSize: 13, color: T.gray400, marginTop: 2 }}>{user.email}</div>}
+              </div>
             </div>
-            
-            {!isEditing ? (
-              <button
-                onClick={() => setIsEditing(true)}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  right: 0,
-                  background: 'var(--teal)',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '11px 18px',
-                  borderRadius: 12,
-                  fontWeight: 600,
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  transition: 'all 0.2s ease',
-                  boxShadow: '0 4px 16px rgba(42, 125, 114, 0.2)'
-                }}
-              >
-                <FiEdit2 size={16} />
-                Edit Profile
-              </button>
-            ) : (
-              <button
-                onClick={handleCancel}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  right: 0,
-                  background: '#ef4444',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '11px 18px',
-                  borderRadius: 12,
-                  fontWeight: 600,
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 7,
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <FiX size={16} />
-                Cancel
-              </button>
-            )}
-
-            <h2 style={{ fontSize: '1.6rem', fontWeight: 700, margin: 0, color: 'var(--gray-800)' }}>{user?.name}</h2>
-            <p style={{ color: 'var(--gray-500)', margin: '6px 0 0 0', fontSize: '1rem' }}>{user?.phone}</p>
-            {user?.email && (
-              <p style={{ color: 'var(--gray-400)', margin: 0, fontSize: '0.9rem' }}>{user?.email}</p>
-            )}
+            <div>
+              {!isEditing ? (
+                <button className="edit-btn" onClick={() => setIsEditing(true)}>
+                  ✏️ Edit Profile
+                </button>
+              ) : (
+                <button className="ghost-btn danger" onClick={() => { setIsEditing(false); }}>
+                  ✕ Cancel
+                </button>
+              )}
+            </div>
           </div>
 
+          {/* Quick stats */}
+          {!isEditing && (
+            <div className="stats-row">
+              {[['🛒', '8', 'Orders'], ['⭐', '4.8', 'Rating'], ['🌿', '120', 'Points']].map(([icon, val, label]) => (
+                <div key={label} className="stat-card">
+                  <div style={{ fontSize: 18, marginBottom: 4 }}>{icon}</div>
+                  <div style={{ fontFamily: T.fontDisplay, fontWeight: 900, fontSize: 18, color: T.tealDark }}>{val}</div>
+                  <div style={{ fontSize: 11, color: T.teal, fontWeight: 700 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {!isEditing ? (
-            // VIEW MODE
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                <div style={{ 
-                  padding: '16px 20px', 
-                  background: 'var(--gray-50)', 
-                  borderRadius: 14 
-                }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)', fontWeight: 600, marginBottom: 4 }}>Full Name</div>
-                  <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--gray-800)' }}>{formData.name || 'Not set'}</div>
+            /* ─── View Mode ─── */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="info-block">
+                  <div style={{ fontSize: 11, color: T.gray400, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>Full Name</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: T.gray800 }}>{formData.name || '—'}</div>
                 </div>
-
-                <div style={{ 
-                  padding: '16px 20px', 
-                  background: 'var(--gray-50)', 
-                  borderRadius: 14 
-                }}>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)', fontWeight: 600, marginBottom: 4 }}>Email Address</div>
-                  <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--gray-800)' }}>{formData.email || 'Not set'}</div>
+                <div className="info-block">
+                  <div style={{ fontSize: 11, color: T.gray400, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>Email</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: T.gray800 }}>{formData.email || '—'}</div>
                 </div>
               </div>
-
-              <div style={{ 
-                padding: '16px 20px', 
-                background: 'var(--gray-50)', 
-                borderRadius: 14 
-              }}>
-                <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)', fontWeight: 600, marginBottom: 4 }}>Phone Number</div>
-                <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--gray-800)' }}>{formData.phone}</div>
+              <div className="info-block">
+                <div style={{ fontSize: 11, color: T.gray400, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 4 }}>Phone</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: T.gray800 }}>{formData.phone}</div>
               </div>
-
-              <hr style={{ border: 'none', borderTop: '1px solid var(--gray-200)', margin: '8px 0' }} />
-
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--gray-800)', margin: 0 }}>
-                📍 Delivery Address
-              </h3>
-
-              <div style={{ 
-                padding: '20px', 
-                background: 'linear-gradient(135deg, #ecfdf5 0%, #f0fdfa 100%)', 
-                borderRadius: 16,
-                border: '1px solid #a7f3d0'
-              }}>
-                {formData.address || formData.city || formData.pincode ? (
-                  <>
-                    <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--gray-800)', marginBottom: 4 }}>{formData.address}</div>
-                    <div style={{ fontSize: '0.95rem', color: 'var(--gray-600)' }}>
-                      {formData.city} {formData.pincode && `- ${formData.pincode}`}
-                    </div>
-                  </>
+              <div className="info-block" style={{ background: T.tealLight, borderColor: 'rgba(29,158,117,0.2)' }}>
+                <div style={{ fontSize: 11, color: T.tealDark, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 6 }}>📍 Delivery Address</div>
+                {formData.address || formData.city ? (
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: T.gray800 }}>{formData.address}</div>
+                    <div style={{ fontSize: 13, color: T.tealDark, marginTop: 2 }}>{formData.city}{formData.pincode ? ` – ${formData.pincode}` : ''}</div>
+                  </div>
                 ) : (
-                  <div style={{ color: 'var(--gray-500)', fontSize: '0.95rem' }}>No delivery address saved yet</div>
+                  <div style={{ fontSize: 13, color: T.gray500 }}>No delivery address saved yet</div>
                 )}
               </div>
             </div>
           ) : (
-            // EDIT MODE
-            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>Full Name</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    style={{
-                      padding: '14px 16px',
-                      border: '2px solid var(--gray-200)',
-                      borderRadius: 12,
-                      fontSize: '0.95rem',
-                      transition: 'all 0.2s ease',
-                      outline: 'none'
-                    }}
-                    onFocus={(e) => e.target.style.borderColor = 'var(--teal)'}
-                    onBlur={(e) => e.target.style.borderColor = 'var(--gray-200)'}
-                  />
+            /* ─── Edit Mode ─── */
+            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label className="field-label">Full Name</label>
+                  <input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className="field-input" placeholder="Your full name" />
                 </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>Email Address</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    style={{
-                      padding: '14px 16px',
-                      border: '2px solid var(--gray-200)',
-                      borderRadius: 12,
-                      fontSize: '0.95rem',
-                      transition: 'all 0.2s ease',
-                      outline: 'none'
-                    }}
-                    onFocus={(e) => e.target.style.borderColor = 'var(--teal)'}
-                    onBlur={(e) => e.target.style.borderColor = 'var(--gray-200)'}
-                  />
+                <div>
+                  <label className="field-label">Email</label>
+                  <input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} className="field-input" placeholder="your@email.com" />
                 </div>
               </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>Phone Number</label>
-                <input
-                  type="text"
-                  name="phone"
-                  value={formData.phone}
-                  disabled
-                  style={{
-                    padding: '14px 16px',
-                    border: '1px solid var(--gray-200)',
-                    borderRadius: 12,
-                    fontSize: '0.95rem',
-                    background: 'var(--gray-50)',
-                    color: 'var(--gray-500)'
-                  }}
-                />
-                <span style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>Phone number cannot be changed</span>
+              <div>
+                <label className="field-label">Phone (cannot change)</label>
+                <input type="text" value={formData.phone} disabled className="field-input" />
               </div>
-
-              <hr style={{ border: 'none', borderTop: '1px solid var(--gray-200)', margin: '8px 0' }} />
-
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--gray-800)', margin: 0 }}>
-                📍 Delivery Address
-              </h3>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>Full Address</label>
-                <textarea
-                  name="address"
-                  value={formData.address}
-                  onChange={handleInputChange}
-                  rows="3"
-                  style={{
-                    padding: '14px 16px',
-                    border: '2px solid var(--gray-200)',
-                    borderRadius: 12,
-                    fontSize: '0.95rem',
-                    resize: 'vertical',
-                    fontFamily: 'inherit',
-                    transition: 'all 0.2s ease',
-                    outline: 'none'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = 'var(--teal)'}
-                  onBlur={(e) => e.target.style.borderColor = 'var(--gray-200)'}
-                  placeholder="House / Flat / Apartment"
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 20 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>City</label>
-                  <input
-                    type="text"
-                    name="city"
-                    value={formData.city}
-                    onChange={handleInputChange}
-                    style={{
-                      padding: '14px 16px',
-                      border: '2px solid var(--gray-200)',
-                      borderRadius: 12,
-                      fontSize: '0.95rem',
-                      transition: 'all 0.2s ease',
-                      outline: 'none'
-                    }}
-                    onFocus={(e) => e.target.style.borderColor = 'var(--teal)'}
-                    onBlur={(e) => e.target.style.borderColor = 'var(--gray-200)'}
-                    placeholder="Dharmapuri"
-                  />
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>Pincode</label>
-                  <input
-                    type="text"
-                    name="pincode"
-                    value={formData.pincode}
-                    onChange={handleInputChange}
-                    style={{
-                      padding: '14px 16px',
-                      border: '2px solid var(--gray-200)',
-                      borderRadius: 12,
-                      fontSize: '0.95rem',
-                      transition: 'all 0.2s ease',
-                      outline: 'none'
-                    }}
-                    onFocus={(e) => e.target.style.borderColor = 'var(--teal)'}
-                    onBlur={(e) => e.target.style.borderColor = 'var(--gray-200)'}
-                    placeholder="636701"
-                  />
+              <div style={{ paddingTop: 8, borderTop: `1px solid ${T.gray100}` }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: T.gray800, marginBottom: 12 }}>📍 Delivery Address</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div>
+                    <label className="field-label">Street Address</label>
+                    <textarea value={formData.address} onChange={e => setFormData(p => ({ ...p, address: e.target.value }))} rows={2} className="field-input" placeholder="House/Flat, Street, Landmark" style={{ resize: 'vertical', lineHeight: 1.6 }} />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+                    <div>
+                      <label className="field-label">City</label>
+                      <input type="text" value={formData.city} onChange={e => setFormData(p => ({ ...p, city: e.target.value }))} className="field-input" placeholder="Dharmapuri" />
+                    </div>
+                    <div>
+                      <label className="field-label">Pincode</label>
+                      <input type="text" value={formData.pincode} onChange={e => setFormData(p => ({ ...p, pincode: e.target.value }))} className="field-input" placeholder="636xxx" />
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  marginTop: 8,
-                  padding: '16px',
-                  background: 'linear-gradient(135deg, var(--teal) 0%, var(--teal-dark) 100%)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 12,
-                  fontWeight: 700,
-                  fontSize: '1rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  opacity: loading ? 0.6 : 1
-                }}
-              >
-                {loading ? 'Saving...' : 'Save Changes'}
+              <button type="submit" disabled={loading} className="primary-btn" style={{ marginTop: 8 }}>
+                {loading ? '⏳ Saving…' : '✓ Save Changes'}
               </button>
             </form>
           )}
         </div>
 
-        {/* Change Password Section */}
-        <div style={{
-          marginTop: 24,
-          background: '#fff',
-          borderRadius: 20,
-          boxShadow: 'var(--shadow-sm)',
-          padding: 24,
-          border: '1px solid var(--gray-100)'
-        }}>
+        {/* ─── Security Card ─── */}
+        <div className="security-card">
           {!showPasswordSection ? (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                <div style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 12,
-                  background: 'var(--gray-50)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--gray-600)'
-                }}>
-                  <FiLock size={20} />
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ width: 46, height: 46, borderRadius: 12, background: T.gray100, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🔒</div>
                 <div>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: 'var(--gray-800)' }}>Security</h3>
-                  <p style={{ fontSize: '0.85rem', color: 'var(--gray-500)', margin: 0 }}>Update your account password</p>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: T.gray900 }}>Security</div>
+                  <div style={{ fontSize: 13, color: T.gray400 }}>Update your account password</div>
                 </div>
               </div>
-              <button
-                onClick={() => setShowPasswordSection(true)}
-                style={{
-                  background: 'transparent',
-                  border: '1px solid var(--gray-200)',
-                  padding: '8px 16px',
-                  borderRadius: 10,
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  color: 'var(--gray-700)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--teal)';
-                  e.currentTarget.style.color = 'var(--teal)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--gray-200)';
-                  e.currentTarget.style.color = 'var(--gray-700)';
-                }}
-              >
-                Change Password
-                <FiChevronRight size={14} />
+              <button className="ghost-btn" onClick={() => setShowPasswordSection(true)}>
+                Change Password →
               </button>
             </div>
           ) : (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--gray-800)' }}>
-                  Change Password
-                </h3>
-                <button 
-                  onClick={() => {
-                    setShowPasswordSection(false);
-                    setPasswordStep('initial');
-                  }}
-                  style={{ background: 'none', border: 'none', color: 'var(--gray-400)', cursor: 'pointer' }}
-                >
-                  <FiX size={20} />
-                </button>
+                <div style={{ fontWeight: 800, fontSize: 16, color: T.gray900 }}>Change Password</div>
+                <button onClick={() => { setShowPasswordSection(false); setPasswordStep('initial'); }} style={{ background: 'none', border: 'none', fontSize: 20, color: T.gray400, cursor: 'pointer' }}>×</button>
               </div>
 
               {passwordStep === 'initial' && (
-                <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                  <div style={{ 
-                    width: 60, height: 60, borderRadius: '50%', background: '#f0fdf4', 
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                    margin: '0 auto 16px', color: '#16a34a' 
-                  }}>
-                    <FiShield size={30} />
-                  </div>
-                  <p style={{ fontSize: '0.95rem', color: 'var(--gray-600)', marginBottom: 20 }}>
-                    For your security, we'll send a verification code to <b>{user.phone}</b> before you can change your password.
+                <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                  <div style={{ width: 56, height: 56, borderRadius: '50%', background: T.tealLight, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 24 }}>🛡️</div>
+                  <p style={{ fontSize: 14, color: T.gray600, marginBottom: 20, lineHeight: 1.6 }}>
+                    We'll send a verification code to <strong>{user?.phone}</strong> before changing your password.
                   </p>
-                  <button
-                    onClick={handleSendOtp}
-                    disabled={otpLoading}
-                    style={{
-                      width: '100%',
-                      padding: '14px',
-                      background: 'var(--teal)',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      opacity: otpLoading ? 0.7 : 1
-                    }}
-                  >
-                    {otpLoading ? 'Sending OTP...' : 'Send Verification Code'}
+                  <button onClick={handleSendOtp} disabled={otpLoading} className="primary-btn">
+                    {otpLoading ? 'Sending…' : '📲 Send Verification Code'}
                   </button>
                 </div>
               )}
 
               {passwordStep === 'otp' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>Enter OTP</label>
-                    <input
-                      type="text"
-                      placeholder="6-digit code"
-                      value={passwordForm.otp}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, otp: e.target.value })}
-                      style={{
-                        padding: '14px 16px',
-                        border: '2px solid var(--gray-200)',
-                        borderRadius: 12,
-                        fontSize: '1rem',
-                        textAlign: 'center',
-                        letterSpacing: '4px'
-                      }}
-                    />
+                  <div>
+                    <label className="field-label">Enter OTP</label>
+                    <input type="text" placeholder="• • • •" value={passwordForm.otp} onChange={e => setPasswordForm(p => ({ ...p, otp: e.target.value }))} className={`field-input otp-input`} style={{ textAlign: 'center', letterSpacing: 8, fontSize: 24, fontWeight: 900, fontFamily: T.fontDisplay }} />
                   </div>
-                  <button
-                    onClick={() => setPasswordStep('new-password')}
-                    disabled={passwordForm.otp.length < 4}
-                    style={{
-                      padding: '14px',
-                      background: 'var(--teal)',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      opacity: passwordForm.otp.length < 4 ? 0.6 : 1
-                    }}
-                  >
-                    Verify OTP
+                  <button onClick={() => setPasswordStep('new-password')} disabled={passwordForm.otp.length < 4} className="primary-btn">
+                    Verify OTP →
                   </button>
-                  <button 
-                    onClick={handleSendOtp}
-                    style={{ background: 'none', border: 'none', color: 'var(--teal)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    Resend Code
-                  </button>
+                  <button onClick={handleSendOtp} style={{ background: 'none', border: 'none', color: T.teal, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Resend Code</button>
                 </div>
               )}
 
               {passwordStep === 'new-password' && (
-                <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>New Password</label>
-                    <input
-                      type="password"
-                      placeholder="Minimum 6 characters"
-                      value={passwordForm.newPassword}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                      style={{
-                        padding: '14px 16px',
-                        border: '2px solid var(--gray-200)',
-                        borderRadius: 12,
-                        fontSize: '0.95rem'
-                      }}
-                    />
+                <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div>
+                    <label className="field-label">New Password</label>
+                    <input type="password" placeholder="Min. 6 characters" value={passwordForm.newPassword} onChange={e => setPasswordForm(p => ({ ...p, newPassword: e.target.value }))} className="field-input" />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <label style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--gray-700)' }}>Confirm Password</label>
-                    <input
-                      type="password"
-                      placeholder="Repeat new password"
-                      value={passwordForm.confirmPassword}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                      style={{
-                        padding: '14px 16px',
-                        border: '2px solid var(--gray-200)',
-                        borderRadius: 12,
-                        fontSize: '0.95rem'
-                      }}
-                    />
+                  <div>
+                    <label className="field-label">Confirm Password</label>
+                    <input type="password" placeholder="Repeat new password" value={passwordForm.confirmPassword} onChange={e => setPasswordForm(p => ({ ...p, confirmPassword: e.target.value }))} className="field-input" />
                   </div>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    style={{
-                      marginTop: 8,
-                      padding: '14px',
-                      background: 'linear-gradient(135deg, var(--teal) 0%, var(--teal-dark) 100%)',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 12,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      opacity: loading ? 0.7 : 1
-                    }}
-                  >
-                    {loading ? 'Updating...' : 'Update Password'}
+                  <button type="submit" disabled={loading} className="primary-btn" style={{ marginTop: 4 }}>
+                    {loading ? 'Updating…' : '🔒 Update Password'}
                   </button>
                 </form>
               )}

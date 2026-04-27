@@ -7,12 +7,12 @@ import { mockProducts, getIndividualProducts, getCombos, CATEGORIES } from '../u
 
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState('');
   const activeCategory = searchParams.get('category') || 'all';
 
   const individuals = useMemo(() => getIndividualProducts(), []);
   const combos = useMemo(() => getCombos(), []);
 
-  // Group products by category
   const grouped = useMemo(() => {
     return CATEGORIES.map(cat => ({
       ...cat,
@@ -20,72 +20,260 @@ export default function Products() {
     })).filter(g => g.products.length > 0);
   }, [individuals]);
 
-  // What to show based on active filter
   const showAll = activeCategory === 'all';
   const showCombos = activeCategory === 'combo' || showAll;
-  const filteredGroups = showAll ? grouped : grouped.filter(g => g.id === activeCategory);
 
+  const filteredGroups = useMemo(() => {
+    const baseGroups = showAll ? grouped : grouped.filter(g => g.id === activeCategory);
+    if (!searchQuery.trim()) return baseGroups;
+    const q = searchQuery.toLowerCase();
+    return baseGroups.map(g => ({
+      ...g,
+      products: g.products.filter(p =>
+        p.name?.toLowerCase().includes(q) ||
+        p.description?.toLowerCase().includes(q) ||
+        p.category?.toLowerCase().includes(q)
+      ),
+    })).filter(g => g.products.length > 0);
+  }, [grouped, showAll, activeCategory, searchQuery]);
+
+  const totalProducts = individuals.length + combos.length;
   const waText = `Hello NIRAA, I'd like to order cleaning products from your website. Please contact me.`;
   const waLink = `https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}?text=${encodeURIComponent(waText)}`;
 
   return (
     <main className="container page">
       <style>{`
-        .products-filter { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+        .products-header-bar {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 24px;
+        }
+
+        .search-wrap {
+          position: relative;
+          flex: 1;
+          min-width: 200px;
+          max-width: 360px;
+        }
+        .search-input {
+          width: 100%;
+          padding: 10px 14px 10px 38px;
+          border: 1.5px solid rgba(42,125,114,0.2);
+          border-radius: 999px;
+          font-size: 0.88rem;
+          background: #fff;
+          color: var(--gray-700);
+          outline: none;
+          transition: all 0.2s;
+          box-sizing: border-box;
+        }
+        .search-input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(42,125,114,0.12); }
+        .search-icon {
+          position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+          color: var(--gray-400); pointer-events: none; font-size: 1rem;
+        }
+
+        .products-filter {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 32px;
+          padding: 16px 18px;
+          background: #fff;
+          border-radius: 20px;
+          border: 1px solid rgba(42,125,114,0.1);
+          box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+        }
         .filter-pill {
-          padding: 8px 16px; border-radius: 999; font-size: 0.82rem; font-weight: 700;
-          border: 1.5px solid rgba(42,125,114,0.2); background: #fff; color: var(--gray-600);
-          cursor: pointer; transition: all 0.2s ease; text-decoration: none;
+          padding: 8px 16px;
+          border-radius: 999px;
+          font-size: 0.8rem;
+          font-weight: 700;
+          border: 1.5px solid rgba(42,125,114,0.18);
+          background: transparent;
+          color: var(--gray-600);
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
         }
-        .filter-pill:hover { border-color: var(--teal); color: var(--teal); }
+        .filter-pill:hover {
+          border-color: var(--teal);
+          color: var(--teal);
+          background: rgba(42,125,114,0.05);
+          transform: translateY(-1px);
+        }
         .filter-pill--active {
-          background: linear-gradient(135deg, var(--teal), var(--teal-dark)); color: #fff;
-          border-color: var(--teal); box-shadow: 0 4px 12px rgba(42,125,114,0.25);
+          background: linear-gradient(135deg, var(--teal), var(--teal-dark));
+          color: #fff;
+          border-color: transparent;
+          box-shadow: 0 4px 14px rgba(42,125,114,0.28);
+          transform: translateY(-1px);
         }
-        .cat-section { margin-bottom: 36px; }
+
+        .cat-section { margin-bottom: 44px; }
+
         .cat-header {
-          display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
-          padding-bottom: 12px; border-bottom: 2px solid rgba(42,125,114,0.1);
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          margin-bottom: 18px;
+          padding-bottom: 16px;
+          border-bottom: 2px solid rgba(42,125,114,0.08);
         }
-        .cat-icon { font-size: 1.8rem; }
+        .cat-icon-wrap {
+          width: 52px; height: 52px;
+          border-radius: 16px;
+          background: linear-gradient(135deg, #f0faf8, #e6f4f0);
+          display: flex; align-items: center; justify-content: center;
+          font-size: 1.6rem;
+          border: 1px solid rgba(42,125,114,0.1);
+          flex-shrink: 0;
+        }
         .cat-count {
-          margin-left: auto; font-size: 0.75rem; color: var(--gray-400);
-          background: var(--gray-50); padding: 4px 12px; border-radius: 999; font-weight: 600;
+          margin-left: auto;
+          font-size: 0.72rem;
+          color: var(--teal-dark);
+          background: rgba(42,125,114,0.1);
+          padding: 5px 14px;
+          border-radius: 999px;
+          font-weight: 700;
         }
         .cat-desc {
-          background: linear-gradient(135deg, #f0faf8, #fefcf3); border-radius: 14px;
-          padding: 12px 16px; margin-bottom: 14px; font-size: 0.85rem; color: var(--gray-600);
+          background: linear-gradient(135deg, #f8fffe, #fefcf3);
+          border-radius: 16px;
+          padding: 14px 18px;
+          margin-bottom: 16px;
+          font-size: 0.86rem;
+          color: var(--gray-600);
           border: 1px solid rgba(42,125,114,0.08);
+          line-height: 1.7;
         }
+
         .prod-grid {
-          display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 14px;
         }
         @media (min-width: 640px) { .prod-grid { grid-template-columns: repeat(3, 1fr); } }
         @media (min-width: 1024px) { .prod-grid { grid-template-columns: repeat(4, 1fr); } }
+
+        .combo-header-card {
+          background: linear-gradient(135deg, #062019 0%, #1a4f47 70%, #0b3d35 100%);
+          border-radius: 26px;
+          padding: 26px 24px;
+          margin-bottom: 20px;
+          position: relative;
+          overflow: hidden;
+          box-shadow: 0 20px 50px rgba(6,32,25,0.25);
+        }
+        .combo-header-card::before {
+          content: '';
+          position: absolute;
+          top: -50px; right: -30px;
+          width: 180px; height: 180px;
+          border-radius: 50%;
+          background: rgba(200,168,75,0.12);
+        }
+        .combo-header-card::after {
+          content: '';
+          position: absolute;
+          bottom: -40px; left: 30%;
+          width: 120px; height: 120px;
+          border-radius: 50%;
+          background: rgba(74,222,128,0.08);
+        }
+        .combo-tag-pill {
+          position: absolute; top: -8px; left: 14px; z-index: 10;
+          border-radius: 999px; font-size: 0.65rem; font-weight: 800;
+          padding: 4px 12px; box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+        }
       `}</style>
 
-      {/* Header */}
-      <header className="page-header page-header--products">
-        <div className="page-header__badge">Product Catalog</div>
-        <div className="page-title">Our Products</div>
-        <div className="page-subtitle">
-          Premium eco-friendly cleaning solutions for every corner of your home.
-          Serving Dharmapuri & nearby areas.
-        </div>
-        <div className="page-actions">
-          <a className="btn btn--whatsapp" href={waLink} target="_blank" rel="noreferrer">
-            Order via WhatsApp
-          </a>
-          <Link className="btn btn--ghost" to="/checkout">Checkout</Link>
+      {/* ─── HEADER ─────────────────────────── */}
+      <header style={{ marginBottom: 30 }}>
+        <div style={{
+          background: 'linear-gradient(135deg, #062019 0%, #1a4f47 100%)',
+          borderRadius: 26, padding: '32px 28px', color: '#fff',
+          position: 'relative', overflow: 'hidden',
+          boxShadow: '0 20px 60px rgba(6,32,25,0.3)',
+        }}>
+          <div style={{ position: 'absolute', top: -40, right: -20, width: 160, height: 160, borderRadius: '50%', background: 'rgba(200,168,75,0.1)', pointerEvents: 'none' }} />
+          <div style={{ position: 'relative' }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              color: '#aadecd',
+              borderRadius: 999, fontSize: '0.7rem', fontWeight: 800,
+              padding: '5px 14px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14,
+            }}>🧴 Product Catalog</div>
+            <h1 style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 'clamp(1.6rem, 4vw, 2.3rem)',
+              fontWeight: 900, color: '#fff', margin: '0 0 10px',
+              lineHeight: 1.1, letterSpacing: '-0.02em',
+            }}>
+              Our Products
+            </h1>
+            <p style={{ color: '#aadecd', fontSize: '0.92rem', margin: '0 0 20px', maxWidth: 480, lineHeight: 1.6 }}>
+              Premium eco-friendly cleaning solutions for every corner of your home.
+              Serving Dharmapuri & nearby areas — <strong style={{ color: '#4ade80' }}>{totalProducts} products</strong> to explore.
+            </p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <a href={waLink} target="_blank" rel="noreferrer" style={{
+                background: '#25D366', color: '#fff',
+                padding: '12px 20px', borderRadius: 14, fontWeight: 800,
+                textDecoration: 'none', fontSize: '0.88rem',
+                display: 'flex', alignItems: 'center', gap: 6,
+                boxShadow: '0 8px 20px rgba(37,211,102,0.3)',
+              }}>
+                📱 Order via WhatsApp
+              </a>
+              <Link to="/checkout" style={{
+                background: 'rgba(255,255,255,0.1)',
+                backdropFilter: 'blur(8px)',
+                border: '1.5px solid rgba(255,255,255,0.25)',
+                color: '#fff', padding: '12px 20px', borderRadius: 14,
+                fontWeight: 800, textDecoration: 'none', fontSize: '0.88rem',
+              }}>
+                🛒 Go to Checkout
+              </Link>
+            </div>
+          </div>
         </div>
       </header>
 
-      {/* Category Filter Pills */}
+      {/* ─── SEARCH + FILTER ─────────────────── */}
+      <div className="products-header-bar">
+        <div className="search-wrap">
+          <span className="search-icon">🔍</span>
+          <input
+            className="search-input"
+            type="text"
+            placeholder="Search products..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+        </div>
+        {searchQuery && (
+          <button onClick={() => setSearchQuery('')} style={{
+            padding: '8px 16px', borderRadius: 999, border: '1.5px solid rgba(42,125,114,0.2)',
+            background: '#fff', color: 'var(--gray-600)', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer',
+          }}>
+            Clear ✕
+          </button>
+        )}
+      </div>
+
+      {/* Filter Pills */}
       <div className="products-filter">
-        <Link
-          to="/products"
-          className={`filter-pill ${activeCategory === 'all' ? 'filter-pill--active' : ''}`}
-        >
+        <Link to="/products" className={`filter-pill ${activeCategory === 'all' ? 'filter-pill--active' : ''}`}>
           🏠 All Products
         </Link>
         {CATEGORIES.map(cat => (
@@ -105,17 +293,20 @@ export default function Products() {
         </Link>
       </div>
 
-      {/* Category Sections */}
+      {/* ─── CATEGORY SECTIONS ───────────────── */}
       {filteredGroups.map(group => (
         <section key={group.id} className="cat-section">
           <div className="cat-header">
-            <span className="cat-icon">{group.icon}</span>
+            <div className="cat-icon-wrap">{group.icon}</div>
             <div>
-              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 800, color: 'var(--gray-800)', margin: 0 }}>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 900, color: 'var(--gray-800)', margin: 0, letterSpacing: '-0.01em' }}>
                 {group.label}
               </h2>
+              <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginTop: 2, fontWeight: 500 }}>
+                {group.desc?.split('.')[0]}
+              </div>
             </div>
-            <span className="cat-count">{group.products.length} product{group.products.length !== 1 ? 's' : ''}</span>
+            <span className="cat-count">{group.products.length} item{group.products.length !== 1 ? 's' : ''}</span>
           </div>
           <div className="cat-desc">{group.desc}</div>
           <div className="prod-grid">
@@ -126,38 +317,40 @@ export default function Products() {
         </section>
       ))}
 
-      {/* Combo Section */}
+      {/* ─── COMBO SECTION ───────────────────── */}
       {showCombos && combos.length > 0 && (
         <section className="cat-section">
-          <div style={{
-            background: 'linear-gradient(135deg, #0b231f 0%, #1e5c53 100%)',
-            borderRadius: 20, padding: '20px 22px', marginBottom: 16,
-          }}>
-            <div className="cat-header" style={{ borderBottom: '1px solid rgba(255,255,255,0.15)', marginBottom: 8 }}>
-              <span className="cat-icon">🎁</span>
+          <div className="combo-header-card">
+            <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
               <div>
-                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 800, color: '#fff', margin: 0 }}>
+                <div style={{ fontSize: '0.68rem', color: '#4ade80', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 8 }}>
+                  🎁 Bundle Deals
+                </div>
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.2rem, 3vw, 1.6rem)', fontWeight: 900, color: '#fff', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
                   Combo Deals & Bundles
                 </h2>
-                <div style={{ color: '#aadecd', fontSize: '0.82rem', marginTop: 4 }}>
-                  Save up to 38% when you bundle your favourites together.
-                </div>
+                <p style={{ color: '#aadecd', fontSize: '0.85rem', margin: 0 }}>
+                  Save up to <strong style={{ color: '#4ade80' }}>38%</strong> when you bundle your favourites together.
+                </p>
               </div>
-              <span className="cat-count" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}>
-                {combos.length} bundle{combos.length !== 1 ? 's' : ''}
-              </span>
+              <div style={{
+                background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 16, padding: '12px 18px', textAlign: 'center',
+              }}>
+                <div style={{ color: '#4ade80', fontWeight: 900, fontSize: '1.6rem', fontFamily: 'var(--font-display)' }}>{combos.length}</div>
+                <div style={{ color: '#aadecd', fontSize: '0.7rem', fontWeight: 600 }}>bundles</div>
+              </div>
             </div>
           </div>
+
           <div className="prod-grid">
             {combos.map(p => (
               <div key={p._id} style={{ position: 'relative' }}>
                 {p.comboTag && (
-                  <div style={{
-                    position: 'absolute', top: -8, left: 14, zIndex: 10,
-                    background: p.comboColor || 'var(--teal)', color: '#fff',
-                    borderRadius: 999, fontSize: '0.65rem', fontWeight: 800,
-                    padding: '3px 10px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                  }}>{p.comboTag}</div>
+                  <div className="combo-tag-pill" style={{ background: p.comboColor || 'var(--teal)', color: '#fff' }}>
+                    {p.comboTag}
+                  </div>
                 )}
                 <ProductCard product={p} />
               </div>
@@ -166,12 +359,28 @@ export default function Products() {
         </section>
       )}
 
-      {/* No results */}
+      {/* ─── NO RESULTS ──────────────────────── */}
       {filteredGroups.length === 0 && !showCombos && (
-        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--gray-500)' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🔍</div>
-          <div style={{ fontWeight: 700, fontSize: '1.1rem', marginBottom: 6 }}>No products found in this category</div>
-          <Link to="/products" style={{ color: 'var(--teal)', fontWeight: 700 }}>View all products →</Link>
+        <div style={{
+          textAlign: 'center', padding: '60px 20px',
+          background: '#fff', borderRadius: 24,
+          border: '1px solid rgba(42,125,114,0.1)',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
+        }}>
+          <div style={{ fontSize: '3.5rem', marginBottom: 16 }}>🔍</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.2rem', color: 'var(--gray-800)', marginBottom: 8 }}>
+            No products found
+          </div>
+          <div style={{ color: 'var(--gray-500)', fontSize: '0.9rem', marginBottom: 20 }}>
+            {searchQuery ? `No results for "${searchQuery}"` : 'No products in this category'}
+          </div>
+          <Link to="/products" style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            color: '#fff', background: 'var(--teal)',
+            padding: '10px 20px', borderRadius: 12, fontWeight: 700, textDecoration: 'none', fontSize: '0.88rem',
+          }}>
+            View all products →
+          </Link>
         </div>
       )}
     </main>
