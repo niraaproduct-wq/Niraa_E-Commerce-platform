@@ -1,0 +1,55 @@
+# Multi-Page Admin Site Builder Enhancement
+
+The goal is to upgrade the Admin Site Builder to manage multiple pages (Home, About, Contact, Products) instead of just the homepage. This will allow admins to switch between pages, see the current live layout, and make changes that reflect on those specific pages.
+
+## User Review Required
+
+> [!IMPORTANT]
+> This change will transition static pages (About, Contact) to dynamic pages powered by the Site Builder. Initial content will need to be "seeded" or manually recreated in the builder to match the current designs.
+
+## Proposed Changes
+
+### Admin App
+
+#### [MODIFY] [AdminBuilder.jsx](file:///c:/Users/rvasa/Desktop/Niraa%20Project/niraa-website/admin/src/pages/AdminBuilder.jsx)
+- Add `activePage` state (defaulting to 'home').
+- Implement a Page Selector UI in the top bar or sidebar.
+- Update `fetchSections` to call `GET /api/sections/admin/${activePage}`.
+- Update `saveSections` and `publishSections` to handle page-specific context.
+- Fix the API path from `${API_BASE_URL}/admin/sections` to `${API_BASE_URL}/sections/admin/${activePage}` (to match `sectionRoutes.js`).
+- Ensure new sections created via `addSection` include the `page` field.
+
+### Client App
+
+#### [MODIFY] [Home.jsx](file:///c:/Users/rvasa/Desktop/Niraa%20Project/niraa-website/client/src/pages/Home.jsx) or [EnhancedHome.jsx](file:///c:/Users/rvasa/Desktop/Niraa%20Project/niraa-website/client/src/pages/EnhancedHome.jsx)
+- Ensure it fetches and renders sections from `/api/sections/home`.
+
+#### [MODIFY] [About.jsx](file:///c:/Users/rvasa/Desktop/Niraa%20Project/niraa-website/client/src/pages/About.jsx)
+- Modify to fetch sections from `/api/sections/about`.
+- Render dynamic sections using a `SectionRenderer` component (shared across pages).
+
+#### [MODIFY] [Contact.jsx](file:///c:/Users/rvasa/Desktop/Niraa%20Project/niraa-website/client/src/pages/Contact.jsx)
+- Modify to fetch sections from `/api/sections/contact`.
+
+#### [NEW] [SectionRenderer.jsx](file:///c:/Users/rvasa/Desktop/Niraa%20Project/niraa-website/client/src/components/SectionRenderer.jsx)
+- A component to map section types (HERO, GRID, etc.) to their respective visual components.
+
+### Server (Backend)
+
+#### [MODIFY] [sectionRoutes.js](file:///c:/Users/rvasa/Desktop/Niraa%20Project/niraa-website/server/routes/sectionRoutes.js)
+- Ensure the bulk `PUT /` endpoint (or a new one) correctly handles adding new sections to a specific page.
+- Current bulk update only updates existing docs by ID.
+
+## Verification Plan
+
+### Automated Tests
+- Use the browser tool to:
+    1. Navigate to Admin Builder.
+    2. Switch to 'About' page.
+    3. Add a Hero section.
+    4. Save and Publish.
+    5. Navigate to the public '/about' page and verify the new Hero section appears.
+
+### Manual Verification
+- Verify that switching pages in the builder correctly loads the respective sections.
+- Verify that 'Save Draft' and 'Publish' only affect the active page.

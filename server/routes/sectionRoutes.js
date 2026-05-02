@@ -30,7 +30,8 @@ router.put('/:id', updateSection);
 router.delete('/:id', deleteSection);
 
 // Bulk save sections endpoint (Firestore version)
-router.put('/', async (req, res) => {
+router.put('/bulk/:page', async (req, res) => {
+  const { page } = req.params;
   const { sections } = req.body;
   try {
     const { db } = getFirebase();
@@ -41,15 +42,17 @@ router.put('/', async (req, res) => {
       if (section.id && section.id.length > 0) {
         const { id, _id, ...updateData } = section;
         const docRef = db.collection(SECTIONS_COLLECTION).doc(id);
-        const existing = await docRef.get();
-        if (existing.exists) {
-          batch.update(docRef, {
-            ...updateData,
-            lastEditedBy: req.user.id,
-            status: 'draft',
-            updatedAt: new Date().toISOString()
-          });
-        }
+        
+        const payload = {
+          ...updateData,
+          page: page, // Ensure it belongs to the correct page
+          lastEditedBy: req.user.id,
+          status: 'draft',
+          updatedAt: new Date().toISOString()
+        };
+
+        // Use set with merge: true to handle both create and update
+        batch.set(docRef, payload, { merge: true });
       }
     }
     await batch.commit();

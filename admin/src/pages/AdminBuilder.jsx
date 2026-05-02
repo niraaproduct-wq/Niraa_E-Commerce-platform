@@ -451,6 +451,7 @@ const PROPS_MAP = {
 const AdminBuilder = () => {
   const { isAdminMode, toggleAdminMode } = useAdmin();
   const [sections, setSections] = useState([]);
+  const [activePage, setActivePage] = useState('home');
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -463,18 +464,20 @@ const AdminBuilder = () => {
   const [published, setPublished] = useState(false);
   const canvasRef = useRef(null);
 
-  useEffect(() => { fetchSections(); }, []);
+  useEffect(() => { fetchSections(activePage); }, [activePage]);
 
-  const fetchSections = async () => {
+  const fetchSections = async (page) => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('niraa_token');
-      const res = await fetch(`${API_BASE_URL}/admin/sections`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API_BASE_URL}/sections/admin/${page}`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
         const initial = data.sections || [];
         setSections(initial);
         setHistory([initial]);
         setHistoryIndex(0);
+        setSelectedId(null);
       }
     } catch (e) {
       console.error(e);
@@ -516,6 +519,7 @@ const AdminBuilder = () => {
   const addSection = (type) => {
     const newSection = {
       id: `sec_${Date.now()}`,
+      page: activePage,
       type,
       title: SECTION_META[type].label,
       visible: true,
@@ -566,7 +570,7 @@ const AdminBuilder = () => {
     setSaving(true);
     try {
       const token = localStorage.getItem('niraa_token');
-      const res = await fetch(`${API_BASE_URL}/admin/sections`, {
+      const res = await fetch(`${API_BASE_URL}/sections/bulk/${activePage}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ sections }),
@@ -585,8 +589,21 @@ const AdminBuilder = () => {
 
   const publishSections = async () => {
     await saveSections();
-    setPublished(true);
-    toast.success('🚀 Published to live site!');
+    try {
+      const token = localStorage.getItem('niraa_token');
+      const res = await fetch(`${API_BASE_URL}/sections/${activePage}/publish`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setPublished(true);
+        toast.success(`🚀 ${activePage} page published to live site!`);
+      } else {
+        toast.error('Publish failed');
+      }
+    } catch {
+      toast.error('Network error during publish');
+    }
   };
 
   // Drag & drop
@@ -674,9 +691,35 @@ const AdminBuilder = () => {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {/* Topbar */}
         <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '0 20px', height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>Page Layout</span>
-            <span style={{ background: published ? '#d1fae5' : '#fef3c7', color: published ? '#065f46' : '#92400e', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10 }}>{published ? '✓ LIVE' : '● DRAFT'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#0f172a' }}>Page Layout</span>
+              <span style={{ background: published ? '#d1fae5' : '#fef3c7', color: published ? '#065f46' : '#92400e', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10 }}>{published ? '✓ LIVE' : '● DRAFT'}</span>
+            </div>
+            
+            {/* Page Selector */}
+            <div style={{ display: 'flex', background: '#f1f5f9', padding: '2px', borderRadius: 8 }}>
+              {['home', 'about', 'contact', 'products'].map(page => (
+                <button
+                  key={page}
+                  onClick={() => setActivePage(page)}
+                  style={{
+                    padding: '6px 12px',
+                    background: activePage === page ? '#fff' : 'transparent',
+                    border: 'none',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: activePage === page ? '#0f172a' : '#64748b',
+                    cursor: 'pointer',
+                    boxShadow: activePage === page ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    textTransform: 'capitalize'
+                  }}
+                >
+                  {page}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

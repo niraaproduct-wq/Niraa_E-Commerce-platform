@@ -21,12 +21,13 @@ const getPublicSections = async (req, res) => {
 
     const snapshot = await db.collection(SECTIONS_COLLECTION)
       .where('page', '==', page)
-      .where('status', '==', 'published')
-      .where('isActive', '==', true)
-      .orderBy('order', 'asc')
       .get();
 
-    const sections = snapshot.docs.map(toPlainSection);
+    // Filter and sort in memory to avoid requiring a composite index in Firestore
+    const sections = snapshot.docs
+      .map(toPlainSection)
+      .filter(s => s.status === 'published' && s.isActive === true)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
 
     res.json({ success: true, sections, page });
   } catch (error) {
@@ -49,10 +50,12 @@ const getAdminSections = async (req, res) => {
 
     const snapshot = await db.collection(SECTIONS_COLLECTION)
       .where('page', '==', page)
-      .orderBy('order', 'asc')
       .get();
 
-    const sections = snapshot.docs.map(toPlainSection);
+    // Sort in memory to avoid requiring a composite index in Firestore
+    const sections = snapshot.docs
+      .map(toPlainSection)
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
 
     res.json({ success: true, sections, page });
   } catch (error) {

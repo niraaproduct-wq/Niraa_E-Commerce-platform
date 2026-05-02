@@ -2,6 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { FiShield, FiDroplet, FiHeart, FiTruck, FiAward, FiStar, FiUsers, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import bannerImage from '../assets/images/banner.jpeg';
+import SectionRenderer from '../components/SectionRenderer';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? (import.meta.env.VITE_API_BASE_URL.endsWith('/api') ? import.meta.env.VITE_API_BASE_URL : `${import.meta.env.VITE_API_BASE_URL}/api`)
+  : '/api';
 
 const WHY_CHOOSE = [
   {
@@ -141,13 +146,26 @@ function AnimatedNumber({ value, suffix }) {
 
 export default function About() {
   const [testimonialIdx, setTestimonialIdx] = useState(0);
+  const [dynamicSections, setDynamicSections] = useState([]);
   const perPage = 3;
   const maxIdx = Math.ceil(TESTIMONIALS.length / perPage) - 1;
+
+  // Fetch CMS-managed sections for the About page
+  useEffect(() => {
+    fetch(`${API_BASE}/sections/about`)
+      .then(r => r.ok ? r.json() : { sections: [] })
+      .then(data => setDynamicSections(data.sections || []))
+      .catch(() => {});
+  }, []);
 
   const visibleTestimonials = TESTIMONIALS.slice(testimonialIdx * perPage, testimonialIdx * perPage + perPage);
 
   return (
-    <main className="container page">
+    <>
+      {/* Render any CMS-managed sections at the top */}
+      <SectionRenderer sections={dynamicSections} />
+
+      <main className="container page">
       <style>{`
         .about-section { margin-bottom: 52px; }
 
@@ -611,5 +629,6 @@ export default function About() {
         </div>
       </section>
     </main>
+    </>
   );
 }

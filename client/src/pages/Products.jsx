@@ -5,6 +5,11 @@ import { formatPrice } from '../utils/formatPrice.js';
 import { WHATSAPP_NUMBER } from '../utils/constants.js';
 import { CATEGORIES } from '../utils/categories.js';
 import { getProducts } from '../utils/productApi.js';
+import SectionRenderer from '../components/SectionRenderer';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? (import.meta.env.VITE_API_BASE_URL.endsWith('/api') ? import.meta.env.VITE_API_BASE_URL : `${import.meta.env.VITE_API_BASE_URL}/api`)
+  : '/api';
 
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -13,6 +18,7 @@ export default function Products() {
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [dynamicSections, setDynamicSections] = useState([]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -32,7 +38,21 @@ export default function Products() {
         setLoading(false);
       }
     };
+
+    const fetchSections = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/sections/products`);
+        if (res.ok) {
+          const data = await res.json();
+          setDynamicSections(data.sections || []);
+        }
+      } catch (err) {
+        console.error("Products sections fetch error:", err);
+      }
+    };
+
     fetchProducts();
+    fetchSections();
   }, [activeCategory, searchQuery]);
 
   const individuals = useMemo(() => (Array.isArray(products) ? products : []).filter(p => !p.isCombo), [products]);
@@ -60,8 +80,10 @@ export default function Products() {
   const waLink = `https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}?text=${encodeURIComponent(waText)}`;
 
   return (
-    <main className="container page">
-      <style>{`
+    <>
+      <SectionRenderer sections={dynamicSections} />
+      <main className="container page">
+        <style>{`
         .products-header-bar {
           display: flex;
           flex-wrap: wrap;
@@ -407,5 +429,6 @@ export default function Products() {
         </div>
       )}
     </main>
+    </>
   );
 }

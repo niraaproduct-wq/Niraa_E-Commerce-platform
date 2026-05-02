@@ -8,6 +8,11 @@ import { CATEGORIES } from '../utils/categories.js';
 import { getProducts } from '../utils/productApi.js';
 import { useAdmin } from '../context/AdminContext';
 import { FaEdit, FaPlus, FaTrash, FaSave, FaTimes, FaWhatsapp, FaLeaf, FaShieldAlt, FaTruck, FaStar } from 'react-icons/fa';
+import SectionRenderer from '../components/SectionRenderer';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? (import.meta.env.VITE_API_BASE_URL.endsWith('/api') ? import.meta.env.VITE_API_BASE_URL : `${import.meta.env.VITE_API_BASE_URL}/api`)
+  : '/api';
 
 /* ─── DESIGN TOKENS ─────────────────────────────────────────── */
 const CSS = `
@@ -868,6 +873,7 @@ export default function EnhancedHome() {
   const [combos, setCombos] = useState([]);
   const [individuals, setIndividuals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [dynamicSections, setDynamicSections] = useState([]);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -882,7 +888,21 @@ export default function EnhancedHome() {
         setLoading(false);
       }
     };
+
+    const fetchSections = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/sections/home`);
+        if (res.ok) {
+          const data = await res.json();
+          setDynamicSections(data.sections || []);
+        }
+      } catch (err) {
+        console.error("Home sections fetch error:", err);
+      }
+    };
+
     fetchAll();
+    fetchSections();
   }, []);
 
   const mainCombo = combos.find(c => c._id === 'combo-complete-home') || combos[0];
@@ -902,6 +922,9 @@ export default function EnhancedHome() {
 
       <main className="niraa-page">
         <AdminControls onAddBanner={handleAddBanner} onAddProduct={handleAddProduct} />
+
+        {/* ── CMS DYNAMIC SECTIONS ── */}
+        <SectionRenderer sections={dynamicSections} />
 
         {/* ── FLOATING WA BUTTON ── */}
         <a href={waLink} target="_blank" rel="noreferrer" className="wa-float" title="Order on WhatsApp">

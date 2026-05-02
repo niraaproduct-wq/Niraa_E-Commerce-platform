@@ -6,6 +6,11 @@ import { WHATSAPP_NUMBER } from '../utils/constants.js';
 import bannerImage from '../assets/images/banner.jpeg';
 import { CATEGORIES } from '../utils/categories.js';
 import { getProducts } from '../utils/productApi.js';
+import SectionRenderer from '../components/SectionRenderer';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? (import.meta.env.VITE_API_BASE_URL.endsWith('/api') ? import.meta.env.VITE_API_BASE_URL : `${import.meta.env.VITE_API_BASE_URL}/api`)
+  : '/api';
 
 const TRUSTS = [
   { icon: '🌿', title: 'Eco-Friendly', desc: 'Safe for families & planet.', accent: '#0d7a6a' },
@@ -76,6 +81,7 @@ export default function Home() {
   const [combos, setCombos] = useState([]);
   const [individuals, setIndividuals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [dynamicSections, setDynamicSections] = useState([]);
 
   useEffect(() => {
     const fetchAll = async () => {
@@ -90,7 +96,21 @@ export default function Home() {
         setLoading(false);
       }
     };
+
+    const fetchSections = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/sections/home`);
+        if (res.ok) {
+          const data = await res.json();
+          setDynamicSections(data.sections || []);
+        }
+      } catch (err) {
+        console.error("Home sections fetch error:", err);
+      }
+    };
+
     fetchAll();
+    fetchSections();
   }, []);
 
   const mainCombo = combos.find(c => c._id === 'combo-complete-home') || combos[0];
@@ -106,8 +126,10 @@ export default function Home() {
   if (loading) return <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 600, color: 'var(--teal)' }}>Loading NIRAA Products...</div>;
 
   return (
-    <main className="container page">
-      <style>{`
+    <>
+      <SectionRenderer sections={dynamicSections} />
+      <main className="container page">
+        <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
 
         .home-grid { display: grid; gap: 20px; }
@@ -626,5 +648,6 @@ export default function Home() {
         </div>
       </section>
     </main>
+    </>
   );
 }

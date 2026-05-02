@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { PHONE_1, PHONE_2, WHATSAPP_NUMBER } from '../utils/constants.js';
+import SectionRenderer from '../components/SectionRenderer';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL
+  ? (import.meta.env.VITE_API_BASE_URL.endsWith('/api') ? import.meta.env.VITE_API_BASE_URL : `${import.meta.env.VITE_API_BASE_URL}/api`)
+  : '/api';
 
 const T = {
   teal: '#1D9E75', tealDark: '#0F6E56', tealLight: '#E8F8F1',
@@ -114,6 +119,14 @@ export default function Contact() {
   const [form, setForm] = useState({ name: '', phone: '', message: '' });
   const [focus, setFocus] = useState(null);
   const [openFaq, setOpenFaq] = useState(null);
+  const [dynamicSections, setDynamicSections] = useState([]);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/sections/contact`)
+      .then(r => r.ok ? r.json() : { sections: [] })
+      .then(data => setDynamicSections(data.sections || []))
+      .catch(() => {});
+  }, []);
 
   const update = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
   const submit = e => {
@@ -129,6 +142,8 @@ export default function Contact() {
   const waLink = `https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}?text=${encodeURIComponent('Hello NIRAA 🌿, I have a question about your cleaning products. Please help me.')}`;
 
   return (
+    <>
+    <SectionRenderer sections={dynamicSections} />
     <main className="contact-page" style={{ background: T.gray50, minHeight: '100vh', fontFamily: T.font }}>
       <style>{css}</style>
       <div className="container" style={{ padding: '32px 16px 80px', maxWidth: 1100, margin: '0 auto' }}>
@@ -286,5 +301,6 @@ export default function Contact() {
         </div>
       </div>
     </main>
+    </>
   );
 }
