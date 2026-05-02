@@ -6,6 +6,8 @@ import { WHATSAPP_NUMBER } from '../utils/constants.js';
 import { CATEGORIES } from '../utils/categories.js';
 import { getProducts } from '../utils/productApi.js';
 import SectionRenderer from '../components/SectionRenderer';
+import { useRealtime } from '../context/RealtimeContext.jsx';
+import { useFirestoreProducts } from '../hooks/useFirestoreProducts';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? (import.meta.env.VITE_API_BASE_URL.endsWith('/api') ? import.meta.env.VITE_API_BASE_URL : `${import.meta.env.VITE_API_BASE_URL}/api`)
@@ -20,50 +22,77 @@ export default function Products() {
   const [loading, setLoading] = useState(true);
   const [dynamicSections, setDynamicSections] = useState([]);
 
+  const { products: liveProducts, loading: liveLoading } = useFirestoreProducts({
+    category: activeCategory
+  });
+  const { lastEvent } = useRealtime();
+
   useEffect(() => {
-    const fetchProducts = async () => {
-      setLoading(true);
-      try {
-        const params = {
-          category: activeCategory !== 'all' && activeCategory !== 'combo' ? activeCategory : undefined,
-          featured: activeCategory === 'featured' ? true : undefined,
-          search: searchQuery || undefined,
-          limit: 100
-        };
-        const data = await getProducts(params);
-        setProducts(data?.products || []);
-      } catch (err) {
-        console.error("Products fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+    if (!liveLoading) {
+      setProducts(liveProducts);
+      setLoading(false);
+    }
+  }, [liveProducts, liveLoading]);
 
-    const fetchSections = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/sections/products`);
-        if (res.ok) {
-          const data = await res.json();
-          setDynamicSections(data.sections || []);
-        }
-      } catch (err) {
-        console.error("Products sections fetch error:", err);
-      }
-    };
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const params = {
+        category: activeCategory !== 'all' && activeCategory !== 'combo' ? activeCategory : undefined,
+        featured: activeCategory === 'featured' ? true : undefined,
+        search: searchQuery || undefined,
+        limit: 100
+      };
+      const data = await getProducts(params);
+      setProducts(data?.products || []);
+    } catch (err) {
+      console.error("Products fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchProducts();
+  const fetchSections = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/sections/products`);
+      if (res.ok) {
+        const data = await res.json();
+        setDynamicSections(data.sections || []);
+      }
+    } catch (err) {
+      console.error("Products sections fetch error:", err);
+    }
+  };
+
+  useEffect(() => {
     fetchSections();
   }, [activeCategory, searchQuery]);
+
+  // Realtime updates handled by useFirestoreProducts hook
 
   const individuals = useMemo(() => (Array.isArray(products) ? products : []).filter(p => !p.isCombo), [products]);
   const combos = useMemo(() => (Array.isArray(products) ? products : []).filter(p => p.isCombo), [products]);
 
   const grouped = useMemo(() => {
-    return CATEGORIES.map(cat => ({
+    const dynamicCats = [...new Set(liveProducts.map(p => p.category))].filter(Boolean);
+    const merged = [...CATEGORIES];
+    
+    dynamicCats.forEach(catId => {
+      if (!merged.find(c => c.id === catId)) {
+        merged.push({
+          id: catId,
+          label: catId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          icon: '🧴',
+          desc: 'Premium cleaning solutions for your home.'
+        });
+      }
+    });
+
+    return merged.map(cat => ({
       ...cat,
       products: individuals.filter(p => p.category === cat.id),
     })).filter(g => g.products.length > 0);
-  }, [individuals]);
+  }, [individuals, liveProducts]);
 
   const showAll = activeCategory === 'all';
   const showCombos = activeCategory === 'combo' || showAll;
@@ -78,6 +107,30 @@ export default function Products() {
   const totalProducts = products.length;
   const waText = `Hello NIRAA, I'd like to order cleaning products from your website. Please contact me.`;
   const waLink = `https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}?text=${encodeURIComponent(waText)}`;
+
+  const categoryFilters = useMemo(() => {
+    const dynamicCats = [...new Set(liveProducts.map(p => p.category))].filter(c => c && c !== 'combo');
+    const merged = [...CATEGORIES];
+    dynamicCats.forEach(catId => {
+      if (!merged.find(c => c.id === catId)) {
+        merged.push({
+          id: catId,
+          label: catId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          icon: '🧴'
+        });
+      }
+    });
+
+    return merged.map(cat => (
+      <Link 
+        key={cat.id} 
+        to={`/products?category=${cat.id}`} 
+        className={`filter-pill ${activeCategory === cat.id ? 'filter-pill--active' : ''}`}
+      >
+        {cat.icon} {cat.label}
+      </Link>
+    ));
+  }, [liveProducts, activeCategory]);
 
   return (
     <>
@@ -316,15 +369,7 @@ export default function Products() {
         <Link to="/products" className={`filter-pill ${activeCategory === 'all' ? 'filter-pill--active' : ''}`}>
           🏠 All Products
         </Link>
-        {CATEGORIES.map(cat => (
-          <Link
-            key={cat.id}
-            to={`/products?category=${cat.id}`}
-            className={`filter-pill ${activeCategory === cat.id ? 'filter-pill--active' : ''}`}
-          >
-            {cat.icon} {cat.label}
-          </Link>
-        ))}
+        {categoryFilters}
         <Link
           to="/products?category=combo"
           className={`filter-pill ${activeCategory === 'combo' ? 'filter-pill--active' : ''}`}

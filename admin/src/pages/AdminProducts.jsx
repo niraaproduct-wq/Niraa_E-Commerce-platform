@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../utils/constants';
 import toast from 'react-hot-toast';
 import { FaPlus, FaEdit, FaTrash, FaSave, FaTimes, FaSearch, FaBox, FaTag, FaImage, FaExclamationTriangle } from 'react-icons/fa';
+import { useRealtime } from '../context/RealtimeContext.jsx';
 
 /* ─── Design Tokens ─────────────────────────────────────────── */
 const T = {
@@ -46,7 +47,11 @@ const CATEGORIES = [
   { value: 'other', label: 'Other', color: T.gray600, bg: T.gray100 },
 ];
 
-const getCat = (val) => CATEGORIES.find(c => c.value === val) || { label: val, color: T.gray600, bg: T.gray100 };
+const getCat = (val, allProducts = []) => {
+  const hardcoded = CATEGORIES.find(c => c.value === val);
+  if (hardcoded) return hardcoded;
+  return { label: val?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), color: T.gray600, bg: T.gray100 };
+};
 
 /* ─── Shared Field styles ────────────────────────────────────── */
 const field = {
@@ -75,6 +80,10 @@ const AdminProducts = () => {
   const [focusedField, setFocusedField] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [showInactive, setShowInactive] = useState(false);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const { lastEvent } = useRealtime();
 
   const user = JSON.parse(localStorage.getItem('niraa_user') || 'null');
   const isAdmin = user?.role === 'admin';
@@ -82,6 +91,8 @@ const AdminProducts = () => {
   const emptyForm = {
     name: '', description: '', price: '', comparePrice: '',
     category: '', stock: '', images: [], isActive: true, isFeatured: false,
+    variants: [],
+    shortBenefit: '', highlightBadge: '', salesCount: '', rating: '4.8',
   };
   const [formData, setFormData] = useState(emptyForm);
 
@@ -94,29 +105,53 @@ const AdminProducts = () => {
   const fetchProducts = async () => {
     try {
       const token = localStorage.getItem('niraa_token');
+      if (!token) {
+        toast.error('Session expired. Please login again.');
+        setReadOnlyMode(true);
+        return;
+      }
+
       const res = await fetch(`${API_BASE_URL}/admin/products`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
+
       if (res.ok) {
         const data = await res.json();
         setProducts(data.products || []);
         setReadOnlyMode(false);
       } else {
-        const fb = await fetch(`${API_BASE_URL}/products`);
-        const fbData = await fb.json();
-        setProducts(fbData.products || []);
-        setReadOnlyMode(true);
-        toast('Database offline — read-only mode', { icon: 'ℹ️' });
+        const errorData = await res.json().catch(() => ({}));
+        console.error('Admin Fetch Error:', res.status, errorData);
+        
+        if (res.status === 401 || res.status === 403) {
+          toast.error('Permission denied. Admin access required.');
+          setReadOnlyMode(true);
+        } else {
+          // Fallback to public products if admin fetch fails for other reasons
+          const fb = await fetch(`${API_BASE_URL}/products`);
+          const fbData = await fb.json();
+          setProducts(fbData.products || []);
+          setReadOnlyMode(true);
+          toast.error('Server error. Switching to read-only mode.');
+        }
       }
-    } catch {
+    } catch (err) {
+      console.error('Network Error:', err);
       try {
         const fb = await fetch(`${API_BASE_URL}/products`);
         const fbData = await fb.json();
         setProducts(fbData.products || []);
         setReadOnlyMode(true);
-      } catch (e) { console.error(e); }
+      } catch (e) { console.error('Fallback Fetch Error:', e); }
     } finally { setLoading(false); }
   };
+
+  /* ── Realtime updates ── */
+  useEffect(() => {
+    if (lastEvent?.event === 'products.changed' || lastEvent?.event === 'orders.changed') {
+      fetchProducts();
+    }
+  }, [lastEvent]);
 
   /* ── Image upload ── */
   const handleImageUpload = async (e) => {
@@ -134,11 +169,18 @@ const AdminProducts = () => {
       });
       if (res.ok) {
         const data = await res.json();
-        setFormData(p => ({ ...p, images: [data.url] }));
-        toast.success('Image uploaded!');
-      } else { toast.error('Upload failed'); }
-    } catch { toast.error('Upload error'); }
-    finally { setUploadingImage(false); }
+        setFormData(p => ({ ...p, images: [...(p.images || []), data.url] }));
+        toast.success('Image uploaded! ✨');
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        toast.error(`Upload failed: ${errData.message || 'Server error'}`);
+      }
+    } catch (err) {
+      console.error('Upload Error:', err);
+      toast.error('Upload network error');
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   /* ── Form ── */
@@ -178,6 +220,11 @@ const AdminProducts = () => {
       category: p.category || '', stock: p.stock || '',
       images: p.images?.length ? p.images : p.image ? [p.image] : [],
       isActive: p.isActive !== false, isFeatured: p.isFeatured || false,
+      variants: p.variants || [],
+      shortBenefit: p.shortBenefit || '',
+      highlightBadge: p.highlightBadge || '',
+      salesCount: p.salesCount || '',
+      rating: p.rating || '4.8',
     });
     setShowForm(true);
   };
@@ -196,12 +243,20 @@ const AdminProducts = () => {
     finally { setDeleteConfirm(null); }
   };
 
-  const resetForm = () => { setFormData(emptyForm); setEditingProduct(null); setShowForm(false); };
+  const resetForm = () => { 
+    setFormData(emptyForm); 
+    setEditingProduct(null); 
+    setShowForm(false); 
+    setIsAddingCategory(false);
+    setNewCategoryName('');
+  };
 
-  const filtered = products.filter(p =>
-    p.name?.toLowerCase().includes(search.toLowerCase()) ||
-    p.description?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = products.filter(p => {
+    const matchesSearch = p.name?.toLowerCase().includes(search.toLowerCase()) ||
+                         p.description?.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = showInactive || p.isActive !== false;
+    return matchesSearch && matchesStatus;
+  });
 
   const activeCount = products.filter(p => p.isActive).length;
   const lowStockCount = products.filter(p => p.stock <= 10 && p.stock > 0).length;
@@ -274,21 +329,50 @@ const AdminProducts = () => {
         ))}
       </div>
 
-      {/* ─── Search ─── */}
-      <div style={{ position: 'relative', marginBottom: 20 }}>
-        <FaSearch style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: T.gray400, fontSize: 13, pointerEvents: 'none' }} />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search products by name or description…"
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20 }}>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <FaSearch style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: T.gray400, fontSize: 13, pointerEvents: 'none' }} />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search products by name or description…"
+            style={{
+              ...input, width: '100%', boxSizing: 'border-box',
+              paddingLeft: 40, fontSize: 14,
+              border: `1.5px solid ${T.gray200}`,
+              boxShadow: T.shadow,
+              borderRadius: T.radiusLg,
+            }}
+          />
+        </div>
+        
+        <button
+          onClick={() => setShowInactive(!showInactive)}
           style={{
-            ...input, width: '100%', boxSizing: 'border-box',
-            paddingLeft: 40, fontSize: 14,
-            border: `1.5px solid ${T.gray200}`,
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '10px 16px', borderRadius: T.radiusLg,
+            border: `1.5px solid ${showInactive ? T.teal : T.gray200}`,
+            background: showInactive ? T.tealLight : T.white,
+            color: showInactive ? T.tealDark : T.gray600,
+            fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            transition: 'all 0.2s',
+            whiteSpace: 'nowrap',
             boxShadow: T.shadow,
-            borderRadius: T.radiusLg,
           }}
-        />
+        >
+          {showInactive ? 'Showing All' : 'Showing Active'}
+          <div style={{
+            width: 32, height: 18, borderRadius: 99,
+            background: showInactive ? T.teal : T.gray300,
+            position: 'relative', transition: 'background 0.2s'
+          }}>
+            <div style={{
+              position: 'absolute', top: 3, left: showInactive ? 16 : 3,
+              width: 12, height: 12, borderRadius: '50%', background: '#fff',
+              transition: 'left 0.2s'
+            }} />
+          </div>
+        </button>
       </div>
 
       {/* ─── Table ─── */}
@@ -443,10 +527,55 @@ const AdminProducts = () => {
                   <input type="text" name="name" value={formData.name} onChange={handleInput} onFocus={() => setFocusedField('name')} onBlur={() => setFocusedField(null)} required placeholder="e.g. Niraa Floor Magic" style={{ ...input, border: `1.5px solid ${focusedField === 'name' ? T.tealMid : T.gray200}` }} />
                 </Field>
                 <Field label="Category *" focusedField={focusedField} id="category">
-                  <select name="category" value={formData.category} onChange={handleInput} onFocus={() => setFocusedField('category')} onBlur={() => setFocusedField(null)} required style={{ ...input, border: `1.5px solid ${focusedField === 'category' ? T.tealMid : T.gray200}`, cursor: 'pointer', appearance: 'none' }}>
-                    <option value="">Select Category</option>
-                    {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                  </select>
+                  {!isAddingCategory ? (
+                    <div style={{ position: 'relative' }}>
+                      <select 
+                        name="category" 
+                        value={formData.category} 
+                        onChange={(e) => {
+                          if (e.target.value === 'ADD_NEW') {
+                            setIsAddingCategory(true);
+                          } else {
+                            handleInput(e);
+                          }
+                        }} 
+                        onFocus={() => setFocusedField('category')} 
+                        onBlur={() => setFocusedField(null)} 
+                        required 
+                        style={{ ...input, width: '100%', border: `1.5px solid ${focusedField === 'category' ? T.tealMid : T.gray200}`, cursor: 'pointer', appearance: 'none' }}
+                      >
+                        <option value="">Select Category</option>
+                        {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        
+                        {/* Dynamic categories from existing products */}
+                        {[...new Set(products.map(p => p.category))].filter(c => !CATEGORIES.some(hc => hc.value === c) && c).map(c => (
+                          <option key={c} value={c}>{c.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
+                        ))}
+
+                        <option value="ADD_NEW" style={{ fontWeight: 'bold', color: T.teal }}>+ Add New Category</option>
+                      </select>
+                      <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: T.gray400 }}>▼</div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input 
+                        type="text" 
+                        placeholder="New category name..." 
+                        value={newCategoryName}
+                        onChange={(e) => {
+                          setNewCategoryName(e.target.value);
+                          setFormData(p => ({ ...p, category: e.target.value.toLowerCase().replace(/\s+/g, '-') }));
+                        }}
+                        style={{ ...input, flex: 1, border: `1.5px solid ${T.tealMid}` }}
+                        autoFocus
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => { setIsAddingCategory(false); setNewCategoryName(''); setFormData(p => ({ ...p, category: '' })); }}
+                        style={{ background: T.gray100, border: 'none', padding: '0 12px', borderRadius: T.radius, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: T.gray600 }}
+                      >Cancel</button>
+                    </div>
+                  )}
                 </Field>
               </div>
 
@@ -509,8 +638,38 @@ const AdminProducts = () => {
                 />
               </Field>
 
+              {/* Marketing & Persuasion */}
+              <div style={{ borderTop: `1.5px solid ${T.gray100}`, paddingTop: 20 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.tealDark, marginBottom: 16 }}>Marketing & Trust Signals</div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                  <Field label="Short Benefit (Emotional Hook)" id="shortBenefit">
+                    <input type="text" name="shortBenefit" value={formData.shortBenefit} onChange={handleInput} placeholder="e.g. Best for tough stains" style={input} />
+                  </Field>
+                  <Field label="Highlight Badge" id="highlightBadge">
+                    <select name="highlightBadge" value={formData.highlightBadge} onChange={handleInput} style={{ ...input, cursor: 'pointer' }}>
+                      <option value="">No Badge</option>
+                      <option value="🔥 Bestseller">🔥 Bestseller</option>
+                      <option value="🛡️ Germ Protection">🛡️ Germ Protection</option>
+                      <option value="🌿 Eco-Friendly">🌿 Eco-Friendly</option>
+                      <option value="✨ New Arrival">✨ New Arrival</option>
+                      <option value="💎 Premium Quality">💎 Premium Quality</option>
+                    </select>
+                  </Field>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                  <Field label="Trust Signal (e.g. 500+ Sold)" id="salesCount">
+                    <input type="text" name="salesCount" value={formData.salesCount} onChange={handleInput} placeholder="500+" style={input} />
+                  </Field>
+                  <Field label="Rating (0-5)" id="rating">
+                    <input type="number" name="rating" value={formData.rating} onChange={handleInput} step="0.1" min="0" max="5" style={input} />
+                  </Field>
+                </div>
+              </div>
+
               {/* Toggles */}
-              <div style={{ display: 'flex', gap: 16 }}>
+              <div style={{ display: 'flex', gap: 16, borderTop: `1.5px solid ${T.gray100}`, paddingTop: 20 }}>
                 {[
                   { name: 'isActive', label: 'Active', sub: 'Visible on website' },
                   { name: 'isFeatured', label: 'Featured', sub: 'Show on homepage' },

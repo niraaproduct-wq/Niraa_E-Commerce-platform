@@ -5,7 +5,13 @@ const PRODUCTS_COLLECTION = 'products';
 // Helper to normalize Firestore doc
 const toPlainProduct = (doc) => {
   if (!doc.exists) return null;
-  return { id: doc.id, _id: doc.id, ...doc.data() };
+  const data = doc.data();
+  return { 
+    id: doc.id, 
+    _id: doc.id, 
+    ...data,
+    stock: data.stock !== undefined ? data.stock : (data.countInStock || 0)
+  };
 };
 
 // @desc    Get all products
@@ -105,7 +111,7 @@ const createProduct = async (req, res) => {
 
     // Convert string numbers to real numbers
     if (productData.price) productData.price = Number(productData.price);
-    if (productData.countInStock) productData.countInStock = Number(productData.countInStock);
+    if (productData.stock) productData.stock = Number(productData.stock);
     
     const docRef = await db.collection(PRODUCTS_COLLECTION).add(productData);
     
@@ -137,12 +143,18 @@ const updateProduct = async (req, res) => {
     }
 
     if (updateData.price) updateData.price = Number(updateData.price);
-    if (updateData.countInStock) updateData.countInStock = Number(updateData.countInStock);
+    if (updateData.stock) updateData.stock = Number(updateData.stock);
     
     await docRef.update(updateData);
     
     const updated = await docRef.get();
-    res.json(toPlainProduct(updated));
+    const product = toPlainProduct(updated);
+    
+    // Notify clients
+    const { publishEvent } = require('../utils/realtimeHub');
+    publishEvent('products.changed', { type: 'updated', productId: product._id, product });
+    
+    res.json(product);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }

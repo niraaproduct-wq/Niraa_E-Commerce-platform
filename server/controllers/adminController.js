@@ -59,7 +59,15 @@ const getAllProducts = async (req, res) => {
     if (category) query = query.where('category', '==', category);
 
     const snapshot = await query.get();
-    let products = snapshot.docs.map(d => ({ id: d.id, _id: d.id, ...d.data() }));
+    let products = snapshot.docs.map(d => {
+      const data = d.data();
+      return { 
+        id: d.id, 
+        _id: d.id, 
+        ...data,
+        stock: data.stock !== undefined ? data.stock : (data.countInStock || 0)
+      };
+    });
 
     if (search) {
       const q = search.toLowerCase();
@@ -128,7 +136,8 @@ const uploadProductImage = async (req, res) => {
 const createProduct = async (req, res) => {
   try {
     const { db } = getFirebase();
-    const { name, description, price, comparePrice, category, images, stock, variants, tags, isActive, isFeatured } = req.body;
+    console.log('Admin Create Product Body:', req.body);
+    const { name, description, price, comparePrice, category, images, stock, variants, tags, isActive, isFeatured, shortBenefit, highlightBadge, salesCount, rating } = req.body;
 
     const productData = {
       name,
@@ -142,17 +151,39 @@ const createProduct = async (req, res) => {
       tags: tags || [],
       isActive: isActive !== undefined ? isActive : true,
       isFeatured: isFeatured || false,
-      slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      shortBenefit: shortBenefit || '',
+      highlightBadge: highlightBadge || '',
+      salesCount: salesCount || '',
+      rating: Number(rating) || 4.8,
     };
+
+    // Synchronize with all variants if they are provided
+    if (productData.variants && productData.variants.length > 0) {
+      productData.variants.forEach(v => {
+        v.price = productData.price;
+        v.stockQuantity = productData.stock;
+        if (productData.comparePrice) {
+          v.originalPrice = productData.comparePrice;
+        }
+      });
+    }
+
+    productData.slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    productData.createdAt = new Date().toISOString();
+    productData.updatedAt = new Date().toISOString();
 
     if (productData.images && productData.images.length > 0 && !productData.image) {
       productData.image = productData.images[0];
     }
 
     const docRef = await db.collection('products').add(productData);
-    res.status(201).json({ message: 'Product created successfully', product: { id: docRef.id, _id: docRef.id, ...productData } });
+    const product = { id: docRef.id, _id: docRef.id, ...productData };
+    
+    // Notify clients
+    const { publishEvent } = require('../utils/realtimeHub');
+    publishEvent('products.changed', { type: 'created', productId: product._id, product });
+
+    res.status(201).json({ message: 'Product created successfully', product });
   } catch (error) {
     console.error('Create Product Error:', error);
     res.status(500).json({ message: 'Failed to create product', error: error.message });
@@ -165,6 +196,7 @@ const createProduct = async (req, res) => {
 const updateProduct = async (req, res) => {
   try {
     const { db } = getFirebase();
+    console.log('Admin Update Product Body:', req.params.id, req.body);
     const docRef = db.collection('products').doc(req.params.id);
     const existing = await docRef.get();
 
@@ -174,9 +206,68 @@ const updateProduct = async (req, res) => {
 
     const updateData = { ...req.body, updatedAt: new Date().toISOString() };
     
-    if (updateData.price) updateData.price = Number(updateData.price);
-    if (updateData.comparePrice) updateData.comparePrice = Number(updateData.comparePrice);
-    if (updateData.stock) updateData.stock = Number(updateData.stock);
+    // Remove ID fields to avoid Firestore metadata issues
+    delete updateData.id;
+    delete updateData._id;
+
+    // Generate slug if name is present or slug is missing
+    if (updateData.name || !existing.data().slug) {
+      const nameForSlug = updateData.name || existing.data().name || 'product';
+      updateData.slug = nameForSlug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    }
+
+    // Cast numeric fields
+    if (updateData.rating !== undefined) updateData.rating = Number(updateData.rating);
+    if (updateData.price !== undefined) updateData.price = Number(updateData.price);
+    if (updateData.stock !== undefined) updateData.stock = Number(updateData.stock);
+
+    // Sync main price/stock with variants ONLY if they have changed or are being initialized
+    const existingData = existing.data();
+    const variants = updateData.variants || existingData.variants || [];
+    let variantsUpdated = false;
+
+    // Check if main fields changed
+    const priceChanged = updateData.price !== undefined && Number(updateData.price) !== Number(existingData.price);
+    const comparePriceChanged = updateData.comparePrice !== undefined && Number(updateData.comparePrice) !== Number(existingData.comparePrice);
+    const stockChanged = updateData.stock !== undefined && Number(updateData.stock) !== Number(existingData.stock);
+
+    if (variants.length > 0) {
+      // If main price changed, propagate to variants (unless variants were also provided in request)
+      if (priceChanged && !updateData.variants) {
+        updateData.price = Number(updateData.price);
+        variants.forEach(v => { v.price = updateData.price; });
+        variantsUpdated = true;
+      }
+      
+      if (comparePriceChanged && !updateData.variants) {
+        updateData.comparePrice = Number(updateData.comparePrice);
+        variants.forEach(v => { v.originalPrice = updateData.comparePrice; });
+        variantsUpdated = true;
+      }
+
+      if (stockChanged && !updateData.variants) {
+        updateData.stock = Number(updateData.stock);
+        variants.forEach(v => { v.stockQuantity = updateData.stock; });
+        variantsUpdated = true;
+      }
+
+      // Ensure main price reflects MIN of variants if variants were updated/provided
+      if (updateData.variants || variantsUpdated) {
+        const minPrice = Math.min(...variants.map(v => v.price || 0));
+        if (updateData.price === undefined || updateData.price > minPrice) {
+          updateData.price = minPrice;
+        }
+      }
+    } else {
+      // Still need to cast types if no variants
+      if (updateData.price !== undefined) updateData.price = Number(updateData.price);
+      if (updateData.comparePrice !== undefined) updateData.comparePrice = Number(updateData.comparePrice);
+      if (updateData.stock !== undefined) updateData.stock = Number(updateData.stock);
+    }
+
+    if (variantsUpdated) {
+      updateData.variants = variants;
+    }
 
     if (updateData.images && updateData.images.length > 0 && !updateData.image) {
       updateData.image = updateData.images[0];
@@ -184,8 +275,17 @@ const updateProduct = async (req, res) => {
 
     await docRef.update(updateData);
     const updated = await docRef.get();
+    const product = { id: updated.id, _id: updated.id, ...updated.data() };
 
-    res.json({ message: 'Product updated successfully', product: { id: updated.id, _id: updated.id, ...updated.data() } });
+    // Notify clients via WebSocket (legacy support)
+    try {
+      const { publishEvent } = require('../utils/realtimeHub');
+      publishEvent('products.changed', { type: 'updated', productId: product._id, product });
+    } catch (e) {
+      console.warn('Realtime notify failed:', e.message);
+    }
+
+    res.json({ message: 'Product updated successfully', product });
   } catch (error) {
     console.error('Update Product Error:', error);
     res.status(500).json({ message: 'Failed to update product', error: error.message });
@@ -237,8 +337,13 @@ const updateProductStock = async (req, res) => {
 
     await docRef.update({ stock: newStock, updatedAt: new Date().toISOString() });
     const updated = await docRef.get();
+    const product = { id: updated.id, ...updated.data() };
 
-    res.json({ message: 'Stock updated successfully', product: { id: updated.id, ...updated.data() } });
+    // Notify clients
+    const { publishEvent } = require('../utils/realtimeHub');
+    publishEvent('products.changed', { type: 'updated', productId: updated.id, product });
+
+    res.json({ message: 'Stock updated successfully', product });
   } catch (error) {
     console.error('Update Stock Error:', error);
     res.status(500).json({ message: 'Failed to update stock', error: error.message });
@@ -307,27 +412,83 @@ const updateOrderStatus = async (req, res) => {
     const { db, admin } = getFirebase();
 
     const docRef = db.collection('orders').doc(req.params.id);
-    const doc = await docRef.get();
+    
+    await db.runTransaction(async (transaction) => {
+      const doc = await transaction.get(docRef);
+      if (!doc.exists) throw new Error('Order not found');
+      
+      const order = doc.data();
+      const oldStatus = order.status;
 
-    if (!doc.exists) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
+      // Restore stock if status changes TO cancelled
+      if (status === 'cancelled' && oldStatus !== 'cancelled') {
+        const items = order.items || [];
+        const productDocsMap = {};
+        const uniqueProductIds = [...new Set(items.map(item => item.product))];
 
-    const updateData = { status, updatedAt: new Date().toISOString() };
-    if (trackingNumber) updateData.trackingNumber = trackingNumber;
-    if (notes) {
-      updateData.adminNotes = notes;
-      updateData.statusHistory = admin.firestore.FieldValue.arrayUnion({
-        status,
-        note: notes,
-        date: new Date().toISOString()
-      });
-    }
+        // 1. READ ALL PRODUCT DOCS FIRST
+        for (const prodId of uniqueProductIds) {
+          const productRef = db.collection('products').doc(prodId);
+          const productDoc = await transaction.get(productRef);
+          if (productDoc.exists) {
+            productDocsMap[prodId] = { ref: productRef, data: productDoc.data() };
+          }
+        }
 
-    await docRef.update(updateData);
+        // 2. CALCULATE NEW STOCK VALUES
+        for (const item of items) {
+          const productInfo = productDocsMap[item.product];
+          if (!productInfo) continue;
+
+          const productData = productInfo.data;
+          if (item.variantId) {
+            const variantIndex = productData.variants?.findIndex(v => v.variantId === item.variantId);
+            if (variantIndex !== -1 && variantIndex !== undefined) {
+              productData.variants[variantIndex].stockQuantity = (Number(productData.variants[variantIndex].stockQuantity) || 0) + item.quantity;
+            }
+          } else {
+            productData.stock = (Number(productData.stock) || 0) + item.quantity;
+          }
+        }
+
+        // 3. QUEUE ALL WRITES
+        for (const prodId in productDocsMap) {
+          const info = productDocsMap[prodId];
+          transaction.update(info.ref, {
+            stock: info.data.stock !== undefined ? info.data.stock : 0,
+            variants: info.data.variants || [],
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
+
+      const updateData = { status, updatedAt: new Date().toISOString() };
+      if (trackingNumber) updateData.trackingNumber = trackingNumber;
+      if (notes) {
+        updateData.adminNotes = notes;
+        updateData.statusHistory = admin.firestore.FieldValue.arrayUnion({
+          status,
+          note: notes,
+          date: new Date().toISOString()
+        });
+      }
+
+      transaction.update(docRef, updateData);
+    });
+
     const updated = await docRef.get();
+    const updatedOrder = { id: updated.id, _id: updated.id, ...updated.data() };
 
-    res.json({ message: 'Order status updated successfully', order: { id: updated.id, _id: updated.id, ...updated.data() } });
+    // Notify clients
+    const { publishEvent } = require('../utils/realtimeHub');
+    publishEvent('orders.changed', { type: 'status_updated', orderId: updatedOrder._id, status: updatedOrder.status });
+    
+    // Also notify product changes if stock was restored
+    if (status === 'cancelled') {
+      publishEvent('products.changed', { type: 'batch_update' });
+    }
+
+    res.json({ message: 'Order status updated successfully', order: updatedOrder });
   } catch (error) {
     console.error('Update Order Status Error:', error);
     res.status(500).json({ message: 'Failed to update order status', error: error.message });
@@ -485,12 +646,23 @@ const getSalesAnalytics = async (req, res) => {
 // @access  Private/Admin
 const uploadImage = async (req, res) => {
   try {
-    if (!req.file || !req.file.path) {
+    if (!req.file || !req.file.buffer) {
+      console.error('Upload Error: No file buffer in request');
       return res.status(400).json({ message: 'No image uploaded' });
     }
-    res.json({ url: req.file.path });
+    
+    const { uploadBuffer } = require('../config/cloudinary');
+    
+    console.log('Uploading to Cloudinary from buffer...');
+    const result = await uploadBuffer(req.file.buffer, {
+      folder: 'products',
+      resource_type: 'auto'
+    });
+    
+    console.log('Upload Success:', result.secure_url);
+    res.json({ url: result.secure_url, public_id: result.public_id });
   } catch (error) {
-    console.error('Upload Error:', error);
+    console.error('Detailed Upload Error:', error);
     res.status(500).json({ message: 'Failed to upload image', error: error.message });
   }
 };

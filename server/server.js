@@ -1,6 +1,11 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const dotenv = require('dotenv');
+
+// Load environment variables at the very beginning
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const { setRealtimeServer } = require('./utils/realtimeHub');
@@ -14,10 +19,6 @@ const userRoutes = require('./routes/userRoutes');
 const locationRoutes = require('./routes/locationRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const marketingRoutes = require('./routes/marketingRoutes');
-
-const path = require('path');
-
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const app = express();
 

@@ -7,6 +7,9 @@ import { WHATSAPP_NUMBER } from '../utils/constants.js';
 import { getProductById, getProducts } from '../utils/productApi.js';
 import { FiShoppingCart, FiZap, FiStar, FiCheck, FiArrowLeft, FiTruck, FiShield, FiDroplet } from 'react-icons/fi';
 import { AiOutlineWhatsApp } from 'react-icons/ai';
+import { useRealtime } from '../context/RealtimeContext.jsx';
+import { db } from '../config/firebase';
+import { collection, query, where, limit, onSnapshot } from 'firebase/firestore';
 
 const TRUST_POINTS = [
   { icon: <FiShield size={14} />, text: '99.9% Germ Kill' },
@@ -30,29 +33,59 @@ const ProductDetails = () => {
   const navigate = useNavigate();
   const { addToCart, items, updateQty } = useCart();
 
-  useEffect(() => {
-    const fetchDetails = async () => {
-      setLoading(true);
-      try {
-        const data = await getProductById(slug);
-        setProduct(data);
-        setMainImage(data.images?.[0] || data.image);
-        setQty(1);
-        setSelectedVariant(data.variants?.[0] || null);
+  const fetchRelated = async (category, currentId) => {
+    try {
+      const relatedData = await getProducts({ category, limit: 5 });
+      setRelated(relatedData.products.filter(p => p._id !== currentId).slice(0, RELATED_COUNT));
+    } catch (err) {
+      console.error("Related fetch error:", err);
+    }
+  };
 
-        // Fetch related products
-        const relatedData = await getProducts({ category: data.category, limit: 5 });
-        setRelated(relatedData.products.filter(p => p._id !== data._id).slice(0, RELATED_COUNT));
-      } catch (err) {
-        console.error("Product fetch error:", err);
-        setProduct(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDetails();
+  useEffect(() => {
+    if (!slug) return;
+    setLoading(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Listen for real-time updates
+    const q = query(collection(db, 'products'), where('slug', '==', slug), limit(1));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const docSnap = snapshot.docs[0];
+        const data = docSnap.data();
+        const p = { id: docSnap.id, _id: docSnap.id, ...data };
+        setProduct(p);
+        setMainImage(img => img || p.images?.[0] || p.image);
+        setSelectedVariant(v => v || p.variants?.[0] || null);
+        setLoading(false);
+        fetchRelated(p.category, p.id);
+      } else {
+        setLoading(false);
+        setProduct(null);
+      }
+    }, (err) => {
+      console.error('Firestore onSnapshot error:', err);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [slug]);
+
+  const imageList = useMemo(() => {
+    if (product?.images?.length) return product.images;
+    if (product?.image) return [product.image];
+    return [];
+  }, [product]);
+
+  const TABS = useMemo(() => {
+    if (!product) return [];
+    return [
+      { id: 'description', label: '📋 Description' },
+      ...(product.features?.length ? [{ id: 'features', label: '✨ Features' }] : []),
+      ...(product.usage ? [{ id: 'usage', label: '📖 How to Use' }] : []),
+      ...(product.comboItems?.length ? [{ id: 'combo', label: '🎁 What\'s Inside' }] : []),
+    ];
+  }, [product]);
 
   if (loading) return (
     <main className="container page">
@@ -84,10 +117,10 @@ const ProductDetails = () => {
     </main>
   );
 
-  const currentPrice = selectedVariant ? selectedVariant.price : product.price;
-  const currentOriginalPrice = selectedVariant ? selectedVariant.originalPrice : product.originalPrice;
-  const currentStock = selectedVariant ? selectedVariant.stockQuantity : 99;
-  const discountPct = currentOriginalPrice ? Math.round((1 - currentPrice / currentOriginalPrice) * 100) : product.discount;
+  const currentPrice = selectedVariant ? selectedVariant.price : (product.price || 0);
+  const currentOriginalPrice = selectedVariant ? selectedVariant.originalPrice : (product.originalPrice || 0);
+  const currentStock = selectedVariant ? selectedVariant.stockQuantity : (product.stock || 0);
+  const discountPct = currentOriginalPrice ? Math.round((1 - currentPrice / currentOriginalPrice) * 100) : (product.discount || 0);
   const savings = currentOriginalPrice ? currentOriginalPrice - currentPrice : 0;
 
   const addSelectedToCart = () => {
@@ -112,19 +145,6 @@ const ProductDetails = () => {
 
   const waText = `Hello NIRAA! I want to order:\n*${product.name}*${selectedVariant ? ` (${selectedVariant.size} - ${selectedVariant.type})` : ''}\nQty: ${qty}\nPrice: ${formatPrice(currentPrice)} each\n\nPlease confirm availability and delivery.`;
   const waLink = `https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}?text=${encodeURIComponent(waText)}`;
-
-  const imageList = useMemo(() => {
-    if (product?.images?.length) return product.images;
-    if (product?.image) return [product.image];
-    return [];
-  }, [product]);
-
-  const TABS = [
-    { id: 'description', label: '📋 Description' },
-    ...(product.features?.length ? [{ id: 'features', label: '✨ Features' }] : []),
-    ...(product.usage ? [{ id: 'usage', label: '📖 How to Use' }] : []),
-    ...(product.comboItems?.length ? [{ id: 'combo', label: '🎁 What\'s Inside' }] : []),
-  ];
 
   return (
     <main className="container page" style={{ paddingTop: 12 }}>

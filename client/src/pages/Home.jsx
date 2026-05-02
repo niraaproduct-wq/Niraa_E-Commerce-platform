@@ -7,6 +7,8 @@ import bannerImage from '../assets/images/banner.jpeg';
 import { CATEGORIES } from '../utils/categories.js';
 import { getProducts } from '../utils/productApi.js';
 import SectionRenderer from '../components/SectionRenderer';
+import { useRealtime } from '../context/RealtimeContext.jsx';
+import { useFirestoreProducts } from '../hooks/useFirestoreProducts';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? (import.meta.env.VITE_API_BASE_URL.endsWith('/api') ? import.meta.env.VITE_API_BASE_URL : `${import.meta.env.VITE_API_BASE_URL}/api`)
@@ -82,24 +84,21 @@ export default function Home() {
   const [individuals, setIndividuals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dynamicSections, setDynamicSections] = useState([]);
+  const { products: liveProducts, loading: liveLoading } = useFirestoreProducts();
+  const { lastEvent } = useRealtime();
 
+  // Keep combos and individuals in sync with liveProducts
   useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        const data = await getProducts({ limit: 100 });
-        const prods = data?.products || [];
-        setCombos(prods.filter(p => p.isCombo));
-        setIndividuals(prods.filter(p => !p.isCombo));
-      } catch (err) {
-        console.error("Home fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+    setCombos(liveProducts.filter(p => p.isCombo));
+    setIndividuals(liveProducts.filter(p => !p.isCombo));
+    if (!liveLoading) {
+      setLoading(false);
+    }
+  }, [liveProducts, liveLoading]);
 
-    const fetchSections = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/sections/home`);
+  const fetchSections = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/sections/home`);
         if (res.ok) {
           const data = await res.json();
           setDynamicSections(data.sections || []);
@@ -109,9 +108,11 @@ export default function Home() {
       }
     };
 
-    fetchAll();
+  useEffect(() => {
     fetchSections();
   }, []);
+
+  // Realtime updates handled by useFirestoreProducts hook
 
   const mainCombo = combos.find(c => c._id === 'combo-complete-home') || combos[0];
   const waText = `Hello NIRAA, I want to order the Complete Home Combo. Please contact me!`;
@@ -122,6 +123,52 @@ export default function Home() {
     const t = setInterval(() => setActiveTestimonial(p => (p + 1) % TESTIMONIALS_MINI.length), 3500);
     return () => clearInterval(t);
   }, []);
+
+  const categoryMetadata = useMemo(() => {
+    const dynamicCats = [...new Set(liveProducts.map(p => p.category))].filter(Boolean);
+    const merged = [...CATEGORIES];
+    
+    dynamicCats.forEach(catId => {
+      if (!merged.find(c => c.id === catId)) {
+        merged.push({
+          id: catId,
+          label: catId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          icon: '🧴',
+          desc: 'Premium cleaning solutions for your home.'
+        });
+      }
+    });
+    return merged;
+  }, [liveProducts]);
+
+  const categoryList = useMemo(() => {
+    return categoryMetadata.map((cat, idx) => {
+      const count = liveProducts.filter(p => p.category === cat.id).length;
+      if (count === 0 && !CATEGORIES.some(c => c.id === cat.id)) return null;
+
+      return (
+        <Link key={cat.id} to={`/products?category=${cat.id}`} className="cat-card">
+          <div style={{ fontSize: '2rem', marginBottom: 10 }}>{cat.icon}</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--gray-800)', fontSize: '0.85rem', marginBottom: 4 }}>{cat.label}</div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--teal)', fontWeight: 700, background: 'rgba(42,125,114,0.08)', borderRadius: 999, padding: '2px 8px', display: 'inline-block' }}>
+            {count} products
+          </div>
+        </Link>
+      );
+    }).filter(Boolean);
+  }, [categoryMetadata, liveProducts]);
+
+  const groupedSections = useMemo(() => {
+    return categoryMetadata.map(cat => {
+      const catProducts = individuals.filter(p => p.category === cat.id);
+      if (catProducts.length === 0) return null;
+      
+      return {
+        ...cat,
+        products: catProducts.slice(0, 4)
+      };
+    }).filter(Boolean);
+  }, [categoryMetadata, individuals]);
 
   if (loading) return <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 600, color: 'var(--teal)' }}>Loading NIRAA Products...</div>;
 
@@ -494,39 +541,30 @@ export default function Home() {
         )}
       </section>
 
-      {/* ─── SHOP BY CATEGORY ─────────────────── */}
       <section style={{ marginBottom: 40 }}>
         <SectionHeading label="Explore" title="Shop by Category" cta="View All" to="/products" />
         <div className="cat-grid">
-          {CATEGORIES.map((cat, idx) => {
-            const count = individuals.filter(p => p.category === cat.id).length;
-            return (
-              <Link key={cat.id} to={`/products?category=${cat.id}`} className="cat-card">
-                <div style={{ fontSize: '2rem', marginBottom: 10 }}>{cat.icon}</div>
-                <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--gray-800)', fontSize: '0.85rem', marginBottom: 4 }}>{cat.label}</div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--teal)', fontWeight: 700, background: 'rgba(42,125,114,0.08)', borderRadius: 999, padding: '2px 8px', display: 'inline-block' }}>
-                  {count} products
-                </div>
-              </Link>
-            );
-          })}
+          {categoryList}
         </div>
       </section>
 
       {/* ─── PRODUCT SECTIONS ─────────────────── */}
-      {[
-        { cat: 'detergent', label: 'Laundry Care', title: '👕 Detergents & Conditioners', to: '/products?category=detergent', bg: 'linear-gradient(135deg, #f5f3ff, #fff)', border: 'rgba(124,58,237,0.1)', desc: 'Powerful liquid detergents for machine & hand wash. Eco-Green variant is plant-based and safe for sensitive skin.' },
-        { cat: 'floor-cleaner', label: 'Floor Care', title: '🧹 Floor Cleaners', to: '/products?category=floor-cleaner', bg: 'linear-gradient(135deg, #f0faf8, #fefcf3)', border: 'rgba(42,125,114,0.1)', desc: 'Safe for marble, granite, tiles and mosaic — no rinsing needed. Available in multiple fresh fragrances and eco-refill options.' },
-        { cat: 'toilet-cleaner', label: 'Bathroom Care', title: '🚿 Toilet Cleaners', to: '/products?category=toilet-cleaner', bg: 'linear-gradient(135deg, #eff6ff, #fff)', border: 'rgba(99,102,241,0.1)', desc: 'Thick gel formulas that cling under rims for deep cleaning. Kills 99.9% of germs with a single application.' },
-        { cat: 'dish-wash', label: 'Kitchen Care', title: '🍽️ Dish Wash Liquids', to: '/products?category=dish-wash', bg: 'linear-gradient(135deg, #fffbeb, #fff)', border: 'rgba(200,168,75,0.15)', desc: 'High-foam dish wash liquids that cut through grease effortlessly — gentle on hands, tough on oil.' },
-      ].map(({ cat, label, title, to, bg, border, desc }) => (
-        <section key={cat} style={{ marginBottom: 40 }}>
-          <SectionHeading label={label} title={title} cta={`See All ${label}`} to={to} />
-          <div className="section-bg" style={{ background: bg, borderColor: border }}>
-            {desc}
+      {groupedSections.map((section) => (
+        <section key={section.id} style={{ marginBottom: 40 }}>
+          <SectionHeading 
+            label={section.label} 
+            title={`${section.icon} ${section.label}`} 
+            cta={`See All ${section.label}`} 
+            to={`/products?category=${section.id}`} 
+          />
+          <div className="section-bg" style={{ 
+            background: 'linear-gradient(135deg, #f0faf8, #fff)', 
+            borderColor: 'rgba(42,125,114,0.1)' 
+          }}>
+            {section.desc}
           </div>
           <div className="prod-row">
-            {individuals.filter(p => p.category === cat).slice(0, 4).map(p => (
+            {section.products.map(p => (
               <ProductCard key={p._id} product={p} compact />
             ))}
           </div>
