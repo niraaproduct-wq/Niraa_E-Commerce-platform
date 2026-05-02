@@ -71,10 +71,14 @@ export default function Footer() {
         {/* Contact */}
         <div>
           <h4 style={{ fontWeight: 600, fontSize: '0.9rem', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 18, color: 'var(--gold-light)' }}>Contact</h4>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 14, color: '#c5e8e5', fontSize: '0.88rem' }}>
+          <a 
+            href="https://maps.app.goo.gl/xRtJMzmbtsAPsztr5" 
+            target="_blank" rel="noreferrer"
+            style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 14, color: '#c5e8e5', fontSize: '0.88rem', textDecoration: 'none' }}
+          >
             <FiMapPin size={16} style={{ marginTop: 2, flexShrink: 0 }} />
-            <span>Dharmapuri, Tamil Nadu</span>
-          </div>
+            <span>Near Old Bus Stand, Dharmapuri, TN</span>
+          </a>
           <a href={`tel:${PHONE_1}`} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, color: '#c5e8e5', fontSize: '0.88rem' }}>
             <FiPhone size={16} /> {PHONE_1}
           </a>

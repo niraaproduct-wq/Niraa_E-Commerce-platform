@@ -109,7 +109,7 @@ const css = `
 `;
 
 const FAQS = [
-  { q: 'Which areas do you deliver to?', a: 'We deliver to Dharmapuri and all nearby areas with pincodes starting with 636.' },
+  { q: 'Which areas do you deliver to?', a: 'We deliver to Dharmapuri and all nearby areas.' },
   { q: 'How long does delivery take?', a: 'Local deliveries are fulfilled within 6 hours of order confirmation.' },
   { q: 'Do you offer Cash on Delivery?', a: 'Yes! We offer both UPI payment and Cash on Delivery for your convenience.' },
   { q: 'Can I return or exchange products?', a: 'If you receive a damaged or wrong product, WhatsApp us within 24 hours and we will resolve it promptly.' },
@@ -222,12 +222,12 @@ export default function Contact() {
                   <span>📍</span> Our Location
                 </div>
                 <div style={{ fontSize: 13, color: T.gray500, marginBottom: 12, fontWeight: 600 }}>
-                  Dharmapuri, Tamil Nadu — Local delivery & support
+                  Near Old Bus Stand, Dharmapuri, Tamil Nadu — Local delivery & support
                 </div>
                 <div style={{ borderRadius: 14, overflow: 'hidden', border: `1.5px solid ${T.gray200}` }}>
                   <iframe
                     title="NIRAA location map"
-                    src="https://www.google.com/maps?q=Dharmapuri%2C%20Tamil%20Nadu&output=embed"
+                    src="https://www.google.com/maps?q=12.157029,78.160132&output=embed"
                     width="100%" height="200" style={{ border: 0, display: 'block' }}
                     loading="lazy" referrerPolicy="no-referrer-when-downgrade"
                   />
