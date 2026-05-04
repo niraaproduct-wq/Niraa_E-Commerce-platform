@@ -32,6 +32,32 @@ const findUserByPhone = async (phone) => {
   return toPlainUser(snap.docs[0]);
 };
 
+const findUserByEmail = async (email) => {
+  if (!email) return null;
+  const { db } = getFirebase();
+  const snap = await db
+    .collection(USERS_COLLECTION)
+    .where('email', '==', String(email).toLowerCase().trim())
+    .limit(1)
+    .get();
+
+  if (snap.empty) return null;
+  return toPlainUser(snap.docs[0]);
+};
+
+const findUserByFirebaseUid = async (uid) => {
+  if (!uid) return null;
+  const { db } = getFirebase();
+  const snap = await db
+    .collection(USERS_COLLECTION)
+    .where('firebaseUid', '==', uid)
+    .limit(1)
+    .get();
+
+  if (snap.empty) return null;
+  return toPlainUser(snap.docs[0]);
+};
+
 const findUserById = async (id) => {
   const { db } = getFirebase();
   const doc = await db.collection(USERS_COLLECTION).doc(String(id)).get();
@@ -89,6 +115,8 @@ const updateUser = async (userId, updateData) => {
 module.exports = {
   getAllUsers,
   findUserByPhone,
+  findUserByEmail,
+  findUserByFirebaseUid,
   findUserById,
   createUser,
   updateUser,

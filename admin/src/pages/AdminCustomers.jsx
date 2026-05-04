@@ -119,6 +119,9 @@ const CustomerRow = ({ c, normalizePhone }) => {
         <div style={{ minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 800, fontSize: 14, color: '#0f172a' }}>{c.name}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: c.type === 'online' ? '#eff6ff' : '#f0fdf4', color: c.type === 'online' ? '#1d4ed8' : '#16a34a', border: `1px solid ${c.type === 'online' ? '#bfdbfe' : '#bbf7d0'}` }}>
+              {c.type === 'online' ? '🌐 Online' : '🏬 Walk-in'}
+            </span>
             <ActivityChip lastOrderAt={c.lastOrderAt} />
           </div>
 
@@ -207,6 +210,7 @@ export default function AdminCustomers() {
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [activityFilter, setActivityFilter] = useState('all');
+  const [customerTypeFilter, setCustomerTypeFilter] = useState('all');
   const [sortBy, setSortBy] = useState('lastOrder');
   const [connectionStatus, setConnectionStatus] = useState('offline');
   const [metrics, setMetrics] = useState({ totalRegisteredCustomers: 0, customersOrderedToday: 0, activeCustomers30Days: 0 });
@@ -238,13 +242,37 @@ export default function AdminCustomers() {
       for (const rc of registeredCustomers) {
         const key = normalizePhone(rc.phone) || rc._id || rc.id;
         if (!key) continue;
-        map[key] = { id: rc._id || rc.id || key, name: rc.name || `${rc.firstName || ''} ${rc.lastName || ''}`.trim() || 'Customer', phone: rc.phone || '-', email: rc.email || '', registeredAt: rc.createdAt || null, ordersCount: 0, totalSpent: 0, lastOrderAt: null, orders: [] };
+        map[key] = { 
+          id: rc._id || rc.id || key, 
+          name: rc.name || `${rc.firstName || ''} ${rc.lastName || ''}`.trim() || 'Customer', 
+          phone: rc.phone || '-', 
+          email: rc.email || '', 
+          registeredAt: rc.createdAt || null, 
+          ordersCount: 0, 
+          totalSpent: 0, 
+          lastOrderAt: null, 
+          orders: [],
+          type: rc.type || 'online' // Default to online for registered
+        };
       }
 
       for (const o of orderList) {
         const key = normalizePhone(o.customerPhone);
         if (!key) continue;
-        if (!map[key]) map[key] = { id: key, name: o.customerName || 'Customer', phone: o.customerPhone || '-', email: '', registeredAt: null, ordersCount: 0, totalSpent: 0, lastOrderAt: null, orders: [] };
+        if (!map[key]) {
+          map[key] = { 
+            id: key, 
+            name: o.customerName || 'Customer', 
+            phone: o.customerPhone || '-', 
+            email: '', 
+            registeredAt: null, 
+            ordersCount: 0, 
+            totalSpent: 0, 
+            lastOrderAt: null, 
+            orders: [],
+            type: o.customerType || 'walkin' // If not registered, likely walk-in or manual entry
+          };
+        }
         map[key].ordersCount += 1;
         map[key].totalSpent += Number(o.total || 0);
         map[key].lastOrderAt = !map[key].lastOrderAt || new Date(o.createdAt) > new Date(map[key].lastOrderAt) ? o.createdAt : map[key].lastOrderAt;
@@ -318,6 +346,10 @@ export default function AdminCustomers() {
         if (activityFilter === '30d') return last >= thirtyDaysAgo;
         return true;
       })
+      .filter(c => {
+        if (customerTypeFilter === 'all') return true;
+        return c.type === customerTypeFilter;
+      })
       .sort((a, b) => {
         if (sortBy === 'lastOrder') return new Date(b.lastOrderAt || 0) - new Date(a.lastOrderAt || 0);
         if (sortBy === 'totalSpent') return b.totalSpent - a.totalSpent;
@@ -325,7 +357,7 @@ export default function AdminCustomers() {
         if (sortBy === 'name') return (a.name || '').localeCompare(b.name || '');
         return 0;
       });
-  }, [customers, searchText, activityFilter, sortBy]);
+  }, [customers, searchText, activityFilter, customerTypeFilter, sortBy]);
 
   const exportToCsv = () => {
     const headers = ['Name', 'Phone', 'Email', 'Registered At', 'Orders', 'Total Spent (₹)', 'Last Order'];
@@ -423,6 +455,21 @@ export default function AdminCustomers() {
             <button key={f.val} onClick={() => setActivityFilter(f.val)}
               className={`filter-btn${activityFilter === f.val ? ' active' : ''}`}
               style={{ padding: '6px 12px', border: '1px solid #e2e8f0', borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: 'pointer', color: activityFilter === f.val ? '#fff' : '#475569', background: activityFilter === f.val ? '#0f172a' : '#fff' }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Type filter pills */}
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+          {[
+            { val: 'all', label: '🌐 All Types' },
+            { val: 'online', label: '🌐 Online' },
+            { val: 'walkin', label: '🏬 Walk-in' },
+          ].map(f => (
+            <button key={f.val} onClick={() => setCustomerTypeFilter(f.val)}
+              className={`filter-btn${customerTypeFilter === f.val ? ' active' : ''}`}
+              style={{ padding: '6px 12px', border: '1px solid #e2e8f0', borderRadius: 99, fontSize: 12, fontWeight: 600, cursor: 'pointer', color: customerTypeFilter === f.val ? '#fff' : '#475569', background: customerTypeFilter === f.val ? '#334155' : '#fff' }}>
               {f.label}
             </button>
           ))}

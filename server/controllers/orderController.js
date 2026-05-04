@@ -75,8 +75,8 @@ const placeOrder = async (req, res) => {
       // 4. Create the order
       const orderData = {
         ...req.body,
-        status: 'placed',
-        paymentStatus: 'pending',
+        status: req.body.status || 'placed',
+        paymentStatus: req.body.paymentStatus || 'pending',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };

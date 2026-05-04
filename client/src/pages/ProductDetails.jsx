@@ -10,6 +10,7 @@ import { AiOutlineWhatsApp } from 'react-icons/ai';
 import { useRealtime } from '../context/RealtimeContext.jsx';
 import { db } from '../config/firebase';
 import { collection, query, where, limit, onSnapshot } from 'firebase/firestore';
+import ProductCard from '../components/ProductCard.jsx';
 
 const TRUST_POINTS = [
   { icon: <FiShield size={14} />, text: '99.9% Germ Kill' },
@@ -30,6 +31,7 @@ const ProductDetails = () => {
   const [zoomPos, setZoomPos] = useState(null);
   const [loading, setLoading] = useState(true);
   const [related, setRelated] = useState([]);
+  const [combos, setCombos] = useState([]);
   const navigate = useNavigate();
   const { addToCart, items, updateQty } = useCart();
 
@@ -37,8 +39,11 @@ const ProductDetails = () => {
     try {
       const relatedData = await getProducts({ category, limit: 5 });
       setRelated(relatedData.products.filter(p => p._id !== currentId).slice(0, RELATED_COUNT));
+      
+      const allData = await getProducts({});
+      setCombos(allData.products.filter(p => (p.productType === 'combo' || p.isCombo) && p._id !== currentId).slice(0, 3));
     } catch (err) {
-      console.error("Related fetch error:", err);
+      console.error("Related/Combo fetch error:", err);
     }
   };
 
@@ -622,6 +627,35 @@ const ProductDetails = () => {
           </div>
           <div className="related-grid">
             {related.map(p => (
+              <ProductCard key={p._id} product={p} compact />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ─── COMBO OFFERS ──────────────────────── */}
+      {combos.length > 0 && (
+        <section style={{ marginBottom: 36, background: 'linear-gradient(135deg, #062019 0%, #1e5c53 60%, #0b3d35 100%)', padding: '24px', borderRadius: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, gap: 10 }}>
+            <div>
+              <div style={{ fontSize: '0.68rem', color: '#4ade80', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 16, height: 2, background: '#4ade80', borderRadius: 2, display: 'inline-block' }} />
+                Maximize Savings
+              </div>
+              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 900, color: '#fff', margin: 0, letterSpacing: '-0.02em' }}>
+                Combo Offers
+              </h2>
+            </div>
+            <Link to="/products" style={{
+              color: '#fff', fontWeight: 700, fontSize: '0.82rem',
+              textDecoration: 'none', padding: '8px 16px',
+              background: 'linear-gradient(135deg, #c8a84b, #d4a843)', borderRadius: 999,
+            }}>
+              View All Combos →
+            </Link>
+          </div>
+          <div className="related-grid">
+            {combos.map(p => (
               <ProductCard key={p._id} product={p} compact />
             ))}
           </div>

@@ -1,10 +1,11 @@
 const express = require('express');
-const router  = express.Router();
-const { 
-  register, 
-  login, 
-  getProfile, 
-  sendOtp, 
+const router = express.Router();
+const {
+  register,
+  login,
+  getProfile,
+  sendOtp,
+  sendEmailOtp,
   verifyOtp,
   updateProfile,
   changePassword,
@@ -19,6 +20,7 @@ const { protect } = require('../middleware/authMiddleware');
 // Public routes
 router.post('/check-phone', checkPhone);
 router.post('/send-otp', sendOtp);
+router.post('/send-email-otp', sendEmailOtp);
 router.post('/verify-otp', verifyOtp);
 router.post('/verify-firebase', verifyFirebase);
 router.post('/register', register);

@@ -17,8 +17,9 @@ const getDashboardStats = async (req, res) => {
     ]);
 
     const orders = ordersSnap.docs.map(d => ({ id: d.id, _id: d.id, ...d.data() }));
+    const validOrders = orders.filter(o => o.status !== 'cancelled');
 
-    const totalSales = orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const totalSales = validOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
     const pendingOrders = orders.filter(o => ['placed', 'pending', 'confirmed'].includes(o.status)).length;
     const deliveredOrders = orders.filter(o => o.status === 'delivered').length;
     const processingOrders = orders.filter(o => o.status === 'processing').length;
@@ -612,9 +613,10 @@ const getSalesAnalytics = async (req, res) => {
 
     const snapshot = await db.collection('orders').where('createdAt', '>=', since).get();
     const orders = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    const validOrders = orders.filter(o => o.status !== 'cancelled');
 
-    const totalSales = orders.reduce((sum, o) => sum + Number(o.total || 0), 0);
-    const totalOrders = orders.length;
+    const totalSales = validOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const totalOrders = orders.length; // Keep all orders count for metrics, but sales from valid only
     const avgOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
 
     const statusBreakdown = {

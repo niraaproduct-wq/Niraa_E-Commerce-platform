@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../utils/constants';
 import toast from 'react-hot-toast';
-import { FaPlus, FaEdit, FaTrash, FaSave, FaTimes, FaSearch, FaBox, FaTag, FaImage, FaExclamationTriangle } from 'react-icons/fa';
+import Barcode from 'react-barcode';
+import JsBarcode from 'jsbarcode';
+import { FaPlus, FaEdit, FaTrash, FaSave, FaTimes, FaSearch, FaBox, FaTag, FaImage, FaExclamationTriangle, FaBarcode, FaPrint } from 'react-icons/fa';
 import { useRealtime } from '../context/RealtimeContext.jsx';
 
 /* ─── Design Tokens ─────────────────────────────────────────── */
@@ -93,6 +95,9 @@ const AdminProducts = () => {
     category: '', stock: '', images: [], isActive: true, isFeatured: false,
     variants: [],
     shortBenefit: '', highlightBadge: '', salesCount: '', rating: '4.8',
+    barcode: '', sku: '',
+    size: '', productType: 'single',
+    comboItems: [], // [{ productId, name, sku, qty, price, image }]
   };
   const [formData, setFormData] = useState(emptyForm);
 
@@ -122,7 +127,7 @@ const AdminProducts = () => {
       } else {
         const errorData = await res.json().catch(() => ({}));
         console.error('Admin Fetch Error:', res.status, errorData);
-        
+
         if (res.status === 401 || res.status === 403) {
           toast.error('Permission denied. Admin access required.');
           setReadOnlyMode(true);
@@ -153,14 +158,57 @@ const AdminProducts = () => {
     }
   }, [lastEvent]);
 
+  /* ── Auto-generate Barcode ── */
+  useEffect(() => {
+    if ((!editingProduct || !formData.barcode) && (formData.name || formData.category)) {
+      const brand = 'NIR';
+      const catCode = (formData.category || 'GEN').toUpperCase().replace(/-/g, '').slice(0, 3);
+      const cleanName = (formData.name || 'PRD').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/(\d+(ML|LT|L|KG|G))/g, '');
+      const prdCode = cleanName.slice(0, 4).padEnd(3, 'X');
+      const itemCount = formData.comboItems?.length || 0;
+      const sizeCode = formData.productType === 'combo' 
+        ? `${itemCount}P` 
+        : (formData.size || 'NA').toUpperCase().replace(/\s/g, '').replace('LT', 'L');
+      const typeCode = formData.productType === 'combo' ? 'C' : 'S';
+      const newSKU = `${brand}-${catCode}-${prdCode}-${sizeCode}-${typeCode}`;
+      setFormData(prev => ({ ...prev, barcode: newSKU, sku: newSKU }));
+    }
+  }, [formData.name, formData.category, formData.size, formData.productType, formData.comboItems, editingProduct]);
+
   /* ── Image upload ── */
+  // ── Image upload with client-side compression ──
+  const compressImage = async (file) => {
+    if (!file.type.startsWith('image/')) return file;
+    try {
+      const bitmap = await createImageBitmap(file);
+      const maxDim = 1200; // max width/height
+      let { width, height } = bitmap;
+      if (width > maxDim || height > maxDim) {
+        const scale = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(bitmap, 0, 0, width, height);
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', 0.8));
+      return new File([blob], file.name, { type: 'image/webp' });
+    } catch (e) {
+      console.warn('Image compression failed, proceeding with original file', e);
+      return file;
+    }
+  };
+
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setUploadingImage(true);
-    const uploadData = new FormData();
-    uploadData.append('image', file);
     try {
+      const compressedFile = await compressImage(file);
+      const uploadData = new FormData();
+      uploadData.append('image', compressedFile);
       const token = localStorage.getItem('niraa_token');
       const res = await fetch(`${API_BASE_URL}/admin/upload`, {
         method: 'POST',
@@ -225,6 +273,11 @@ const AdminProducts = () => {
       highlightBadge: p.highlightBadge || '',
       salesCount: p.salesCount || '',
       rating: p.rating || '4.8',
+      barcode: p.barcode || '',
+      sku: p.sku || '',
+      size: p.size || '',
+      productType: p.productType || 'single',
+      comboItems: p.comboItems || [],
     });
     setShowForm(true);
   };
@@ -243,17 +296,17 @@ const AdminProducts = () => {
     finally { setDeleteConfirm(null); }
   };
 
-  const resetForm = () => { 
-    setFormData(emptyForm); 
-    setEditingProduct(null); 
-    setShowForm(false); 
+  const resetForm = () => {
+    setFormData(emptyForm);
+    setEditingProduct(null);
+    setShowForm(false);
     setIsAddingCategory(false);
     setNewCategoryName('');
   };
 
   const filtered = products.filter(p => {
     const matchesSearch = p.name?.toLowerCase().includes(search.toLowerCase()) ||
-                         p.description?.toLowerCase().includes(search.toLowerCase());
+      p.description?.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = showInactive || p.isActive !== false;
     return matchesSearch && matchesStatus;
   });
@@ -261,6 +314,75 @@ const AdminProducts = () => {
   const activeCount = products.filter(p => p.isActive).length;
   const lowStockCount = products.filter(p => p.stock <= 10 && p.stock > 0).length;
   const outCount = products.filter(p => p.stock === 0).length;
+
+  /* ── Download Barcode ── */
+  const downloadBarcode = (productId, barcodeValue) => {
+    const svg = document.getElementById(`barcode-${productId}`);
+    if (!svg) {
+      toast.error('Barcode not found');
+      return;
+    }
+    try {
+      const serializer = new XMLSerializer();
+      const svgData = serializer.serializeToString(svg);
+
+      // Create a canvas to convert SVG to PNG
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+
+      // Add XML declaration and namespace if missing
+      const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(svgBlob);
+
+      img.onload = () => {
+        // Set canvas dimensions with a small scale-up for better quality
+        const scale = 2;
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+
+        // Fill white background (important for barcodes)
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const pngUrl = canvas.toDataURL("image/png");
+        const link = document.createElement("a");
+        link.href = pngUrl;
+        link.download = `barcode-${barcodeValue || productId}.png`;
+        link.click();
+
+        URL.revokeObjectURL(url);
+        toast.success('Barcode downloaded as PNG! 🖼️');
+      };
+
+      img.src = url;
+    } catch (err) {
+      console.error('Download error:', err);
+      toast.error('Failed to download barcode');
+    }
+  };
+
+  /* ── Generate Table Barcodes ── */
+  useEffect(() => {
+    filtered.forEach(product => {
+      if (product.barcode) {
+        try {
+          JsBarcode(`#barcode-${product._id}`, product.barcode, {
+            height: 30,
+            fontSize: 12,
+            width: 1.2,
+            margin: 0,
+            displayValue: true
+          });
+        } catch (e) {
+          console.error(`Error generating barcode for ${product._id}:`, e);
+        }
+      }
+    });
+  }, [filtered, loading]);
+
 
   /* ══════════════ RENDER ══════════════ */
   return (
@@ -345,7 +467,7 @@ const AdminProducts = () => {
             }}
           />
         </div>
-        
+
         <button
           onClick={() => setShowInactive(!showInactive)}
           style={{
@@ -390,8 +512,8 @@ const AdminProducts = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: T.gray50, borderBottom: `1.5px solid ${T.gray200}` }}>
-                {['Product', 'Category', 'Price', 'Stock', 'Status', ''].map(h => (
-                  <th key={h} style={{ padding: '12px 20px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: T.gray400, whiteSpace: 'nowrap' }}>{h}</th>
+                {['Product', 'Category', 'Price', 'Stock', 'Status', 'Barcode', ''].map(h => (
+                  <th key={h} style={{ padding: '12px 20px', textAlign: h === 'Barcode' ? 'center' : 'left', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: T.gray400, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -418,9 +540,16 @@ const AdminProducts = () => {
                         </div>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 14, color: T.gray900, letterSpacing: '-0.01em' }}>{product.name}</div>
-                          {product.isFeatured && (
-                            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#533AB7', background: '#EEEDFE', padding: '2px 7px', borderRadius: 99, display: 'inline-block', marginTop: 3 }}>Featured</span>
-                          )}
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+                            {product.isFeatured && (
+                              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#533AB7', background: '#EEEDFE', padding: '2px 7px', borderRadius: 99 }}>Featured</span>
+                            )}
+                            {product.barcode && (
+                              <span style={{ fontSize: 10, fontWeight: 600, color: T.gray500, fontFamily: T.mono, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <FaBarcode size={10} /> {product.barcode}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -450,6 +579,29 @@ const AdminProducts = () => {
                         <span style={{ fontSize: 13, color: product.isActive ? T.tealDark : T.gray400, fontWeight: 500 }}>
                           {product.isActive ? 'Active' : 'Inactive'}
                         </span>
+                      </div>
+                    </td>
+                    {/* Barcode */}
+                    <td style={{ padding: '14px 20px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                        <div style={{ background: '#fff', padding: '4px', borderRadius: 4, border: `1px solid ${T.gray100}` }}>
+                          <svg id={`barcode-${product._id}`} style={{ maxHeight: '40px', maxWidth: '120px' }}></svg>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadBarcode(product._id, product.barcode);
+                          }}
+                          style={{
+                            border: 'none', background: T.tealLight, color: T.teal,
+                            fontSize: 10, fontWeight: 700, padding: '3px 10px',
+                            borderRadius: 6, cursor: 'pointer', transition: 'all 0.15s'
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = T.tealMid + '20'}
+                          onMouseLeave={e => e.currentTarget.style.background = T.tealLight}
+                        >
+                          Download
+                        </button>
                       </div>
                     </td>
                     {/* Actions */}
@@ -529,24 +681,24 @@ const AdminProducts = () => {
                 <Field label="Category *" focusedField={focusedField} id="category">
                   {!isAddingCategory ? (
                     <div style={{ position: 'relative' }}>
-                      <select 
-                        name="category" 
-                        value={formData.category} 
+                      <select
+                        name="category"
+                        value={formData.category}
                         onChange={(e) => {
                           if (e.target.value === 'ADD_NEW') {
                             setIsAddingCategory(true);
                           } else {
                             handleInput(e);
                           }
-                        }} 
-                        onFocus={() => setFocusedField('category')} 
-                        onBlur={() => setFocusedField(null)} 
-                        required 
+                        }}
+                        onFocus={() => setFocusedField('category')}
+                        onBlur={() => setFocusedField(null)}
+                        required
                         style={{ ...input, width: '100%', border: `1.5px solid ${focusedField === 'category' ? T.tealMid : T.gray200}`, cursor: 'pointer', appearance: 'none' }}
                       >
                         <option value="">Select Category</option>
                         {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                        
+
                         {/* Dynamic categories from existing products */}
                         {[...new Set(products.map(p => p.category))].filter(c => !CATEGORIES.some(hc => hc.value === c) && c).map(c => (
                           <option key={c} value={c}>{c.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
@@ -558,9 +710,9 @@ const AdminProducts = () => {
                     </div>
                   ) : (
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <input 
-                        type="text" 
-                        placeholder="New category name..." 
+                      <input
+                        type="text"
+                        placeholder="New category name..."
                         value={newCategoryName}
                         onChange={(e) => {
                           setNewCategoryName(e.target.value);
@@ -569,14 +721,160 @@ const AdminProducts = () => {
                         style={{ ...input, flex: 1, border: `1.5px solid ${T.tealMid}` }}
                         autoFocus
                       />
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         onClick={() => { setIsAddingCategory(false); setNewCategoryName(''); setFormData(p => ({ ...p, category: '' })); }}
                         style={{ background: T.gray100, border: 'none', padding: '0 12px', borderRadius: T.radius, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: T.gray600 }}
                       >Cancel</button>
                     </div>
                   )}
                 </Field>
+              </div>
+
+              {/* Size + Product Type */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <Field label="Size / Volume" focusedField={focusedField} id="size">
+                  <select
+                    name="size"
+                    value={formData.size}
+                    onChange={handleInput}
+                    style={{ ...input, border: `1.5px solid ${focusedField === 'size' ? T.tealMid : T.gray200}`, cursor: 'pointer' }}
+                    onFocus={() => setFocusedField('size')}
+                    onBlur={() => setFocusedField(null)}
+                  >
+                    <option value="NA">N/A</option>
+                    <option value="100ML">100 ML</option>
+                    <option value="250ML">250 ML</option>
+                    <option value="500ML">500 ML</option>
+                    <option value="750ML">750 ML</option>
+                    <option value="1L">1 L</option>
+                    <option value="2L">2 L</option>
+                    <option value="5L">5 L</option>
+                    <option value="10L">10 L</option>
+                    <option value="250G">250 G</option>
+                    <option value="500G">500 G</option>
+                    <option value="1KG">1 KG</option>
+                    <option value="5KG">5 KG</option>
+                  </select>
+                </Field>
+                <Field label="Product Type" focusedField={focusedField} id="productType">
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {[
+                      { value: 'single', label: '📦 Single', color: T.teal, bg: T.tealLight },
+                      { value: 'combo', label: '🎁 Combo', color: '#533AB7', bg: '#EEEDFE' },
+                    ].map(t => (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => setFormData(p => ({ 
+                          ...p, 
+                          productType: t.value,
+                          category: t.value === 'combo' ? 'combo' : p.category,
+                          size: t.value === 'combo' ? 'NA' : p.size
+                        }))}
+                        style={{
+                          flex: 1, padding: '9px 6px', borderRadius: T.radius, fontSize: 12, fontWeight: 700,
+                          border: `1.5px solid ${formData.productType === t.value ? t.color : T.gray200}`,
+                          background: formData.productType === t.value ? t.bg : T.white,
+                          color: formData.productType === t.value ? t.color : T.gray400,
+                          cursor: 'pointer', transition: 'all 0.15s',
+                          fontFamily: T.font,
+                        }}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
+              </div>
+
+              {/* Combo Builder — only visible for combo type */}
+              {formData.productType === 'combo' && (
+                <div style={{ background: '#FAFAFE', border: `1.5px solid #D9D5FE`, borderRadius: T.radiusLg, padding: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#533AB7', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>
+                    🎁 Combo Contents
+                  </div>
+                  {formData.comboItems.map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                      <select
+                        value={item.productId}
+                        onChange={e => {
+                          const selectedProd = products.find(p => p._id === e.target.value);
+                          if (!selectedProd) return;
+                          setFormData(prev => {
+                            const items = [...prev.comboItems];
+                            items[idx] = { 
+                              productId: selectedProd._id, 
+                              name: selectedProd.name, 
+                              sku: selectedProd.sku || '', 
+                              price: selectedProd.price || 0,
+                              image: selectedProd.images?.[0] || selectedProd.image || '',
+                              qty: item.qty || 1 
+                            };
+                            return { ...prev, comboItems: items };
+                          });
+                        }}
+                        style={{ ...input, flex: 1 }}
+                      >
+                        <option value="">Select Product...</option>
+                        {products.filter(p => p.productType !== 'combo').map(p => (
+                          <option key={p._id} value={p._id}>{p.name} ({p.size || 'N/A'})</option>
+                        ))}
+                      </select>
+                      <input
+                        type="number" min="1" value={item.qty || 1}
+                        onChange={e => {
+                          setFormData(prev => {
+                            const items = [...prev.comboItems];
+                            items[idx] = { ...items[idx], qty: Number(e.target.value) };
+                            return { ...prev, comboItems: items };
+                          });
+                        }}
+                        style={{ ...input, width: 60, textAlign: 'center' }}
+                        placeholder="Qty"
+                      />
+                      <button type="button" onClick={() => {
+                        setFormData(prev => ({ ...prev, comboItems: prev.comboItems.filter((_, i) => i !== idx) }));
+                      }} style={{ border: 'none', background: T.redLight, color: T.red, borderRadius: 8, width: 30, height: 30, cursor: 'pointer', fontWeight: 700 }}>×</button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, comboItems: [...prev.comboItems, { productId: '', name: '', sku: '', price: 0, image: '', qty: 1 }] }))}
+                    style={{ border: `1.5px dashed #B3ADFA`, background: 'transparent', color: '#533AB7', borderRadius: T.radius, padding: '8px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', width: '100%', fontFamily: T.font }}
+                  >
+                    + Add Product to Combo
+                  </button>
+                </div>
+              )}
+
+              {/* Barcode Section */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <Field label="Smart SKU / Barcode" focusedField={focusedField} id="barcode">
+                  <div style={{ position: 'relative' }}>
+                    <FaBarcode style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: T.gray400, fontSize: 14 }} />
+                    <input
+                      type="text" name="barcode" value={formData.barcode} onChange={handleInput}
+                      onFocus={() => setFocusedField('barcode')} onBlur={() => setFocusedField(null)}
+                      placeholder="Auto-generated" readOnly
+                      style={{ ...input, width: '100%', paddingLeft: 40, border: `1.5px solid ${focusedField === 'barcode' ? T.tealMid : T.gray200}`, background: '#f9f9f7', color: T.teal, fontFamily: T.mono, fontWeight: 700, letterSpacing: '0.06em' }}
+                    />
+                  </div>
+                  <div style={{ fontSize: 10, color: T.gray400, marginTop: 4, lineHeight: 1.4 }}>
+                    Format: NIR-[CAT]-[NAME]-[SIZE]-[TYPE]
+                  </div>
+                </Field>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {formData.barcode ? (
+                    <div style={{ background: '#fff', padding: '10px', borderRadius: T.radius, border: `1.5px solid ${T.gray200}`, flex: 1, display: 'flex', justifyContent: 'center', position: 'relative' }}>
+                      <Barcode value={formData.barcode} height={35} fontSize={10} width={1.2} />
+                    </div>
+                  ) : (
+                    <div style={{ flex: 1, height: '100%', border: `1.5px dashed ${T.gray200}`, borderRadius: T.radius, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.gray400, fontSize: 12 }}>
+                      Barcode Preview
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Price + Compare + Stock */}
@@ -641,7 +939,7 @@ const AdminProducts = () => {
               {/* Marketing & Persuasion */}
               <div style={{ borderTop: `1.5px solid ${T.gray100}`, paddingTop: 20 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: T.tealDark, marginBottom: 16 }}>Marketing & Trust Signals</div>
-                
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
                   <Field label="Short Benefit (Emotional Hook)" id="shortBenefit">
                     <input type="text" name="shortBenefit" value={formData.shortBenefit} onChange={handleInput} placeholder="e.g. Best for tough stains" style={input} />

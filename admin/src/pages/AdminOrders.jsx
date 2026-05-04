@@ -285,6 +285,20 @@ function OrderCard({ order: o, onStatusChange, updating }) {
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: meta.dot, display: 'inline-block' }} />
                 {meta.label}
               </span>
+              {(() => {
+                const isWalkin = o.customerType === 'walkin' || o.address?.street === 'POS Walk-in' || o.customerName === 'Walk-in Customer';
+                const type = isWalkin ? 'walkin' : 'online';
+                return (
+                  <span style={{
+                    padding: '4px 10px', borderRadius: 99, fontSize: '0.72rem', fontWeight: 700,
+                    background: type === 'online' ? '#f0f9ff' : '#f0fdf4',
+                    color: type === 'online' ? '#0369a1' : '#15803d',
+                    border: `1px solid ${type === 'online' ? '#bae6fd' : '#bbf7d0'}`,
+                  }}>
+                    {type === 'online' ? '🌐 Online' : '🏬 Walk-in'}
+                  </span>
+                );
+              })()}
               {urgent && (
                 <span style={{
                   padding: '3px 9px', borderRadius: 99, fontSize: '0.72rem', fontWeight: 800,
@@ -468,6 +482,7 @@ export default function AdminOrders() {
   const [updatingId, setUpdatingId] = useState(null);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilter] = useState('all');
+  const [customerTypeFilter, setCustomerTypeFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [seenIds, setSeenIds] = useState(new Set());
   const [newCount, setNewCount] = useState(0);
@@ -557,6 +572,11 @@ export default function AdminOrders() {
   const displayed = useMemo(() => {
     let list = orders;
     if (filterStatus !== 'all') list = list.filter(o => o.status === filterStatus);
+    if (customerTypeFilter !== 'all') list = list.filter(o => {
+      const isWalkin = o.customerType === 'walkin' || o.address?.street === 'POS Walk-in' || o.customerName === 'Walk-in Customer';
+      const type = isWalkin ? 'walkin' : 'online';
+      return type === customerTypeFilter;
+    });
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(o =>
@@ -573,7 +593,7 @@ export default function AdminOrders() {
       if (sortBy === 'lowest') return Number(a.total) - Number(b.total);
       return 0;
     });
-  }, [orders, filterStatus, search, sortBy]);
+  }, [orders, filterStatus, customerTypeFilter, search, sortBy]);
 
   const urgentCount = useMemo(
     () => orders.filter(o => isUrgent(o.createdAt) && ['placed', 'confirmed'].includes(o.status)).length,
@@ -689,10 +709,10 @@ export default function AdminOrders() {
           </select>
         </div>
 
-        {/* ── filter tabs ── */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 18 }}>
+        {/* status filter tabs */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
           {[
-            { key: 'all', label: 'All', count: stats.all },
+            { key: 'all', label: 'All Status', count: stats.all },
             ...ALL_STATUSES.map(s => ({ key: s, label: STATUS_META[s].label, count: stats[s] || 0, emoji: STATUS_META[s].emoji })),
           ].map(tab => (
             <button
@@ -700,18 +720,41 @@ export default function AdminOrders() {
               className={`ao-filter-tab${filterStatus === tab.key ? ' active' : ''}`}
               onClick={() => setFilter(tab.key)}
               style={{
-                padding: '7px 13px', borderRadius: 99, border: '1px solid #e5e7eb',
+                padding: '6px 12px', borderRadius: 99, border: '1px solid #e5e7eb',
                 background: filterStatus === tab.key ? '#0f766e' : '#fff',
                 color: filterStatus === tab.key ? '#fff' : '#374151',
-                fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', gap: 5, alignItems: 'center',
+                fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', gap: 5, alignItems: 'center',
               }}
             >
               {tab.emoji} {tab.label}
               <span style={{
                 background: filterStatus === tab.key ? 'rgba(255,255,255,0.25)' : '#f3f4f6',
                 color: filterStatus === tab.key ? '#fff' : '#6b7280',
-                padding: '1px 6px', borderRadius: 99, fontSize: '0.72rem', fontWeight: 800,
+                padding: '1px 5px', borderRadius: 99, fontSize: '0.68rem', fontWeight: 800,
               }}>{tab.count}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* type filter tabs */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 18, padding: '8px 0', borderTop: '1px solid #f1f5f9' }}>
+          {[
+            { key: 'all', label: 'All Sources', icon: '🌐' },
+            { key: 'online', label: 'Website / Online', icon: '🛒' },
+            { key: 'walkin', label: 'Shop / Walk-in', icon: '🏬' },
+          ].map(t => (
+            <button
+              key={t.key}
+              onClick={() => setCustomerTypeFilter(t.key)}
+              style={{
+                padding: '5px 12px', borderRadius: 8, border: '1px solid #e5e7eb',
+                background: customerTypeFilter === t.key ? '#334155' : '#fff',
+                color: customerTypeFilter === t.key ? '#fff' : '#64748b',
+                fontWeight: 700, fontSize: '0.72rem', cursor: 'pointer', display: 'flex', gap: 5, alignItems: 'center',
+                transition: 'all 0.15s'
+              }}
+            >
+              <span>{t.icon}</span> {t.label}
             </button>
           ))}
         </div>

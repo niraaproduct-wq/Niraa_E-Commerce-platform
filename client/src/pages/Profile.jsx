@@ -105,14 +105,6 @@ const css = `
     font-weight: 900; font-family: ${T.fontDisplay};
   }
 
-  .stats-row {
-    display: grid; grid-template-columns: repeat(3,1fr); gap: 10px;
-    margin-bottom: 24px;
-  }
-  .stat-card {
-    background: ${T.tealLight}; border-radius: 14px; padding: 14px;
-    text-align: center;
-  }
 `;
 
 const Profile = () => {
@@ -169,11 +161,12 @@ const Profile = () => {
   const handleSendOtp = async () => {
     setOtpLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/send-otp`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: user.phone })
+      const res = await fetch(`${API_BASE_URL}/auth/send-email-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: user.phone, email: user.email })
       });
-      if (res.ok) { toast.success('OTP sent to your phone'); setPasswordStep('otp'); }
+      if (res.ok) { toast.success('OTP sent to your email'); setPasswordStep('otp'); }
       else { const d = await res.json(); toast.error(d.message || 'Failed to send OTP'); }
     } catch { toast.error('Error sending OTP'); }
     finally { setOtpLoading(false); }
@@ -246,18 +239,6 @@ const Profile = () => {
             </div>
           </div>
 
-          {/* Quick stats */}
-          {!isEditing && (
-            <div className="stats-row">
-              {[['🛒', '8', 'Orders'], ['⭐', '4.8', 'Rating'], ['🌿', '120', 'Points']].map(([icon, val, label]) => (
-                <div key={label} className="stat-card">
-                  <div style={{ fontSize: 18, marginBottom: 4 }}>{icon}</div>
-                  <div style={{ fontFamily: T.fontDisplay, fontWeight: 900, fontSize: 18, color: T.tealDark }}>{val}</div>
-                  <div style={{ fontSize: 11, color: T.teal, fontWeight: 700 }}>{label}</div>
-                </div>
-              ))}
-            </div>
-          )}
 
           {!isEditing ? (
             /* ─── View Mode ─── */
@@ -357,7 +338,7 @@ const Profile = () => {
                 <div style={{ textAlign: 'center', padding: '8px 0' }}>
                   <div style={{ width: 56, height: 56, borderRadius: '50%', background: T.tealLight, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 24 }}>🛡️</div>
                   <p style={{ fontSize: 14, color: T.gray600, marginBottom: 20, lineHeight: 1.6 }}>
-                    We'll send a verification code to <strong>{user?.phone}</strong> before changing your password.
+                    We'll send a verification code to <strong>{user?.email}</strong> before changing your password.
                   </p>
                   <button onClick={handleSendOtp} disabled={otpLoading} className="primary-btn">
                     {otpLoading ? 'Sending…' : '📲 Send Verification Code'}

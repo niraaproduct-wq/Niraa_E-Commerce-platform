@@ -39,8 +39,12 @@ export default function ProductCard({ product, compact = false }) {
   // Highlight badges (prioritize bestseller, then discount)
   const badge = product.highlightBadge || (product.discount > 0 ? `${product.discount}% OFF` : null);
 
+  const productLink = (product.productType === 'combo' || product.isCombo) 
+    ? `/combos/${product.slug}` 
+    : `/products/${product.slug}`;
+
   return (
-    <Link to={`/products/${product.slug}`} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
+    <Link to={productLink} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
       <div
         style={{
           background: '#fff',

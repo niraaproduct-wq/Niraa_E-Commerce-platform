@@ -186,19 +186,24 @@ const Login = () => {
   const [step, setStep] = useState(1);
   const [isExistingUser, setIsExistingUser] = useState(null);
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [maskedEmail, setMaskedEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [loginMethod, setLoginMethod] = useState('otp');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
+  const [loginMethod, setLoginMethod] = useState('otp'); // 'otp' or 'password'
+  const [showChoice, setShowChoice] = useState(false);
   const [loading, setLoading] = useState(false);
   const [locating, setLocating] = useState(false);
 
-  const [profile, setProfile] = useState({ firstName: '', lastName: '', email: '' });
+  const [profile, setProfile] = useState({ firstName: '', lastName: '' });
   const [address, setAddress] = useState({ street: '', city: 'Dharmapuri', pincode: '' });
 
-  const sendOtpToPhone = async (phoneNumber) => {
-    const res = await fetch(`${API_BASE_URL}/auth/send-otp`, {
+  const sendOtpToEmail = async (emailToUse) => {
+    const res = await fetch(`${API_BASE_URL}/auth/send-email-otp`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: phoneNumber })
+      body: JSON.stringify({ phone, email: emailToUse })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
@@ -241,57 +246,36 @@ const Login = () => {
       });
       const data = await res.json();
       setIsExistingUser(data.exists);
-      if (mode === 'login') {
-        if (data.exists) {
-          const result = await sendOtpToPhone(phone);
+      
+      if (data.exists) {
+        setEmail(data.email || '');
+        setMaskedEmail(data.maskedEmail || '');
+        
+        if (data.hasPassword) {
+          setShowChoice(true);
+        } else if (data.email) {
+          // Existing user but no password, auto-send OTP to email
+          const result = await sendOtpToEmail(data.email);
           setStep(3);
-          toast.success(`OTP sent to ${phone}`);
+          toast.success(`OTP sent to ${data.maskedEmail}`);
           if (result.devOtp) toast.success(`Dev OTP: ${result.devOtp}`, { duration: 5000 });
         } else {
-          toast.error('Number not registered. Create an account.');
+          // Existing user but no email and no password
+          setStep(2);
+          setMode('login');
         }
       } else {
-        if (data.exists) { toast.error('Number already registered. Please login.'); }
-        else { setStep(2); }
+        // New user
+        setStep(2);
+        setMode('signup');
       }
-    } catch { toast.error('Failed to check number'); }
-    finally { setLoading(false); }
-  };
-
-  const handleDetailsSubmit = async e => {
-    e.preventDefault();
-    if (!profile.firstName.trim()) return toast.error('First name required');
-    if (!address.pincode) return toast.error('Pincode required');
-    setLoading(true);
-    try {
-      await sendOtpToPhone(phone);
-      setStep(3);
-      toast.success('OTP sent!');
-    } catch { toast.error('Failed to send OTP'); }
-    finally { setLoading(false); }
-  };
-
-  const handleVerifyOtp = async e => {
-    e.preventDefault();
-    if (otp.length < 4) return toast.error('Enter valid OTP');
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, otp, ...profile, address, email: profile.email })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Verification failed');
-      login(data.user, data.token);
-      toast.success(data.isNewUser ? '🌿 Welcome to NIRAA!' : '👋 Welcome back!');
-      navigate(from, { replace: true });
-    } catch (err) { toast.error(err.message || 'Verification failed'); }
+    } catch (err) { toast.error(err.message || 'Failed to check number'); }
     finally { setLoading(false); }
   };
 
   const handlePasswordLogin = async e => {
     e.preventDefault();
-    if (!loginPassword.trim()) return toast.error('Enter your password');
+    if (!loginPassword) return toast.error('Enter password');
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -303,18 +287,78 @@ const Login = () => {
       login(data.user, data.token);
       toast.success('👋 Welcome back!');
       navigate(from, { replace: true });
-    } catch (err) { toast.error(err.message || 'Incorrect credentials'); }
+    } catch (err) { toast.error(err.message); }
+    finally { setLoading(false); }
+  };
+
+  const handleChoice = async (method) => {
+    setLoginMethod(method);
+    setShowChoice(false);
+    if (method === 'otp') {
+      setLoading(true);
+      try {
+        const result = await sendOtpToEmail(email);
+        setStep(3);
+        toast.success(`OTP sent to ${maskedEmail}`);
+        if (result.devOtp) toast.success(`Dev OTP: ${result.devOtp}`, { duration: 5000 });
+      } catch (err) { toast.error(err.message); }
+      finally { setLoading(false); }
+    }
+  };
+
+  const handleDetailsSubmit = async e => {
+    e.preventDefault();
+    if (!email.includes('@')) return toast.error('Valid email required');
+    if (mode === 'signup') {
+      if (!profile.firstName.trim()) return toast.error('First name required');
+      if (!signupPassword) return toast.error('Password required');
+      if (signupPassword.length < 6) return toast.error('Password must be at least 6 characters');
+      if (signupPassword !== signupConfirmPassword) return toast.error('Passwords do not match');
+      if (!address.pincode) return toast.error('Pincode required');
+    }
+
+    setLoading(true);
+    try {
+      const result = await sendOtpToEmail(email);
+      setStep(3);
+      toast.success('OTP sent to your email!');
+      if (result.devOtp) toast.success(`Dev OTP: ${result.devOtp}`, { duration: 5000 });
+    } catch (err) { toast.error(err.message || 'Failed to send OTP'); }
+    finally { setLoading(false); }
+  };
+
+  const handleVerifyOtp = async e => {
+    e.preventDefault();
+    if (otp.length < 4) return toast.error('Enter valid OTP');
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          phone, 
+          otp, 
+          email,
+          ...(mode === 'signup' ? { ...profile, address, password: signupPassword } : {}),
+          ...(isExistingUser && !maskedEmail ? { ...profile, address } : {})
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Verification failed');
+      login(data.user, data.token);
+      toast.success(data.isNewUser ? '🌿 Welcome to NIRAA!' : '👋 Welcome back!');
+      navigate(from, { replace: true });
+    } catch (err) { toast.error(err.message || 'Verification failed'); }
     finally { setLoading(false); }
   };
 
   const handleResendOtp = async () => {
     setLoading(true);
-    try { await sendOtpToPhone(phone); toast.success('New OTP sent!'); }
+    try { await sendOtpToEmail(email); toast.success('New OTP sent!'); }
     catch (err) { toast.error(err.message); }
     finally { setLoading(false); }
   };
 
-  const totalSteps = mode === 'signup' ? 3 : 2;
+  const totalSteps = 3;
   const currentStepNum = step;
 
   return (
@@ -342,17 +386,17 @@ const Login = () => {
           {/* Title */}
           <div style={{ marginBottom: 28 }}>
             <h1 style={{ fontFamily: T.fontDisplay, fontSize: '1.7rem', fontWeight: 900, color: T.gray900, margin: '0 0 6px', letterSpacing: '-.02em' }}>
-              {step === 1 ? (mode === 'login' ? 'Welcome back' : 'Create account') : step === 2 ? 'Your details' : isExistingUser ? 'Verify identity' : 'Verify phone'}
+              {step === 1 ? (mode === 'login' ? 'Welcome back' : 'Create account') : step === 2 ? (mode === 'login' ? 'Link your email' : 'Your details') : 'Verify OTP'}
             </h1>
             <p style={{ margin: 0, color: T.gray400, fontSize: 14 }}>
-              {step === 1 ? (mode === 'login' ? 'Enter your phone to continue' : 'Sign up with your phone number') :
-                step === 2 ? 'A few details to complete your profile' :
-                  `OTP sent to +91 ${phone}`}
+              {step === 1 ? 'Enter your phone number to continue' : 
+               step === 2 ? (mode === 'login' ? 'We need your email for secure verification' : 'A few details to complete your profile') : 
+               `OTP sent to ${maskedEmail || email}`}
             </p>
           </div>
 
           {/* Step 1: Phone */}
-          {step === 1 && (
+          {step === 1 && !showChoice && loginMethod === 'otp' && (
             <form onSubmit={handlePhoneSubmit} className="slide-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div>
                 <label className="field-label">Phone Number</label>
@@ -365,7 +409,7 @@ const Login = () => {
                 </div>
               </div>
               <button type="submit" disabled={loading || phone.length < 10} className="primary-btn">
-                {loading ? 'Checking…' : mode === 'login' ? 'Continue →' : 'Sign Up →'}
+                {loading ? 'Checking…' : 'Continue →'}
               </button>
               <div style={{ textAlign: 'center' }}>
                 <button type="button" onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setPhone(''); }}
@@ -376,109 +420,157 @@ const Login = () => {
             </form>
           )}
 
-          {/* Step 2: Profile (new user) */}
-          {step === 2 && (
-            <form onSubmit={handleDetailsSubmit} className="slide-in" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label className="field-label">First Name *</label>
-                  <input type="text" placeholder="First name" value={profile.firstName}
-                    onChange={e => setProfile(p => ({ ...p, firstName: e.target.value }))}
-                    className="field-input" required />
+          {/* Choice Step */}
+          {step === 1 && showChoice && (
+            <div className="slide-in" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <p style={{ textAlign: 'center', fontSize: 14, color: T.gray600, marginBottom: 10 }}>
+                We found an account for <strong>+91 {phone}</strong>. How would you like to login?
+              </p>
+              <button onClick={() => handleChoice('password')} className="primary-btn" style={{ background: T.white, color: T.teal, border: `2px solid ${T.teal}`, boxShadow: 'none' }}>
+                🔑 Login with Password
+              </button>
+              <button onClick={() => handleChoice('otp')} className="primary-btn">
+                📧 Get OTP on {maskedEmail}
+              </button>
+              <button onClick={() => setShowChoice(false)} className="ghost-btn">← Use different number</button>
+            </div>
+          )}
+
+          {/* Password Step */}
+          {step === 1 && !showChoice && loginMethod === 'password' && (
+            <form onSubmit={handlePasswordLogin} className="slide-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div className="phone-info-bar">
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: 12, color: T.gray500 }}>Logging in as:</span>
+                  <span style={{ fontSize: 14, color: T.gray800, fontWeight: 700 }}>+91 {phone}</span>
                 </div>
-                <div>
-                  <label className="field-label">Last Name</label>
-                  <input type="text" placeholder="Last name" value={profile.lastName}
-                    onChange={e => setProfile(p => ({ ...p, lastName: e.target.value }))}
-                    className="field-input" />
-                </div>
+                <button type="button" onClick={() => { setLoginMethod('otp'); setPhone(''); }}
+                  style={{ background: 'none', border: 'none', color: T.teal, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  Change
+                </button>
               </div>
               <div>
-                <label className="field-label">Email (optional)</label>
-                <input type="email" placeholder="your@email.com" value={profile.email}
-                  onChange={e => setProfile(p => ({ ...p, email: e.target.value }))}
-                  className="field-input" />
-              </div>
-              <div className="address-section">
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                  <div style={{ fontWeight: 800, fontSize: 13, color: T.tealDark }}>📍 Delivery Address</div>
-                  <button type="button" onClick={handleGetLocation} disabled={locating} className="locating-btn">
-                    {locating ? '⏳ Locating…' : '📍 Use my location'}
-                  </button>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div>
-                    <label className="field-label">Street</label>
-                    <input type="text" placeholder="House/Flat, Street, Landmark" value={address.street}
-                      onChange={e => setAddress(p => ({ ...p, street: e.target.value }))} className="field-input" />
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    <div>
-                      <label className="field-label">City</label>
-                      <input type="text" value={address.city}
-                        onChange={e => setAddress(p => ({ ...p, city: e.target.value }))} className="field-input" />
-                    </div>
-                    <div>
-                      <label className="field-label">Pincode *</label>
-                      <input type="text" placeholder="636xxx" value={address.pincode}
-                        onChange={e => setAddress(p => ({ ...p, pincode: e.target.value }))} className="field-input" required />
-                    </div>
-                  </div>
-                </div>
+                <label className="field-label">Password</label>
+                <input type="password" placeholder="Enter your password" value={loginPassword}
+                  onChange={e => setLoginPassword(e.target.value)}
+                  className="field-input" required />
               </div>
               <button type="submit" disabled={loading} className="primary-btn">
-                {loading ? 'Processing…' : 'Send OTP →'}
+                {loading ? 'Logging in…' : 'Login →'}
+              </button>
+              <button type="button" onClick={() => { setLoginMethod('otp'); setShowChoice(true); }} className="ghost-btn">← Other login methods</button>
+            </form>
+          )}
+
+          {/* Step 2: Details / Email */}
+          {step === 2 && (
+            <form onSubmit={handleDetailsSubmit} className="slide-in" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {mode === 'signup' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label className="field-label">First Name *</label>
+                    <input type="text" placeholder="First name" value={profile.firstName}
+                      onChange={e => setProfile(p => ({ ...p, firstName: e.target.value }))}
+                      className="field-input" required />
+                  </div>
+                  <div>
+                    <label className="field-label">Last Name</label>
+                    <input type="text" placeholder="Last name" value={profile.lastName}
+                      onChange={e => setProfile(p => ({ ...p, lastName: e.target.value }))}
+                      className="field-input" />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="field-label">Email Address *</label>
+                <input type="email" placeholder="your@email.com" value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  className="field-input" required />
+              </div>
+
+              {mode === 'signup' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label className="field-label">Create Password *</label>
+                    <input type="password" placeholder="Min 6 chars" value={signupPassword}
+                      onChange={e => setSignupPassword(e.target.value)}
+                      className="field-input" required />
+                  </div>
+                  <div>
+                    <label className="field-label">Confirm Password *</label>
+                    <input type="password" placeholder="Repeat password" value={signupConfirmPassword}
+                      onChange={e => setSignupConfirmPassword(e.target.value)}
+                      className="field-input" required />
+                  </div>
+                </div>
+              )}
+
+              {mode === 'signup' && (
+                <div className="address-section">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: T.tealDark }}>📍 Delivery Address</div>
+                    <button type="button" onClick={handleGetLocation} disabled={locating} className="locating-btn">
+                      {locating ? '⏳ Locating…' : '📍 Use my location'}
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div>
+                      <label className="field-label">Street</label>
+                      <input type="text" placeholder="House/Flat, Street, Landmark" value={address.street}
+                        onChange={e => setAddress(p => ({ ...p, street: e.target.value }))} className="field-input" />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div>
+                        <label className="field-label">City</label>
+                        <input type="text" value={address.city}
+                          onChange={e => setAddress(p => ({ ...p, city: e.target.value }))} className="field-input" />
+                      </div>
+                      <div>
+                        <label className="field-label">Pincode *</label>
+                        <input type="text" placeholder="636xxx" value={address.pincode}
+                          onChange={e => setAddress(p => ({ ...p, pincode: e.target.value }))} className="field-input" required />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <button type="submit" disabled={loading} className="primary-btn">
+                {loading ? 'Sending OTP…' : 'Send OTP →'}
               </button>
               <button type="button" onClick={() => setStep(1)} className="ghost-btn">← Back</button>
             </form>
           )}
 
-          {/* Step 3: OTP / Password */}
+          {/* Step 3: OTP Verification */}
           {step === 3 && (
-            <form onSubmit={isExistingUser && loginMethod === 'password' ? handlePasswordLogin : handleVerifyOtp}
-              className="slide-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
+            <form onSubmit={handleVerifyOtp} className="slide-in" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               <div className="phone-info-bar">
-                <span style={{ fontSize: 14, color: T.gray700, fontWeight: 600 }}>📱 +91 {phone}</span>
-                <button type="button" onClick={() => { setStep(1); setOtp(''); setLoginPassword(''); }}
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ fontSize: 12, color: T.gray500 }}>OTP sent to:</span>
+                  <span style={{ fontSize: 14, color: T.gray800, fontWeight: 700 }}>{maskedEmail || email}</span>
+                </div>
+                <button type="button" onClick={() => setStep(2)}
                   style={{ background: 'none', border: 'none', color: T.teal, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                   Change
                 </button>
               </div>
 
-              {isExistingUser && (
-                <div className="method-toggle">
-                  <button type="button" onClick={() => setLoginMethod('otp')} className={`method-btn ${loginMethod === 'otp' ? 'active' : ''}`}>
-                    📲 OTP
+              <div>
+                <label className="field-label">Enter OTP</label>
+                <input type="text" placeholder="• • • •" value={otp}
+                  onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="field-input otp-style" required />
+                <div style={{ textAlign: 'center', marginTop: 10 }}>
+                  <button type="button" onClick={handleResendOtp} disabled={loading}
+                    style={{ background: 'none', border: 'none', color: T.teal, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                    Resend OTP
                   </button>
-                  <button type="button" onClick={() => setLoginMethod('password')} className={`method-btn ${loginMethod === 'password' ? 'active' : ''}`}>
-                    🔒 Password
-                  </button>
                 </div>
-              )}
+              </div>
 
-              {(!isExistingUser || loginMethod === 'otp') ? (
-                <div>
-                  <label className="field-label">Enter OTP</label>
-                  <input type="text" placeholder="• • • •" value={otp}
-                    onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="field-input otp-style" required />
-                  <div style={{ textAlign: 'center', marginTop: 10 }}>
-                    <button type="button" onClick={handleResendOtp} disabled={loading}
-                      style={{ background: 'none', border: 'none', color: T.teal, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                      Resend OTP
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <label className="field-label">Password</label>
-                  <input type="password" placeholder="Your password" value={loginPassword}
-                    onChange={e => setLoginPassword(e.target.value)} className="field-input" required />
-                </div>
-              )}
-
-              <button type="submit" disabled={loading || (loginMethod === 'otp' && otp.length < 4)} className="primary-btn">
+              <button type="submit" disabled={loading || otp.length < 4} className="primary-btn">
                 {loading ? 'Verifying…' : '✓ Verify & Login'}
               </button>
             </form>

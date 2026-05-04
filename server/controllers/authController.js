@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const firebaseStorage = require('../utils/firebaseStorage');
 const otpStorage = require('../utils/otpStorage');
 const smsService = require('../utils/smsService');
+const mailService = require('../utils/mailService');
 const { publishEvent } = require('../utils/realtimeHub');
 
 // Helper: Generate JWT Token
@@ -40,17 +41,69 @@ const checkPhone = async (req, res) => {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ message: 'Phone is required' });
 
-    const cleanPhone = phone.replace(/[\\s\\-\\(\\)]/g, '');
-    const validatedPhone = smsService.validatePhone(cleanPhone) || cleanPhone;
+    const cleanPhone = phone.replace(/[\s\-\(\)]/g, '').slice(-10);
+    const user = await firebaseStorage.findUserByPhone(cleanPhone);
+    
+    if (user) {
+      // Mask email for security (e.g., u***@gmail.com)
+      let maskedEmail = '';
+      if (user.email) {
+        const [name, domain] = user.email.split('@');
+        maskedEmail = name.charAt(0) + '*'.repeat(Math.min(name.length - 1, 3)) + '@' + domain;
+      }
 
-    const user = await firebaseStorage.findUserByPhone(validatedPhone);
-    return res.status(200).json({ 
-      exists: !!user,
-      hasPassword: !!(user && user.hasPassword)
-    });
+      return res.status(200).json({ 
+        exists: true, 
+        email: user.email,
+        maskedEmail,
+        hasPassword: !!user.hasPassword
+      });
+    }
+
+    return res.status(200).json({ exists: false });
   } catch (error) {
     console.error('Check Phone Error:', error);
     res.status(500).json({ message: 'Error checking phone', error: error.message });
+  }
+};
+
+// @desc    Send OTP to email
+// @route   POST /api/auth/send-email-otp
+// @access  Public
+const sendEmailOtp = async (req, res) => {
+  try {
+    const { phone, email } = req.body;
+
+    if (!phone || !email) {
+      return res.status(400).json({ message: 'Phone and Email are required' });
+    }
+
+    const cleanPhone = phone.replace(/[\s\-\(\)]/g, '').slice(-10);
+    
+    // Check if email is already taken by another phone
+    const existingUserByEmail = await firebaseStorage.findUserByEmail(email);
+    if (existingUserByEmail && existingUserByEmail.phone !== cleanPhone) {
+      return res.status(400).json({ message: 'Email is already associated with another account' });
+    }
+
+    const otp = otpStorage.generateOTP();
+    // Store OTP using email as the key for email-based verification
+    otpStorage.storeOTP(email, otp); // Store against email for verification consistency
+
+    const result = await mailService.sendEmailOTP(email, otp);
+
+    if (!result.success) {
+      return res.status(500).json({ message: 'Failed to send email OTP', error: result.message });
+    }
+
+    res.status(200).json({ 
+      message: 'OTP sent to your email',
+      devOtp: result.devOtp,
+      email: email 
+    });
+  } catch (error) {
+    console.error('Send Email OTP Error:', error);
+    res.status(500).json({ message: 'Failed to send OTP', error: error.message });
   }
 };
 
@@ -129,8 +182,9 @@ const verifyOtp = async (req, res) => {
       });
     }
 
-    const otpResult = otpStorage.verifyStoredOTP(validatedPhone, otp, true);
-    console.log(`Verifying OTP for ${validatedPhone}: Entered=${otp}, Result=${otpResult.valid}, Message=${otpResult.message}`);
+    const verifyKey = email || validatedPhone;
+    const otpResult = otpStorage.verifyStoredOTP(verifyKey, otp, true);
+    console.log(`Verifying OTP for ${verifyKey}: Entered=${otp}, Result=${otpResult.valid}, Message=${otpResult.message}`);
 
     if (!otpResult.valid) {
       return res.status(401).json({ message: otpResult.message });
@@ -196,7 +250,7 @@ const verifyOtp = async (req, res) => {
       await firebaseStorage.updateUser(user.id, { password: hashedPassword, hasPassword: true });
     }
 
-    if (name || address) {
+    if (name || address || email) {
       const updateData = {};
       if (name) {
         const nameParts = name.split(' ');
@@ -206,6 +260,9 @@ const verifyOtp = async (req, res) => {
       }
       if (address) {
         updateData.address = { ...user.address, ...address };
+      }
+      if (email) {
+        updateData.email = email;
       }
       await firebaseStorage.updateUser(user.id, updateData);
     }
@@ -437,14 +494,15 @@ const resetPasswordWithOtp = async (req, res) => {
     }
 
     // Validate OTP against the user's registered phone
-    const cleanPhone = user.phone.replace(/[\s\-\(\)]/g, '');
-    const validatedPhone = smsService.validatePhone(cleanPhone) || cleanPhone;
-    const otpResult = otpStorage.verifyStoredOTP(validatedPhone, otp, true);
+    // Validate OTP against the user's email
+    const emailKey = user.email;
+    const otpResult = otpStorage.verifyStoredOTP(emailKey, otp, true);
 
     if (!otpResult.valid) {
       return res.status(401).json({ message: otpResult.message || 'Invalid or expired OTP' });
     }
 
+    // Update password after successful OTP verification
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
     await firebaseStorage.updateUser(req.user.id, { password: hashedPassword, hasPassword: true });
@@ -501,7 +559,7 @@ const verifyFirebase = async (req, res) => {
     // Verify token using firebase-admin
     const { getFirebase } = require('../config/firebase');
     const { auth } = getFirebase();
-    
+
     let decodedToken;
     try {
       decodedToken = await auth.verifyIdToken(idToken);
@@ -571,7 +629,7 @@ const verifyFirebase = async (req, res) => {
       await firebaseStorage.updateUser(user.id, { password: hashedPassword, hasPassword: true });
     }
 
-    if (name || address) {
+    if (name || address || email) {
       const updateData = {};
       if (name) {
         const nameParts = name.split(' ');
@@ -581,6 +639,9 @@ const verifyFirebase = async (req, res) => {
       }
       if (address) {
         updateData.address = { ...user.address, ...address };
+      }
+      if (email) {
+        updateData.email = email;
       }
       await firebaseStorage.updateUser(user.id, updateData);
     }
@@ -600,6 +661,7 @@ const verifyFirebase = async (req, res) => {
 
 module.exports = {
   sendOtp,
+  sendEmailOtp,
   verifyOtp,
   register,
   login,

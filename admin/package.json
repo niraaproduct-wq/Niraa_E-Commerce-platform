@@ -10,7 +10,9 @@
   "dependencies": {
     "@react-google-maps/api": "^2.20.8",
     "axios": "^1.6.2",
+    "jsbarcode": "^3.12.3",
     "react": "^18.2.0",
+    "react-barcode": "^1.6.1",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.4.1",
     "react-icons": "^4.12.0",

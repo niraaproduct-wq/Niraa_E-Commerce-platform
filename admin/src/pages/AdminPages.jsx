@@ -6,6 +6,7 @@ import AdminCustomers from './AdminCustomers';
 import AdminProducts from './AdminProducts';
 import AdminOrdersPage from './AdminOrders';
 import AdminMarketing from './Adminmarketing';
+import AdminPOS from './AdminPOS';
 
 
 // ─── Google Fonts ─────────────────────────────────────────────────────────────
@@ -284,6 +285,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
 
   const NAV = [
     { to: '/dashboard', icon: P.grid, label: 'Dashboard' },
+    { to: '/pos', icon: P.store, label: 'POS / Billing' },
     { to: '/orders', icon: P.box, label: 'Orders' },
     { to: '/products', icon: P.tag, label: 'Products' },
     { to: '/customers', icon: P.users, label: 'Customers' },
@@ -493,6 +495,7 @@ const PAGE_META = {
   '/marketing': { title: 'Marketing', subtitle: 'Campaigns and promotions' },
   '/builder': { title: 'Site Builder', subtitle: 'Customize your storefront layout' },
   '/inventory': { title: 'Inventory', subtitle: 'Stock levels and alerts' },
+  '/pos': { title: 'POS / Billing', subtitle: 'Point of sale terminal' },
 };
 
 const AdminLayout = ({ children }) => {
@@ -588,12 +591,12 @@ const AdminDashboard = () => {
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   const STAT_CARDS = [
-    { title: 'Total Customers', value: stats.totalUsers.toLocaleString(), icon: P.users, accentVar: 'var(--accent)', change: '+12%', changeDir: 'up' },
-    { title: 'Total Orders', value: stats.totalOrders.toLocaleString(), icon: P.box, accentVar: 'var(--purple)', change: '+8%', changeDir: 'up' },
+    { title: 'Total Customers', value: stats.totalUsers.toLocaleString(), icon: P.users, accentVar: 'var(--accent)' },
+    { title: 'Total Orders', value: stats.totalOrders.toLocaleString(), icon: P.box, accentVar: 'var(--purple)' },
     { title: 'Pending Orders', value: stats.pendingOrders, icon: P.clock, accentVar: 'var(--amber)' },
     { title: 'Products', value: stats.totalProducts, icon: P.tag, accentVar: 'var(--blue)' },
-    { title: 'Delivered', value: stats.deliveredOrders.toLocaleString(), icon: P.check, accentVar: 'var(--green)', change: '+5%', changeDir: 'up' },
-    { title: 'Revenue', value: formatMoney(stats.totalSales), icon: P.trend, accentVar: 'var(--red)', change: '+18%', changeDir: 'up' },
+    { title: 'Delivered', value: stats.deliveredOrders.toLocaleString(), icon: P.check, accentVar: 'var(--green)' },
+    { title: 'Revenue', value: formatMoney(stats.totalSales), icon: P.trend, accentVar: 'var(--red)' },
   ];
 
   return (
@@ -880,6 +883,7 @@ export const AdminRoutes = () => {
         <Route path="/customers" element={<AdminCustomers />} />
         <Route path="/marketing" element={<AdminMarketing />} />
         <Route path="/builder" element={<AdminBuilder />} />
+        <Route path="/pos" element={<AdminPOS />} />
         <Route path="/admin" element={<Navigate to="/dashboard" />} />
         <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>

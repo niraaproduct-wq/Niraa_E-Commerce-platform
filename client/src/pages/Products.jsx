@@ -70,11 +70,11 @@ export default function Products() {
 
   // Realtime updates handled by useFirestoreProducts hook
 
-  const individuals = useMemo(() => (Array.isArray(products) ? products : []).filter(p => !p.isCombo), [products]);
-  const combos = useMemo(() => (Array.isArray(products) ? products : []).filter(p => p.isCombo), [products]);
+  const individuals = useMemo(() => (Array.isArray(products) ? products : []).filter(p => p.productType !== 'combo' && !p.isCombo), [products]);
+  const combos = useMemo(() => (Array.isArray(products) ? products : []).filter(p => p.productType === 'combo' || p.isCombo), [products]);
 
   const grouped = useMemo(() => {
-    const dynamicCats = [...new Set(liveProducts.map(p => p.category))].filter(Boolean);
+    const dynamicCats = [...new Set(liveProducts.map(p => p.category))].filter(c => Boolean(c) && c !== 'combo');
     const merged = [...CATEGORIES];
     
     dynamicCats.forEach(catId => {

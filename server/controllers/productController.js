@@ -101,6 +101,21 @@ const createProduct = async (req, res) => {
     const productData = { ...req.body };
     productData.isActive = true;
     productData.createdAt = new Date().toISOString();
+    productData.productType = productData.productType || 'single';
+    productData.size = productData.size || 'NA';
+    
+    // Advanced Smart SKU Generator
+    if (!productData.sku || !productData.barcode) {
+      const brand = 'NIR';
+      const catCode = (productData.category || 'GEN').toUpperCase().replace(/-/g, '').slice(0, 3);
+      const prdCode = (productData.name || 'PRD').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+      const sizeCode = productData.size.toUpperCase().replace(/\s/g, '');
+      const typeCode = productData.productType === 'combo' ? 'C' : (productData.productType === 'bulk' ? 'B' : 'S');
+      
+      const generatedSKU = `${brand}-${catCode}-${prdCode}-${sizeCode}-${typeCode}`;
+      productData.sku = productData.sku || generatedSKU;
+      productData.barcode = productData.barcode || generatedSKU;
+    }
     
     // Cloudinary injected this via multer-storage-cloudinary
     if (req.file && req.file.path) {

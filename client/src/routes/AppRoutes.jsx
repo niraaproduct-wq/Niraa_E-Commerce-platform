@@ -9,6 +9,7 @@ import Cart          from '../pages/Cart.jsx';
 import Checkout      from '../pages/Checkout.jsx';
 import About         from '../pages/About.jsx';
 import Contact       from '../pages/Contact.jsx';
+import ComboDetails  from '../pages/ComboDetails.jsx';
 import Loyalty       from '../pages/Loyalty.jsx';
 import Login         from '../pages/Login.jsx';
 import ProtectedRoute from './Protectedroute.jsx';
@@ -34,6 +35,7 @@ export default function AppRoutes() {
         <Route path="/" element={<><Navbar /><Home /><Footer /></>} />
         <Route path="/products" element={<><Navbar /><Products /><Footer /></>} />
         <Route path="/products/:slug" element={<><Navbar /><ProductDetails /><Footer /></>} />
+        <Route path="/combos/:slug" element={<><Navbar /><ComboDetails /><Footer /></>} />
         <Route path="/cart" element={<><Navbar /><Cart /><Footer /></>} />
         <Route path="/checkout" element={<><Navbar /><Checkout /><Footer /></>} />
         <Route path="/about" element={<><Navbar /><About /><Footer /></>} />
