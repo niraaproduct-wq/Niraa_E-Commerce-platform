@@ -124,7 +124,7 @@ export default function Home() {
   }, []);
 
   const categoryMetadata = useMemo(() => {
-    const dynamicCats = [...new Set(liveProducts.map(p => p.category))].filter(Boolean);
+    const dynamicCats = [...new Set(liveProducts.map(p => p.category))].filter(c => c && c !== 'combo');
     const merged = [...CATEGORIES];
 
     dynamicCats.forEach(catId => {
