@@ -25,6 +25,9 @@ export default function Products() {
   const { products: liveProducts, loading: liveLoading } = useFirestoreProducts({
     category: activeCategory
   });
+  
+  // Also get ALL products to derive the category list (so filters don't disappear when one is selected)
+  const { products: allProducts } = useFirestoreProducts();
   const { lastEvent } = useRealtime();
 
   useEffect(() => {
@@ -92,7 +95,7 @@ export default function Products() {
       ...cat,
       products: individuals.filter(p => p.category === cat.id),
     })).filter(g => g.products.length > 0);
-  }, [individuals, liveProducts]);
+  }, [individuals, allProducts]);
 
   const showAll = activeCategory === 'all';
   const showCombos = activeCategory === 'combo' || showAll;
@@ -109,7 +112,7 @@ export default function Products() {
   const waLink = `https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}?text=${encodeURIComponent(waText)}`;
 
   const categoryFilters = useMemo(() => {
-    const dynamicCats = [...new Set(liveProducts.map(p => p.category))].filter(c => c && c !== 'combo');
+    const dynamicCats = [...new Set(allProducts.map(p => p.category))].filter(c => c && c !== 'combo');
     const merged = [...CATEGORIES];
     dynamicCats.forEach(catId => {
       if (!merged.find(c => c.id === catId)) {
@@ -121,16 +124,19 @@ export default function Products() {
       }
     });
 
-    return merged.map(cat => (
-      <Link 
-        key={cat.id} 
-        to={`/products?category=${cat.id}`} 
-        className={`filter-pill ${activeCategory === cat.id ? 'filter-pill--active' : ''}`}
-      >
-        {cat.icon} {cat.label}
-      </Link>
-    ));
-  }, [liveProducts, activeCategory]);
+    // Only show categories that have at least one product in allProducts
+    return merged
+      .filter(cat => allProducts.some(p => p.category === cat.id))
+      .map(cat => (
+        <Link 
+          key={cat.id} 
+          to={`/products?category=${cat.id}`} 
+          className={`filter-pill ${activeCategory === cat.id ? 'filter-pill--active' : ''}`}
+        >
+          {cat.icon} {cat.label}
+        </Link>
+      ));
+  }, [allProducts, activeCategory]);
 
   return (
     <>

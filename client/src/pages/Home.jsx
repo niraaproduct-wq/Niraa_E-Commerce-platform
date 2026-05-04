@@ -111,8 +111,6 @@ export default function Home() {
     fetchSections();
   }, []);
 
-  // Realtime updates handled by useFirestoreProducts hook
-
   const mainCombo = combos.find(c => c._id === 'combo-complete-home') || combos[0];
   const waText = `Hello NIRAA, I want to order the Complete Home Combo. Please contact me!`;
   const waLink = `https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}?text=${encodeURIComponent(waText)}`;
@@ -143,7 +141,7 @@ export default function Home() {
   const categoryList = useMemo(() => {
     return categoryMetadata.map((cat, idx) => {
       const count = liveProducts.filter(p => p.category === cat.id).length;
-      if (count === 0 && !CATEGORIES.some(c => c.id === cat.id)) return null;
+      if (count === 0) return null;
 
       return (
         <Link key={cat.id} to={`/products?category=${cat.id}`} className="cat-card">
@@ -390,11 +388,8 @@ export default function Home() {
         }
       `}</style>
 
-        {/* ─── HERO ─────────────────────────────── */}
         <section className="home-grid" style={{ marginBottom: 36 }}>
-          {/* Left: trust + headline */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-            {/* Badge */}
             <div style={{ marginBottom: 14 }}>
               <span style={{
                 background: 'linear-gradient(135deg, #e6fff9, #d0f7ef)',
@@ -408,7 +403,6 @@ export default function Home() {
               </span>
             </div>
 
-            {/* Headline */}
             <h1 style={{
               fontFamily: 'var(--font-display)',
               fontSize: 'clamp(2rem, 5vw, 2.8rem)',
@@ -433,7 +427,6 @@ export default function Home() {
               Eco-friendly cleaning products delivering real results — for every corner of your home. Scientifically formulated, locally delivered.
             </p>
 
-            {/* CTA buttons */}
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
               <a href={waLink} target="_blank" rel="noreferrer" className="wa-btn-pulse" style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -457,7 +450,6 @@ export default function Home() {
               </Link>
             </div>
 
-            {/* Trust pills */}
             <div className="trust-row">
               {TRUSTS.map((t, i) => (
                 <div key={i} className="trust-card" style={{ '--trust-accent': t.accent }}>
@@ -468,7 +460,6 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Testimonial ticker */}
             <div className="testimonial-ticker">
               <div style={{ fontSize: '0.7rem', color: 'var(--teal)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>
                 ⭐ Real Reviews
@@ -500,7 +491,6 @@ export default function Home() {
             </div>
           </div>
 
-        {/* Right: Immersive Hero Image / Combo Container */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {mainCombo ? (
             <div className="hero-combo-card" style={{ minHeight: 460, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: '24px', background: 'linear-gradient(135deg, #062019 0%, #0f362e 100%)' }}>
@@ -558,7 +548,6 @@ export default function Home() {
                   >Order via WA</a>
                 </div>
 
-                {/* Trust Row inside combo card */}
                 <div style={{ display: 'flex', gap: 14, borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: 18, alignItems: 'center' }}>
                   <div style={{ flex: 1 }}>
                      <div style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', color: '#4ade80', letterSpacing: '0.05em', marginBottom: 3 }}>The NIRAA Promise</div>
@@ -615,7 +604,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── PRODUCT SECTIONS ─────────────────── */}
         {groupedSections.map((section) => (
           <section key={section.id} style={{ marginBottom: 40 }}>
             <SectionHeading
@@ -638,7 +626,6 @@ export default function Home() {
           </section>
         ))}
 
-        {/* ─── COMBO DEALS ──────────────────────── */}
         <section style={{ marginBottom: 40 }}>
           <div style={{
             background: 'linear-gradient(135deg, #062019 0%, #1e5c53 60%, #0b3d35 100%)',
@@ -646,7 +633,6 @@ export default function Home() {
             position: 'relative', overflow: 'hidden',
             boxShadow: '0 20px 60px rgba(6,32,25,0.3)',
           }}>
-            {/* Decorative circles */}
             <div style={{ position: 'absolute', top: -40, right: -20, width: 160, height: 160, borderRadius: '50%', background: 'rgba(200,168,75,0.12)', pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', bottom: -30, left: '30%', width: 100, height: 100, borderRadius: '50%', background: 'rgba(74,222,128,0.08)', pointerEvents: 'none' }} />
 
@@ -686,7 +672,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── STATS STRIP ──────────────────────── */}
         <section style={{ marginBottom: 36 }}>
           <div style={{
             background: 'linear-gradient(135deg, #f0faf8, #fefcf3)',
@@ -711,7 +696,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ─── BOTTOM CTA ───────────────────────── */}
         <section style={{ marginBottom: 20 }}>
           <div className="cta-banner" style={{
             color: '#fff', borderRadius: 26, padding: '36px 28px',

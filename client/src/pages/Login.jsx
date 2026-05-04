@@ -258,7 +258,7 @@ const Login = () => {
           const result = await sendOtpToEmail(data.email);
           setStep(3);
           toast.success(`OTP sent to ${data.maskedEmail}`);
-          if (result.devOtp) toast.success(`Dev OTP: ${result.devOtp}`, { duration: 5000 });
+          if (result.devOtp && import.meta.env.DEV) toast.success(`Dev OTP: ${result.devOtp}`, { duration: 5000 });
         } else {
           // Existing user but no email and no password
           setStep(2);
@@ -300,7 +300,7 @@ const Login = () => {
         const result = await sendOtpToEmail(email);
         setStep(3);
         toast.success(`OTP sent to ${maskedEmail}`);
-        if (result.devOtp) toast.success(`Dev OTP: ${result.devOtp}`, { duration: 5000 });
+        if (result.devOtp && import.meta.env.DEV) toast.success(`Dev OTP: ${result.devOtp}`, { duration: 5000 });
       } catch (err) { toast.error(err.message); }
       finally { setLoading(false); }
     }
@@ -322,7 +322,7 @@ const Login = () => {
       const result = await sendOtpToEmail(email);
       setStep(3);
       toast.success('OTP sent to your email!');
-      if (result.devOtp) toast.success(`Dev OTP: ${result.devOtp}`, { duration: 5000 });
+      if (result.devOtp && import.meta.env.DEV) toast.success(`Dev OTP: ${result.devOtp}`, { duration: 5000 });
     } catch (err) { toast.error(err.message || 'Failed to send OTP'); }
     finally { setLoading(false); }
   };
@@ -560,6 +560,7 @@ const Login = () => {
               <div>
                 <label className="field-label">Enter OTP</label>
                 <input type="text" placeholder="• • • •" value={otp}
+                  inputMode="numeric"
                   onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   className="field-input otp-style" required />
                 <div style={{ textAlign: 'center', marginTop: 10 }}>

@@ -31,14 +31,19 @@ const sendEmailOTP = async (email, otp) => {
     };
 
     if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      const info = await transporter.sendMail(mailOptions);
-      console.log('Email sent: ' + info.response);
-      return { success: true };
+      console.log(`Attempting to send email to ${email} using ${process.env.EMAIL_USER}`);
+      try {
+        const info = await transporter.sendMail(mailOptions);
+        console.log('Email sent successfully: ' + info.response);
+        return { success: true };
+      } catch (sendError) {
+        console.error('Nodemailer sendMail error:', sendError);
+        return { success: false, message: `Nodemailer error: ${sendError.message}` };
+      }
     } else {
-      console.log('--- DEVELOPMENT MODE: EMAIL OTP ---');
-      console.log(`To: ${email}`);
-      console.log(`OTP: ${otp}`);
-      console.log('-----------------------------------');
+      console.warn('!!! EMAIL CONFIG MISSING: Falling back to Development Mode !!!');
+      console.log('Ensure EMAIL_USER and EMAIL_PASS are set in .env');
+      console.log(`To: ${email} | OTP: ${otp}`);
       return { success: true, devOtp: otp };
     }
   } catch (error) {

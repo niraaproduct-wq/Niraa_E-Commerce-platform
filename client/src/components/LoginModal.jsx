@@ -82,7 +82,8 @@ export default function LoginModal({ isOpen, onClose }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to send OTP');
       
-      toast.success(`OTP Sent! (Dev: ${data.devOtp})`);
+      toast.success(`OTP Sent!`);
+      if (data.devOtp && import.meta.env.DEV) toast.success(`Dev OTP: ${data.devOtp}`);
       setStep(2);
     } catch (err) {
       toast.error(err.message);
@@ -151,6 +152,7 @@ export default function LoginModal({ isOpen, onClose }) {
               type="text" 
               className="field" 
               placeholder="Enter 4-digit OTP" 
+              inputMode="numeric"
               value={otp} 
               onChange={e => setOtp(e.target.value)} 
               required
