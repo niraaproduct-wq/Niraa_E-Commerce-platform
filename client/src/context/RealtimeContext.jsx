@@ -18,7 +18,11 @@ export const RealtimeProvider = ({ children }) => {
     if (import.meta.env.DEV) {
       wsUrl = `${protocol}//${window.location.hostname}:5000/ws`;
     } else {
-      wsUrl = `${protocol}//${window.location.host}/ws`;
+      // In production, derive WS URL from the backend API URL
+      const apiUrl = import.meta.env.VITE_API_BASE_URL || window.location.origin;
+      const wsProtocol = apiUrl.startsWith('https') ? 'wss:' : 'ws:';
+      const host = apiUrl.replace(/^https?:\/\//, '').split('/')[0];
+      wsUrl = `${wsProtocol}//${host}/ws`;
     }
 
     const ws = new WebSocket(wsUrl);

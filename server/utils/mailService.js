@@ -4,7 +4,10 @@ const sendEmailOTP = async (email, otp) => {
   try {
     // Note: These env variables should be added to your .env file
     const transporter = nodemailer.createTransport({
-      service: process.env.EMAIL_SERVICE || 'gmail',
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      family: 4, // Force IPv4 to avoid ENETUNREACH on environments like Render
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
