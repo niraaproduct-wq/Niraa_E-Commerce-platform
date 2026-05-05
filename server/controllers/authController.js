@@ -79,7 +79,16 @@ const sendEmailOtp = async (req, res) => {
     }
 
     const cleanPhone = phone.replace(/[\s\-\(\)]/g, '').slice(-10);
-    
+
+    // Enforce 60-second resend cooldown
+    const cooldownSeconds = otpStorage.getResendCooldown(email);
+    if (cooldownSeconds > 0) {
+      return res.status(429).json({
+        message: `Please wait ${cooldownSeconds} seconds before requesting a new OTP`,
+        retryAfter: cooldownSeconds,
+      });
+    }
+
     // Check if email is already taken by another phone
     const existingUserByEmail = await firebaseStorage.findUserByEmail(email);
     if (existingUserByEmail && existingUserByEmail.phone !== cleanPhone) {
@@ -88,22 +97,25 @@ const sendEmailOtp = async (req, res) => {
 
     const otp = otpStorage.generateOTP();
     // Store OTP using email as the key for email-based verification
-    otpStorage.storeOTP(email, otp); // Store against email for verification consistency
+    await otpStorage.storeOTP(email, otp); // Store against email for verification consistency
 
-    const result = await mailService.sendEmailOTP(email, otp);
+    // Pass customer name if user exists
+    const customerName = existingUserByEmail ? (existingUserByEmail.firstName || existingUserByEmail.name || 'Customer') : 'Customer';
+    const result = await mailService.sendEmailOTP(email, otp, customerName);
 
     if (!result.success) {
       return res.status(500).json({ message: 'Failed to send email OTP', error: result.message });
     }
 
-    res.status(200).json({ 
+    res.status(200).json({
       message: 'OTP sent to your email',
       devOtp: result.devOtp,
-      email: email 
+      email: email
     });
   } catch (error) {
     console.error('Send Email OTP Error:', error);
     res.status(500).json({ message: 'Failed to send OTP', error: error.message });
+
   }
 };
 
@@ -132,7 +144,7 @@ const sendOtp = async (req, res) => {
     }
 
     const otp = otpStorage.generateOTP();
-    otpStorage.storeOTP(validatedPhone, otp);
+    await otpStorage.storeOTP(validatedPhone, otp);
 
     const smsResult = await smsService.sendSMS(validatedPhone, otp);
 
@@ -183,7 +195,7 @@ const verifyOtp = async (req, res) => {
     }
 
     const verifyKey = email || validatedPhone;
-    const otpResult = otpStorage.verifyStoredOTP(verifyKey, otp, true);
+    const otpResult = await otpStorage.verifyStoredOTP(verifyKey, otp, true);
     console.log(`Verifying OTP for ${verifyKey}: Entered=${otp}, Result=${otpResult.valid}, Message=${otpResult.message}`);
 
     if (!otpResult.valid) {
@@ -496,7 +508,7 @@ const resetPasswordWithOtp = async (req, res) => {
     // Validate OTP against the user's registered phone
     // Validate OTP against the user's email
     const emailKey = user.email;
-    const otpResult = otpStorage.verifyStoredOTP(emailKey, otp, true);
+    const otpResult = await otpStorage.verifyStoredOTP(emailKey, otp, true);
 
     if (!otpResult.valid) {
       return res.status(401).json({ message: otpResult.message || 'Invalid or expired OTP' });
