@@ -8,9 +8,8 @@ export const API_BASE_URL = rawApiUrl
 
 console.log("API URL Final:", API_BASE_URL);
 
-export const PHONE_1 = '+91 94433 67890';
-export const PHONE_2 = '+91 94432 12345';
-export const WHATSAPP_NUMBER = '+91 94433 67890';
+export const PHONE_1 = '+91 76048 79605';
+export const WHATSAPP_NUMBER = '+91 76048 79605';
 
 export { formatPrice } from './formatPrice.js';
 export { placeholderImage } from './placeholderImage.js';

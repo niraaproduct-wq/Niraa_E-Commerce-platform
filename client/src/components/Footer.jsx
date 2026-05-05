@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { FiPhone, FiMail, FiMapPin } from 'react-icons/fi';
 import { FaWhatsapp } from 'react-icons/fa';
-import { PHONE_1, PHONE_2, WHATSAPP_NUMBER } from '../utils/constants.js';
+import { PHONE_1, WHATSAPP_NUMBER } from '../utils/constants.js';
 import logoImage from '../assets/images/logo.jpeg';
 
 export default function Footer() {
@@ -81,9 +81,6 @@ export default function Footer() {
           </a>
           <a href={`tel:${PHONE_1}`} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, color: '#c5e8e5', fontSize: '0.88rem' }}>
             <FiPhone size={16} /> {PHONE_1}
-          </a>
-          <a href={`tel:${PHONE_2}`} style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#c5e8e5', fontSize: '0.88rem' }}>
-            <FiPhone size={16} /> {PHONE_2}
           </a>
         </div>
       </div>

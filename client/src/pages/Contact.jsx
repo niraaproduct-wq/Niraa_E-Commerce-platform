@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { PHONE_1, PHONE_2, WHATSAPP_NUMBER } from '../utils/constants.js';
+import { PHONE_1, WHATSAPP_NUMBER } from '../utils/constants.js';
 import SectionRenderer from '../components/SectionRenderer';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
@@ -196,13 +196,6 @@ export default function Contact() {
                   <div>
                     <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: T.gray400, marginBottom: 2 }}>Call Us</div>
                     <div style={{ fontSize: 15, fontWeight: 800, color: T.tealDark }}>{PHONE_1}</div>
-                  </div>
-                </a>
-                <a href={`tel:${PHONE_2}`} className="contact-card">
-                  <div style={{ width: 46, height: 46, borderRadius: 12, background: T.tealLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>📱</div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: T.gray400, marginBottom: 2 }}>Alternate</div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: T.tealDark }}>{PHONE_2}</div>
                   </div>
                 </a>
                 <a href={waLink} target="_blank" rel="noreferrer" className="wa-card">
