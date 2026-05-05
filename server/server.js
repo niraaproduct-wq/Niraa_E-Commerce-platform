@@ -26,11 +26,19 @@ const app = express();
 // Middleware
 app.use(cors({
   origin: [
+    // Local development
     'http://localhost:5173',
     'http://localhost:5174',
+    // Vercel preview deployments
     'https://niraa-customer.vercel.app',
-    'https://niraa-admin.vercel.app'
+    'https://niraa-admin.vercel.app',
+    // Production custom domains
+    'https://niraacare.com',
+    'https://www.niraacare.com',
+    'https://admin.niraacare.com',
   ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
 }));
 app.use(express.json());
