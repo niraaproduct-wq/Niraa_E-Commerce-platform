@@ -131,7 +131,7 @@ const getOrder = async (req, res) => {
 // @desc    Update order status (admin)
 const updateOrderStatus = async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, paymentStatus } = req.body;
     const { db } = getFirebase();
     const docRef = db.collection(ORDERS_COLLECTION).doc(req.params.id);
     
@@ -184,10 +184,14 @@ const updateOrderStatus = async (req, res) => {
         }
       }
 
-      transaction.update(docRef, { 
-        status,
+      const updates = { 
         updatedAt: new Date().toISOString()
-      });
+      };
+      if (status) updates.status = status;
+      if (paymentStatus) updates.paymentStatus = paymentStatus;
+      if (req.body.refundStatus) updates.refundStatus = req.body.refundStatus;
+
+      transaction.update(docRef, updates);
     });
     
     const updated = await docRef.get();
@@ -263,6 +267,120 @@ const getMyOrders = async (req, res) => {
   }
 };
 
+// @desc    Cancel an order (customer)
+// @route   PUT /api/orders/:id/cancel
+// @access  Private
+const cancelMyOrder = async (req, res) => {
+  try {
+    const { db } = getFirebase();
+    const orderId = req.params.id;
+    const userId = req.user.id;
+    const { reasonKey, reasonText } = req.body;
+
+    // 1. Verify user exists
+    const userSnapshot = await db.collection('users').doc(userId).get();
+    if (!userSnapshot.exists) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    const userPhone = userSnapshot.data().phone;
+
+    const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
+    
+    const result = await db.runTransaction(async (transaction) => {
+      const orderDoc = await transaction.get(orderRef);
+      if (!orderDoc.exists) throw new Error('Order not found');
+      
+      const order = orderDoc.data();
+
+      // Security: Ensure order belongs to the user
+      if (order.customerPhone !== userPhone) {
+        throw new Error('Unauthorized to cancel this order');
+      }
+
+      const status = order.status || 'placed';
+
+      if (['placed', 'confirmed', 'packed'].includes(status)) {
+        // Instant cancellation allowed
+        const items = order.items || [];
+        const productDocsMap = {};
+        const uniqueProductIds = [...new Set(items.map(item => item.product))];
+
+        for (const prodId of uniqueProductIds) {
+          const productRef = db.collection('products').doc(prodId);
+          const productDoc = await transaction.get(productRef);
+          if (productDoc.exists) {
+            productDocsMap[prodId] = { ref: productRef, data: productDoc.data() };
+          }
+        }
+
+        for (const item of items) {
+          const productInfo = productDocsMap[item.product];
+          if (!productInfo) continue;
+          const productData = productInfo.data;
+          if (item.variantId) {
+            const variantIndex = productData.variants?.findIndex(v => v.variantId === item.variantId);
+            if (variantIndex !== -1 && variantIndex !== undefined) {
+              productData.variants[variantIndex].stockQuantity = (Number(productData.variants[variantIndex].stockQuantity) || 0) + item.quantity;
+            }
+          } else {
+            productData.stock = (Number(productData.stock) || 0) + item.quantity;
+          }
+        }
+
+        for (const prodId in productDocsMap) {
+          const info = productDocsMap[prodId];
+          transaction.update(info.ref, {
+            stock: info.data.stock !== undefined ? info.data.stock : 0,
+            variants: info.data.variants || [],
+            updatedAt: new Date().toISOString()
+          });
+        }
+
+        transaction.update(orderRef, {
+          status: 'cancelled',
+          updatedAt: new Date().toISOString(),
+          cancelledBy: 'customer',
+          cancellationReasonKey: reasonKey || 'not_specified',
+          cancellationReasonText: reasonText || '',
+          cancelNote: `Cancelled by customer: ${reasonKey || 'not_specified'}${reasonText ? ` (${reasonText})` : ''}`
+        });
+
+        return { type: 'cancelled' };
+      } else if (status === 'shipped') {
+        // Request cancellation
+        transaction.update(orderRef, {
+          cancellationRequested: true,
+          cancellationReasonKey: reasonKey || 'not_specified',
+          cancellationReasonText: reasonText || '',
+          cancellationRequestedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        return { type: 'requested' };
+      } else {
+        throw new Error(`Cancellation not allowed at "${status}" stage`);
+      }
+    });
+
+    const updated = await orderRef.get();
+    const updatedOrder = toPlainOrder(updated);
+
+    publishEvent('orders.changed', { 
+      type: result.type === 'cancelled' ? 'status_updated' : 'cancellation_requested', 
+      orderId: updatedOrder._id, 
+      status: updatedOrder.status 
+    });
+    
+    if (updatedOrder.status === 'cancelled') {
+      publishEvent('products.changed', { type: 'batch_update' });
+    }
+
+    res.json(updatedOrder);
+  } catch (err) {
+    console.error('Cancel Order Error:', err.message);
+    res.status(400).json({ message: err.message });
+  }
+};
+
 module.exports = {
   placeOrder,
   getAllOrders,
@@ -270,4 +388,5 @@ module.exports = {
   updateOrderStatus,
   getOrderStats,
   getMyOrders,
+  cancelMyOrder,
 };

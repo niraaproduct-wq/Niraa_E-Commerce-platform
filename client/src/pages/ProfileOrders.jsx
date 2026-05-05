@@ -7,20 +7,145 @@ import Loader from '../components/Loader.jsx';
 import { FiPackage, FiChevronDown, FiChevronUp, FiExternalLink } from 'react-icons/fi';
 
 const STATUS_CONFIG = {
-  pending: { color: '#b27700', bg: '#fffbeb', label: 'Pending', icon: '⏳', step: 0 },
-  confirmed: { color: '#1d4ed8', bg: '#eff6ff', label: 'Confirmed', icon: '✅', step: 1 },
+  placed: { color: '#0f766e', bg: '#f0fdf9', label: 'Placed', icon: '🛎️', step: 0 },
+  confirmed: { color: '#b45309', bg: '#fffbeb', label: 'Confirmed', icon: '✅', step: 1 },
   packed: { color: '#6d28d9', bg: '#f5f3ff', label: 'Packed', icon: '📦', step: 2 },
-  shipped: { color: '#0284c7', bg: '#f0f9ff', label: 'Shipped', icon: '🚢', step: 3 },
-  out_for_delivery: { color: '#0891b2', bg: '#ecfeff', label: 'Out for Delivery', icon: '🚚', step: 4 },
+  shipped: { color: '#0369a1', bg: '#f0f9ff', label: 'Shipped', icon: '🚢', step: 3 },
+  'out-for-delivery': { color: '#1d4ed8', bg: '#eff6ff', label: 'Delivery', icon: '🚚', step: 4 },
   delivered: { color: '#15803d', bg: '#f0fdf4', label: 'Delivered', icon: '🎉', step: 5 },
   cancelled: { color: '#dc2626', bg: '#fef2f2', label: 'Cancelled', icon: '❌', step: -1 },
 };
 
-const ORDER_STEPS = ['confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered'];
+const ORDER_STEPS = ['placed', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered'];
 
-function OrderCard({ order }) {
+function CancellationModal({ order, onClose, onConfirm }) {
+  const [reason, setReason] = useState('');
+  const [otherText, setOtherText] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const reasons = [
+    { key: 'changed_mind', label: 'Changed my mind' },
+    { key: 'wrong_item', label: 'Ordered the wrong item' },
+    { key: 'better_price', label: 'Found a better price elsewhere' },
+    { key: 'too_long', label: 'Delivery time is too long' },
+    { key: 'other', label: 'Other reason' },
+  ];
+
+  const isValid = reason && (reason !== 'other' || otherText.trim().length >= 5);
+  const shortId = order._id?.slice(-8).toUpperCase();
+  const itemCount = order.items?.reduce((sum, i) => sum + i.quantity, 0);
+
+  const handleConfirm = async () => {
+    if (!isValid) return;
+    setLoading(true);
+    await onConfirm(order._id, reason, otherText);
+    setLoading(false);
+    onClose();
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000,
+      padding: 20, backdropFilter: 'blur(4px)',
+    }}>
+      <div style={{
+        background: '#fff', borderRadius: 24, width: '100%', maxWidth: 420,
+        overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        animation: 'modalSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+      }}>
+        <div style={{ padding: '24px 24px 16px' }}>
+          <h2 style={{ margin: '0 0 4px', fontSize: '1.3rem', fontWeight: 900, color: 'var(--gray-900)' }}>
+            Why are you cancelling?
+          </h2>
+          <div style={{ fontSize: '0.85rem', color: 'var(--gray-500)', fontWeight: 500 }}>
+            Order #{shortId} • {itemCount} items • ₹{order.total ?? order.totalAmount}
+          </div>
+        </div>
+
+        <div style={{ padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {reasons.map((r) => (
+            <label key={r.key} style={{
+              display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
+              borderRadius: 14, border: `2.5px solid ${reason === r.key ? 'var(--teal)' : '#f3f4f6'}`,
+              background: reason === r.key ? 'rgba(42,125,114,0.04)' : '#f9fafb',
+              cursor: 'pointer', transition: 'all 0.2s',
+            }}>
+              <input
+                type="radio"
+                name="cancelReason"
+                checked={reason === r.key}
+                onChange={() => setReason(r.key)}
+                style={{ accentColor: 'var(--teal)', width: 18, height: 18 }}
+              />
+              <span style={{ fontSize: '0.92rem', fontWeight: 700, color: reason === r.key ? 'var(--teal-dark)' : 'var(--gray-700)' }}>
+                {r.label}
+              </span>
+            </label>
+          ))}
+
+          {reason === 'other' && (
+            <div style={{ marginTop: 4, animation: 'fadeIn 0.3s' }}>
+              <textarea
+                placeholder="Please tell us more (min 5 characters)..."
+                value={otherText}
+                onChange={(e) => setOtherText(e.target.value.slice(0, 200))}
+                style={{
+                  width: '100%', padding: '14px', borderRadius: 14, border: '1.5px solid #e5e7eb',
+                  background: '#fff', fontSize: '0.88rem', minHeight: 80, resize: 'none',
+                  outline: 'none', focus: 'border-color: var(--teal)',
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: '0.7rem', color: 'var(--gray-400)', fontWeight: 600 }}>
+                <span>{otherText.length < 5 && otherText.length > 0 ? `Need ${5 - otherText.length} more chars` : ''}</span>
+                <span>{otherText.length}/200</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: '16px 24px', background: '#f9fafb', display: 'flex', gap: 12 }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1, padding: '14px', borderRadius: 16, border: '1px solid #e5e7eb',
+              background: '#fff', color: 'var(--gray-600)', fontWeight: 800, fontSize: '0.9rem',
+              cursor: 'pointer', transition: 'all 0.2s',
+            }}
+          >
+            Keep order
+          </button>
+          <button
+            disabled={!isValid || loading}
+            onClick={handleConfirm}
+            style={{
+              flex: 1.5, padding: '14px', borderRadius: 16, border: 'none',
+              background: !isValid || loading ? '#e5e7eb' : '#dc2626',
+              color: '#fff', fontWeight: 800, fontSize: '0.9rem',
+              cursor: !isValid || loading ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: !isValid || loading ? 'none' : '0 8px 20px rgba(220,38,38,0.25)',
+            }}
+          >
+            {loading ? 'Cancelling...' : 'Confirm cancel'}
+          </button>
+        </div>
+      </div>
+      <style>{`
+        @keyframes modalSlideUp {
+          from { opacity: 0; transform: translateY(30px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      `}</style>
+    </div>
+  );
+}
+
+function OrderCard({ order, onCancel }) {
   const [expanded, setExpanded] = useState(false);
-  const cfg = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
+  const [cancelling, setCancelling] = useState(false);
+  const cfg = STATUS_CONFIG[order.status] || STATUS_CONFIG.placed;
 
   const currentStep = cfg.step;
   const isCancelled = order.status === 'cancelled';
@@ -98,7 +223,7 @@ function OrderCard({ order }) {
                       {isCompleted ? '✓' : <span style={{ fontSize: '0.8rem' }}>{stepCfg.icon}</span>}
                     </div>
                     <div style={{ fontSize: '0.6rem', color: isCompleted || isCurrent ? 'var(--gray-700)' : 'var(--gray-400)', fontWeight: isCurrent ? 800 : 500, marginTop: 4, whiteSpace: 'nowrap', textAlign: 'center', maxWidth: 56, lineHeight: 1.2 }}>
-                      {stepCfg.label.replace('Out for ', '')}
+                      {stepCfg.label}
                     </div>
                   </div>
                   {!isLast && (
@@ -198,6 +323,86 @@ function OrderCard({ order }) {
           Total: ₹{order.total ?? order.totalAmount ?? 0}
         </div>
       </div>
+
+      {/* Cancellation Section */}
+      {!isCancelled && order.status !== 'delivered' && (
+        <div style={{
+          padding: '12px 20px',
+          background: '#fff',
+          borderTop: '1px solid rgba(0,0,0,0.04)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10
+        }}>
+          {['placed', 'confirmed', 'packed'].includes(order.status) ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', fontWeight: 500 }}>
+                <span style={{ color: '#15803d', fontWeight: 700 }}>✓ 100% Refund</span> • No processing begun
+              </div>
+              <button
+                disabled={cancelling}
+                onClick={() => onCancel(order)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: 10,
+                  border: '1.5px solid #dc262620',
+                  background: '#fef2f2',
+                  color: '#dc2626',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  cursor: cancelling ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={e => !cancelling && (e.currentTarget.style.background = '#fee2e2')}
+                onMouseLeave={e => !cancelling && (e.currentTarget.style.background = '#fef2f2')}
+              >
+                {cancelling ? 'Processing...' : 'Cancel Order'}
+              </button>
+            </div>
+          ) : order.status === 'shipped' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', fontWeight: 500 }}>
+                  <span style={{ color: '#b45309', fontWeight: 700 }}>⚠ Conditional Refund</span> • Shipping fees may be deducted
+                </div>
+                {order.cancellationRequested ? (
+                  <span style={{ fontSize: '0.75rem', color: '#b45309', fontWeight: 800, padding: '6px 12px', background: '#fffbeb', borderRadius: 8 }}>
+                    Cancellation Requested
+                  </span>
+                ) : (
+                  <button
+                    disabled={cancelling}
+                    onClick={() => onCancel(order)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 10,
+                      border: '1.5px solid #b4530930',
+                      background: '#fffbeb',
+                      color: '#b45309',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      cursor: cancelling ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {cancelling ? 'Sending Request...' : 'Request Cancellation'}
+                  </button>
+                )}
+              </div>
+              <p style={{ margin: 0, fontSize: '0.68rem', color: 'var(--gray-400)', fontStyle: 'italic' }}>
+                Note: We will try to stop the courier. If they can't be stopped, you may need to refuse at your doorstep.
+              </p>
+            </div>
+          ) : order.status === 'out-for-delivery' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+              <span style={{ fontSize: '1.1rem' }}>🚚</span>
+              <div>
+                <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--gray-700)' }}>Too late to cancel?</div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--gray-500)' }}>The driver is en route. Please refuse delivery at your doorstep for a return/refund.</div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }
@@ -207,6 +412,7 @@ const ProfileOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [selectedOrderForCancel, setSelectedOrderForCancel] = useState(null);
 
   useEffect(() => {
     fetchOrders();
@@ -226,6 +432,31 @@ const ProfileOrders = () => {
       console.error('Error fetching orders:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancelOrder = async (orderId, reasonKey, reasonText) => {
+    try {
+      const token = localStorage.getItem('niraa_token');
+      const response = await fetch(`${API_BASE_URL}/orders/${orderId}/cancel`, {
+        method: 'PUT',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reasonKey, reasonText })
+      });
+      
+      if (response.ok) {
+        // Refresh orders after successful cancellation
+        await fetchOrders();
+      } else {
+        const errorData = await response.json();
+        alert(errorData.message || 'Failed to cancel order');
+      }
+    } catch (error) {
+      console.error('Cancel Order Error:', error);
+      alert('Error connecting to server');
     }
   };
 
@@ -347,9 +578,11 @@ const ProfileOrders = () => {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 24, padding: '14px 16px', background: '#fff', borderRadius: 18, border: '1px solid rgba(42,125,114,0.1)', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
               {[
                 { id: 'all', label: '🏠 All' },
-                { id: 'pending', label: '⏳ Pending' },
+                { id: 'placed', label: '🛎️ Placed' },
                 { id: 'confirmed', label: '✅ Confirmed' },
-                { id: 'out_for_delivery', label: '🚚 On the way' },
+                { id: 'packed', label: '📦 Packed' },
+                { id: 'shipped', label: '🚢 Shipped' },
+                { id: 'out-for-delivery', label: '🚚 Delivery' },
                 { id: 'delivered', label: '🎉 Delivered' },
                 { id: 'cancelled', label: '❌ Cancelled' },
               ].map(f => (
@@ -408,9 +641,17 @@ const ProfileOrders = () => {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {filteredOrders.map(order => (
-              <OrderCard key={order._id} order={order} />
+              <OrderCard key={order._id} order={order} onCancel={(o) => setSelectedOrderForCancel(o)} />
             ))}
           </div>
+        )}
+
+        {selectedOrderForCancel && (
+          <CancellationModal
+            order={selectedOrderForCancel}
+            onClose={() => setSelectedOrderForCancel(null)}
+            onConfirm={handleCancelOrder}
+          />
         )}
       </div>
     </div>

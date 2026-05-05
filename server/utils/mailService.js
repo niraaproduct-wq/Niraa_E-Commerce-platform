@@ -1,21 +1,22 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
+
+// Initialize Resend with API Key from environment variables
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendEmailOTP = async (email, otp) => {
   try {
-    // Note: These env variables should be added to your .env file
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      family: 4, // Force IPv4 only
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
+    // If no API key or placeholder is used, fallback to development mode
+    if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 'your_resend_api_key_here') {
+      console.warn('!!! VALID RESEND_API_KEY MISSING: Falling back to Development Mode !!!');
+      console.log('Please add your real Resend API Key to the .env file.');
+      console.log(`To: ${email} | OTP: ${otp}`);
+      return { success: true, devOtp: otp };
+    }
 
-    const mailOptions = {
-      from: `"NIRAA Products" <${process.env.EMAIL_USER}>`,
+    console.log(`Attempting to send email to ${email} via Resend API`);
+
+    const { data, error } = await resend.emails.send({
+      from: 'NIRAA <onboarding@resend.dev>', // Replace with your verified domain in production
       to: email,
       subject: 'Your Login OTP for NIRAA',
       html: `
@@ -31,26 +32,18 @@ const sendEmailOTP = async (email, otp) => {
           </p>
         </div>
       `,
-    };
+    });
 
-    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      console.log(`Attempting to send email to ${email} using ${process.env.EMAIL_USER}`);
-      try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log('Email sent successfully: ' + info.response);
-        return { success: true };
-      } catch (sendError) {
-        console.error('Nodemailer sendMail error:', sendError);
-        return { success: false, message: `Nodemailer error: ${sendError.message}` };
-      }
-    } else {
-      console.warn('!!! EMAIL CONFIG MISSING: Falling back to Development Mode !!!');
-      console.log('Ensure EMAIL_USER and EMAIL_PASS are set in .env');
-      console.log(`To: ${email} | OTP: ${otp}`);
-      return { success: true, devOtp: otp };
+    if (error) {
+      console.error('Resend API Error:', error);
+      return { success: false, message: `Resend error: ${error.message}` };
     }
+
+    console.log('Email sent successfully via Resend:', data.id);
+    return { success: true };
+
   } catch (error) {
-    console.error('Send Email Error:', error);
+    console.error('Send Email Error (Resend):', error);
     return { success: false, message: error.message };
   }
 };

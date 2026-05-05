@@ -259,10 +259,12 @@ const P = {
 
 // ─── Status config ─────────────────────────────────────────────────────────────
 const STATUS = {
-  delivered: { color: 'var(--green)', bg: 'var(--green-dim)', dot: true },
   placed: { color: 'var(--blue)', bg: 'var(--blue-dim)', dot: true },
   confirmed: { color: 'var(--amber)', bg: 'var(--amber-dim)', dot: true },
+  packed: { color: 'var(--purple)', bg: 'var(--purple-dim)', dot: true },
+  shipped: { color: 'var(--blue)', bg: 'var(--blue-dim)', dot: true },
   'out-for-delivery': { color: '#38BDF8', bg: 'rgba(56,189,248,0.12)', dot: true },
+  delivered: { color: 'var(--green)', bg: 'var(--green-dim)', dot: true },
   cancelled: { color: 'var(--red)', bg: 'var(--red-dim)', dot: false },
 };
 

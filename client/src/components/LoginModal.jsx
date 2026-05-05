@@ -41,31 +41,35 @@ export default function LoginModal({ isOpen, onClose }) {
       async (position) => {
         const { latitude, longitude } = position.coords;
         try {
-          // Fallback to OSM Nominatim for out of the box geocoding without api keys
-          // If the user has a Google Maps API Key, they can replace this endpoint.
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const res = await fetch(`${API_BASE_URL}/locations/reverse`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ latitude, longitude })
+          });
           const data = await res.json();
           if (data && data.address) {
             setAddress({
-              street: data.address.road || data.display_name.split(',')[0],
-              city: data.address.city || data.address.town || data.address.village || 'Dharmapuri',
-              pincode: data.address.postcode || '',
+              street: data.address.street || '',
+              city: data.address.city || 'Dharmapuri',
+              pincode: data.address.zipCode || '',
               lat: latitude,
               lng: longitude
             });
-            toast.success('Location successfully detected!');
+            toast.success('Location detected!');
           }
         } catch (err) {
-          setAddress(prev => ({ ...prev, lat: latitude, lng: longitude }));
-          toast.success('Coordinates pinned!');
+          toast.error('Location service busy. Please enter manually.');
         } finally {
           setLocating(false);
         }
       },
       (error) => {
         setLocating(false);
-        toast.error('Unable to retrieve your location. Please check browser permissions.');
-      }
+        if (error.code === 1) toast.error('Permission denied.');
+        else if (error.code === 3) toast.error('Request timed out.');
+        else toast.error('Unable to retrieve location.');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
@@ -171,7 +175,10 @@ export default function LoginModal({ isOpen, onClose }) {
                 />
                 
                 <div style={{ marginTop: 5 }}>
-                  <label style={{ display: 'block', marginBottom: 5, fontSize: '0.9rem', fontWeight: 600 }}>Delivery Location</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <label style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>Delivery Location</label>
+                    <span style={{ fontSize: '9px', color: 'var(--gray-400)' }}>Accuracy varies on laptops</span>
+                  </div>
                   <button type="button" className="btn btn--ghost" onClick={handleGetLocation} disabled={locating} style={{ width: '100%', marginBottom: 10 }}>
                      📍 {locating ? 'Locating...' : 'Use Current Location'}
                   </button>

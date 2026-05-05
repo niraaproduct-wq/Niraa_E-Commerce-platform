@@ -216,22 +216,32 @@ const Login = () => {
     navigator.geolocation.getCurrentPosition(
       async ({ coords: { latitude, longitude } }) => {
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const res = await fetch(`${API_BASE_URL}/locations/reverse`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ latitude, longitude })
+          });
           const data = await res.json();
           if (data?.address) {
             setAddress(prev => ({
               ...prev,
-              street: data.address.road || data.display_name?.split(',')[0] || '',
-              city: data.address.city || data.address.town || 'Dharmapuri',
-              pincode: data.address.postcode || '',
+              street: data.address.street || '',
+              city: data.address.city || 'Dharmapuri',
+              pincode: data.address.zipCode || '',
             }));
             toast.success('📍 Location detected!');
           }
-        } catch { toast.success('Coordinates captured! Enter address manually.'); }
-        finally { setLocating(false); }
+        } catch (err) { 
+          toast.error('Service error. Please enter address manually.'); 
+        } finally { setLocating(false); }
       },
-      () => { setLocating(false); toast.error('Could not get location. Enter manually.'); },
-      { enableHighAccuracy: true, timeout: 10000 }
+      (error) => { 
+        setLocating(false); 
+        if (error.code === 1) toast.error('Location permission denied.');
+        else if (error.code === 3) toast.error('Location request timed out. Please enter manually.');
+        else toast.error('Could not get location. Enter manually.');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
@@ -509,7 +519,10 @@ const Login = () => {
               {mode === 'signup' && (
                 <div className="address-section">
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                    <div style={{ fontWeight: 800, fontSize: 13, color: T.tealDark }}>📍 Delivery Address</div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ fontWeight: 800, fontSize: 13, color: T.tealDark }}>📍 Delivery Address</div>
+                      <div style={{ fontSize: '10px', color: T.gray400, marginTop: 2 }}>Accuracy may vary on laptops/desktops</div>
+                    </div>
                     <button type="button" onClick={handleGetLocation} disabled={locating} className="locating-btn">
                       {locating ? '⏳ Locating…' : '📍 Use my location'}
                     </button>

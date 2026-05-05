@@ -51,23 +51,107 @@ const reverseGeocode = async (req, res) => {
         message: 'Latitude and longitude are required' 
       });
     }
+
+    // High Accuracy: Google Maps API (Optional)
+    const googleApiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (googleApiKey) {
+      try {
+        const googleRes = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${googleApiKey}`
+        );
+        const googleData = await googleRes.json();
+        
+        if (googleData.status === 'OK' && googleData.results.length > 0) {
+          const result = googleData.results[0];
+          const getComponent = (type) => {
+            const comp = result.address_components.find(c => c.types.includes(type));
+            return comp ? comp.long_name : '';
+          };
+
+          return res.status(200).json({
+            message: 'Address retrieved successfully (Google)',
+            address: {
+              street: [getComponent('sublocality_level_1'), getComponent('route')].filter(Boolean).join(', ') || result.formatted_address.split(',')[0],
+              city: getComponent('locality') || getComponent('administrative_area_level_2') || 'Dharmapuri',
+              state: getComponent('administrative_area_level_1') || '',
+              zipCode: getComponent('postal_code') || '',
+              country: getComponent('country') || 'India',
+              latitude,
+              longitude,
+              displayName: result.formatted_address
+            },
+            source: 'google'
+          });
+        }
+      } catch (err) {
+        console.error('Google Maps Geocode Error, falling back to OSM:', err);
+      }
+    }
+
+    // Fallback: Nominatim (OSM)
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+      {
+        headers: {
+          'User-Agent': 'Niraa-Website/1.0',
+          'Accept-Language': 'en-IN,en;q=0.9'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Location service returned ${response.status}`);
+    }
+
+    const data = await response.json();
     
-    // TODO: Integrate with Google Maps Geocoding API
-    // For now, return mock response
-    const mockAddress = {
-      address: '123 Sample Street',
-      city: 'Bangalore',
-      state: 'Karnataka',
-      zipCode: '560001',
-      country: 'India',
+    if (!data || !data.address) {
+      return res.status(404).json({
+        message: 'Address not found for these coordinates'
+      });
+    }
+
+    // Intelligent Indian Address Parsing
+    // Nominatim returns very specific fields. We need to group them logically.
+    
+    // 1. Street / Area (Specific location)
+    // Combine road, suburb, village, neighbourhood
+    const streetParts = [
+      data.address.house_number || '',
+      data.address.road || '',
+      data.address.neighbourhood || '',
+      data.address.suburb || '',
+      data.address.village || ''
+    ].filter(Boolean);
+    
+    const street = streetParts.length > 0 ? streetParts.join(', ') : data.display_name.split(',')[0];
+
+    // 2. City / Town (The main administrative area)
+    // For many users in India, the "village" is Beragapalli but the "city" is Dharmapuri.
+    // Dharmapuri might be in 'county', 'district', or 'state_district'.
+    const city = data.address.city || 
+                 data.address.town || 
+                 data.address.municipality ||
+                 data.address.district ||
+                 data.address.county ||
+                 data.address.state_district ||
+                 'Dharmapuri';
+
+    const addressDetails = {
+      street: street,
+      city: city,
+      state: data.address.state || '',
+      zipCode: data.address.postcode || '',
+      country: data.address.country || 'India',
       latitude,
-      longitude
+      longitude,
+      displayName: data.display_name
     };
     
     res.status(200).json({
       message: 'Address retrieved successfully',
-      address: mockAddress,
-      note: 'Mock data - integrate with Google Maps API in production'
+      address: addressDetails,
+      source: 'osm'
     });
     
   } catch (error) {

@@ -97,23 +97,29 @@ const Icon = {
 const STATUS_META = {
   placed: { label: 'Placed', emoji: '🛎️', bg: '#f0fdf9', fg: '#0f766e', border: '#99f6e4', dot: '#0d9488' },
   confirmed: { label: 'Confirmed', emoji: '✅', bg: '#fffbeb', fg: '#b45309', border: '#fde68a', dot: '#d97706' },
-  'out-for-delivery': { label: 'Out for Delivery', emoji: '🚴', bg: '#eff6ff', fg: '#1d4ed8', border: '#bfdbfe', dot: '#3b82f6' },
+  packed: { label: 'Packed', emoji: '📦', bg: '#f5f3ff', fg: '#6d28d9', border: '#ddd6fe', dot: '#7c3aed' },
+  shipped: { label: 'Shipped', emoji: '🚢', bg: '#f0f9ff', fg: '#0369a1', border: '#bae6fd', dot: '#0ea5e9' },
+  'out-for-delivery': { label: 'Delivery', emoji: '🚚', bg: '#eff6ff', fg: '#1d4ed8', border: '#bfdbfe', dot: '#3b82f6' },
   delivered: { label: 'Delivered', emoji: '🎉', bg: '#f0fdf4', fg: '#15803d', border: '#bbf7d0', dot: '#22c55e' },
   cancelled: { label: 'Cancelled', emoji: '❌', bg: '#fff1f2', fg: '#be123c', border: '#fecdd3', dot: '#f43f5e' },
 };
 
-const STATUS_ORDER = ['placed', 'confirmed', 'out-for-delivery', 'delivered'];
-const ALL_STATUSES = ['placed', 'confirmed', 'out-for-delivery', 'delivered', 'cancelled'];
+const STATUS_ORDER = ['placed', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered'];
+const ALL_STATUSES = ['placed', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered', 'cancelled'];
 
 const NEXT_STATUS = {
   placed: 'confirmed',
-  confirmed: 'out-for-delivery',
+  confirmed: 'packed',
+  packed: 'shipped',
+  shipped: 'out-for-delivery',
   'out-for-delivery': 'delivered',
 };
 
 const NEXT_LABEL = {
   placed: '✅ Confirm Order',
-  confirmed: '🚴 Mark Out for Delivery',
+  confirmed: '📦 Mark Packed',
+  packed: '🚢 Mark Shipped',
+  shipped: '🚚 Mark for Delivery',
   'out-for-delivery': '🎉 Mark Delivered',
 };
 
@@ -215,7 +221,8 @@ function OrderCard({ order: o, onStatusChange, updating }) {
   const shortId = o._id?.slice(-8)?.toUpperCase();
 
   const handleConfirm = () => {
-    onStatusChange(o._id, confirmStatus);
+    const pStatus = (confirmStatus === 'delivered' && o.paymentStatus !== 'paid') ? 'paid' : undefined;
+    onStatusChange(o._id, confirmStatus, pStatus);
     setConfirmStatus(null);
   };
 
@@ -229,7 +236,6 @@ function OrderCard({ order: o, onStatusChange, updating }) {
       animation: 'slideIn 0.25s ease',
       position: 'relative',
     }}>
-      {/* ── urgent stripe ── */}
       {urgent && (
         <div style={{
           background: 'linear-gradient(90deg,#ef4444,#f97316)',
@@ -238,7 +244,6 @@ function OrderCard({ order: o, onStatusChange, updating }) {
         }} />
       )}
 
-      {/* ── confirm dialog overlay ── */}
       {confirmStatus && (
         <div style={{
           position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)',
@@ -249,28 +254,51 @@ function OrderCard({ order: o, onStatusChange, updating }) {
             boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
           }}>
             <div style={{ fontSize: '2rem', marginBottom: 8 }}>{STATUS_META[confirmStatus]?.emoji}</div>
-            <div style={{ fontWeight: 800, color: '#111827', fontSize: '1.05rem', marginBottom: 6 }}>
-              Confirm Status Change
-            </div>
-            <div style={{ color: '#6b7280', fontSize: '0.88rem', marginBottom: 18 }}>
-              Mark order <strong>#{shortId}</strong> as <strong style={{ color: STATUS_META[confirmStatus]?.fg }}>{STATUS_META[confirmStatus]?.label}</strong>?
-            </div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-              <button onClick={() => setConfirmStatus(null)} style={{
-                padding: '8px 18px', borderRadius: 10, border: '1px solid #e5e7eb',
-                background: '#f9fafb', color: '#374151', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem',
-              }}>Cancel</button>
-              <button onClick={handleConfirm} style={{
-                padding: '8px 18px', borderRadius: 10, border: 'none',
-                background: STATUS_META[confirmStatus]?.dot, color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: '0.88rem',
-              }}>Confirm</button>
-            </div>
+            
+            {confirmStatus === 'delivered' && o.paymentStatus !== 'paid' ? (
+              <>
+                <div style={{ fontWeight: 800, color: '#111827', fontSize: '1.05rem', marginBottom: 6 }}>
+                  Confirm Payment & Delivery
+                </div>
+                <div style={{ color: '#6b7280', fontSize: '0.88rem', marginBottom: 18 }}>
+                  This order is currently <strong>Unpaid</strong>. Has payment been received for order <strong>#{shortId}</strong>?
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <button onClick={handleConfirm} style={{
+                    padding: '10px 18px', borderRadius: 10, border: 'none',
+                    background: '#10b981', color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: '0.88rem',
+                  }}>Yes, Payment Received & Deliver</button>
+                  <button onClick={() => setConfirmStatus(null)} style={{
+                    padding: '8px 18px', borderRadius: 10, border: '1px solid #e5e7eb',
+                    background: '#f9fafb', color: '#374151', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem',
+                  }}>Cancel</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight: 800, color: '#111827', fontSize: '1.05rem', marginBottom: 6 }}>
+                  Confirm Status Change
+                </div>
+                <div style={{ color: '#6b7280', fontSize: '0.88rem', marginBottom: 18 }}>
+                  Mark order <strong>#{shortId}</strong> as <strong style={{ color: STATUS_META[confirmStatus]?.fg }}>{STATUS_META[confirmStatus]?.label}</strong>?
+                </div>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                  <button onClick={() => setConfirmStatus(null)} style={{
+                    padding: '8px 18px', borderRadius: 10, border: '1px solid #e5e7eb',
+                    background: '#f9fafb', color: '#374151', fontWeight: 700, cursor: 'pointer', fontSize: '0.88rem',
+                  }}>Cancel</button>
+                  <button onClick={handleConfirm} style={{
+                    padding: '8px 18px', borderRadius: 10, border: 'none',
+                    background: STATUS_META[confirmStatus]?.dot, color: '#fff', fontWeight: 800, cursor: 'pointer', fontSize: '0.88rem',
+                  }}>Confirm</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
 
       <div style={{ padding: '16px 18px' }}>
-        {/* ── header row ── */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -308,6 +336,17 @@ function OrderCard({ order: o, onStatusChange, updating }) {
                   <Icon.Alert /> Waiting
                 </span>
               )}
+              {o.cancellationRequested && !['cancelled'].includes(o.status) && (
+                <span style={{
+                  padding: '3px 9px', borderRadius: 99, fontSize: '0.72rem', fontWeight: 800,
+                  background: '#fff7ed', color: '#c2410c', border: '1px solid #fdba74',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  boxShadow: '0 0 10px #fdba7444',
+                  animation: 'pulse 2s infinite'
+                }}>
+                  🛑 Cancellation Requested
+                </span>
+              )}
             </div>
             <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 5, color: '#6b7280', fontSize: '0.8rem' }}>
               <Icon.Clock /> {timeAgo(o.createdAt)}
@@ -322,20 +361,19 @@ function OrderCard({ order: o, onStatusChange, updating }) {
           </div>
         </div>
 
-        {/* ── customer info ── */}
         <div style={{
           marginTop: 12, padding: '10px 14px', background: '#f8fafc', borderRadius: 12,
           display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
         }}>
           <div>
-            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Customer</div>
+            <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Customer</div>
             <div style={{ fontWeight: 800, color: '#111827', fontSize: '0.92rem', marginTop: 1 }}>{o.customerName || '—'}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#6b7280', fontSize: '0.82rem', marginTop: 2 }}>
               <Icon.Phone /> {o.customerPhone}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Deliver to</div>
+            <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Deliver to</div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4, color: '#374151', fontSize: '0.82rem', marginTop: 2, fontWeight: 600 }}>
               <Icon.MapPin />
               <span style={{ lineHeight: 1.4 }}>{o.address?.street || '-'}, {o.address?.city || '-'} {o.address?.pincode ? `- ${o.address.pincode}` : ''}</span>
@@ -343,7 +381,6 @@ function OrderCard({ order: o, onStatusChange, updating }) {
           </div>
         </div>
 
-        {/* ── payment row ── */}
         <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{
             display: 'flex', alignItems: 'center', gap: 4,
@@ -362,17 +399,20 @@ function OrderCard({ order: o, onStatusChange, updating }) {
           }}>
             {o.paymentStatus === 'paid' ? '✅ Paid' : '⏳ Payment pending'}
           </span>
-          {o.viaWhatsApp && (
-            <span style={{ padding: '4px 10px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 700, background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}>
-              📱 WhatsApp order
+          {o.status === 'cancelled' && o.paymentStatus === 'paid' && (
+            <span style={{
+              padding: '4px 10px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 700,
+              background: o.refundStatus === 'processed' ? '#f0fdf4' : '#fef2f2',
+              color: o.refundStatus === 'processed' ? '#15803d' : '#dc2626',
+              border: o.refundStatus === 'processed' ? '1px solid #bbf7d0' : '1px solid #fecdd3',
+            }}>
+              {o.refundStatus === 'processed' ? '💰 Refunded' : '💸 Refund Pending'}
             </span>
           )}
         </div>
 
-        {/* ── status timeline ── */}
         <StatusTimeline current={o.status} />
 
-        {/* ── quick action: next step ── */}
         {next && (
           <button
             disabled={updating}
@@ -391,7 +431,6 @@ function OrderCard({ order: o, onStatusChange, updating }) {
           </button>
         )}
 
-        {/* ── action row (WhatsApp + expand) ── */}
         <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
           <a href={waLink(o)} target="_blank" rel="noreferrer" style={{
             flex: 1, padding: '9px 0',
@@ -399,7 +438,7 @@ function OrderCard({ order: o, onStatusChange, updating }) {
             fontSize: '0.82rem', textDecoration: 'none',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}>
-            <Icon.Whatsapp /> WhatsApp Customer
+            <Icon.Whatsapp /> WhatsApp
           </a>
           <button
             onClick={() => setExpanded(e => !e)}
@@ -413,7 +452,24 @@ function OrderCard({ order: o, onStatusChange, updating }) {
           </button>
         </div>
 
-        {/* ── items list (expandable) ── */}
+        {o.status === 'cancelled' && o.paymentStatus === 'paid' && o.refundStatus !== 'processed' && (
+          <button
+            onClick={() => {
+              if (window.confirm("Mark refund as processed? This is a manual check only.")) {
+                onStatusChange(o._id, o.status, o.paymentStatus, 'processed');
+              }
+            }}
+            style={{
+              width: '100%', marginTop: 10, padding: '10px 0',
+              background: '#fff', color: '#dc2626', border: '1.5px solid #dc262620',
+              borderRadius: 12, fontWeight: 800, fontSize: '0.82rem', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            }}
+          >
+            💳 Process Refund
+          </button>
+        )}
+
         {expanded && (
           <div style={{ marginTop: 12, borderTop: '1px solid #f1f5f9', paddingTop: 12, display: 'grid', gap: 8 }}>
             {(o.items || []).map((it, idx) => (
@@ -434,7 +490,6 @@ function OrderCard({ order: o, onStatusChange, updating }) {
                 </div>
               </div>
             ))}
-            {/* sub-totals */}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', fontWeight: 900, color: '#111827', fontSize: '0.95rem', borderTop: '1px dashed #e5e7eb', marginTop: 4 }}>
               <span>Order Total</span>
               <span style={{ color: '#0f766e' }}>{formatPrice(o.total)}</span>
@@ -442,7 +497,36 @@ function OrderCard({ order: o, onStatusChange, updating }) {
           </div>
         )}
 
-        {/* ── all statuses ── */}
+        {(o.status === 'cancelled' || o.cancellationRequested) && (o.cancellationReasonKey || o.cancellationReasonText) && (
+          <div style={{
+            marginTop: 12, padding: '10px 14px', borderRadius: 12,
+            background: o.status === 'cancelled' ? '#fef2f2' : '#fff7ed',
+            border: `1px solid ${o.status === 'cancelled' ? '#fecdd3' : '#fed7aa'}`,
+          }}>
+            <div style={{ fontSize: '0.65rem', fontWeight: 800, color: o.status === 'cancelled' ? '#be123c' : '#c2410c', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
+              Cancellation Reason
+            </div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#111827' }}>
+              {(() => {
+                const labels = {
+                  changed_mind: 'Changed my mind',
+                  wrong_item: 'Ordered the wrong item',
+                  better_price: 'Found a better price elsewhere',
+                  too_long: 'Delivery time is too long',
+                  other: 'Other'
+                };
+                const label = labels[o.cancellationReasonKey] || o.cancellationReasonKey;
+                return label === 'Other' ? (o.cancellationReasonText || 'Other') : label;
+              })()}
+            </div>
+            {o.cancellationReasonKey !== 'other' && o.cancellationReasonText && (
+              <div style={{ fontSize: '0.75rem', color: '#4b5563', marginTop: 2, fontStyle: 'italic' }}>
+                "{o.cancellationReasonText}"
+              </div>
+            )}
+          </div>
+        )}
+
         <details style={{ marginTop: 12 }}>
           <summary style={{ cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, color: '#9ca3af', userSelect: 'none', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
             <Icon.Filter /> Manual status override
@@ -536,19 +620,23 @@ export default function AdminOrders() {
   }, [fetchOrders]);
 
   /* ── update status ── */
-  const updateStatus = async (id, status) => {
+  const updateStatus = async (id, status, paymentStatus, refundStatus) => {
     setUpdatingId(id);
     try {
       const token = getToken();
       const res = await fetch(`${API_BASE_URL}/orders/${id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, paymentStatus, refundStatus }),
       });
       const updated = await res.json();
       if (!res.ok) throw new Error(updated.message || 'Update failed');
       setOrders(list => list.map(o => o._id === updated._id ? updated : o));
-      toast.success(`${STATUS_META[status]?.emoji} Order marked as ${STATUS_META[status]?.label}`);
+      if (refundStatus === 'processed') {
+        toast.success('Refund marked as processed');
+      } else {
+        toast.success(`${STATUS_META[status]?.emoji} Order marked as ${STATUS_META[status]?.label}`);
+      }
       setNewCount(0);
     } catch (err) {
       toast.error(err.message || 'Error updating status');
