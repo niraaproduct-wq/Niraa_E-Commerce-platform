@@ -16,7 +16,9 @@ const sendEmailOTP = async (email, otp, customerName = 'Customer') => {
     console.log(`Attempting to send email to ${email} via Resend API`);
 
     const { data, error } = await resend.emails.send({
-      from: 'Niraa <noreply@niraacare.com>',
+      // NOTE: Using support@ instead of noreply@ for better deliverability
+      // If domain is not yet verified in Resend dashboard, this might need to stay as onboarding@resend.dev
+      from: 'NiraaCare <support@niraacare.com>',
       to: email,
       subject: 'Your OTP Code 🔐',
       html: `
@@ -51,6 +53,11 @@ const sendEmailOTP = async (email, otp, customerName = 'Customer') => {
               </div>
 
               <p>This OTP is valid for <strong>5 minutes</strong>.</p>
+
+              <!-- Trust Signals -->
+              <div style="margin-top: 25px; padding: 15px; background-color: #fefce8; border: 1px solid #fef08a; border-radius: 6px; font-size: 14px; color: #854d0e;">
+                <p style="margin: 0;"><strong>Security Note:</strong> Do not share this OTP with anyone. NiraaCare will never ask for your OTP over phone or email.</p>
+              </div>
 
               <p style="margin-top: 20px;">
                 If you didn’t request this, you can safely ignore this email.
