@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
 const firebaseStorage = require('../utils/firebaseStorage');
 const otpStorage = require('../utils/otpStorage');
 const smsService = require('../utils/smsService');
@@ -13,6 +14,29 @@ const generateToken = (user) => {
     process.env.JWT_SECRET,
     { expiresIn: '30d' }
   );
+};
+
+const setAuthCookie = (res, token) => {
+  const isProd = process.env.NODE_ENV === 'production';
+  const maxAgeMs = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+  res.cookie('niraa_token', token, {
+    httpOnly: true,
+    secure: isProd, // required for SameSite=None
+    sameSite: isProd ? 'none' : 'lax',
+    maxAge: maxAgeMs,
+    path: '/',
+  });
+};
+
+const clearAuthCookie = (res) => {
+  const isProd = process.env.NODE_ENV === 'production';
+  res.clearCookie('niraa_token', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+  });
 };
 
 // Helper: Get user data for response (exclude sensitive fields)
@@ -62,7 +86,7 @@ const checkPhone = async (req, res) => {
 
     return res.status(200).json({ exists: false });
   } catch (error) {
-    console.error('Check Phone Error:', error);
+    logger.error('Check Phone Error:', error);
     res.status(500).json({ message: 'Error checking phone', error: error.message });
   }
 };
@@ -113,7 +137,7 @@ const sendEmailOtp = async (req, res) => {
       email: email
     });
   } catch (error) {
-    console.error('Send Email OTP Error:', error);
+    logger.error('Send Email OTP Error:', error);
     res.status(500).json({ message: 'Failed to send OTP', error: error.message });
 
   }
@@ -149,7 +173,7 @@ const sendOtp = async (req, res) => {
     const smsResult = await smsService.sendSMS(validatedPhone, otp);
 
     if (!smsResult.success) {
-      console.error('SMS sending failed:', smsResult.message);
+      logger.error('SMS sending failed:', smsResult.message);
       if (process.env.SMS_PROVIDER !== 'development') {
         return res.status(500).json({
           message: 'Failed to send OTP via SMS',
@@ -165,7 +189,7 @@ const sendOtp = async (req, res) => {
       phone: validatedPhone
     });
   } catch (error) {
-    console.error('Send OTP Error:', error);
+    logger.error('Send OTP Error:', error);
     res.status(500).json({ message: 'Failed to send OTP', error: error.message });
   }
 };
@@ -196,7 +220,7 @@ const verifyOtp = async (req, res) => {
 
     const verifyKey = email || validatedPhone;
     const otpResult = await otpStorage.verifyStoredOTP(verifyKey, otp, true);
-    console.log(`Verifying OTP for ${verifyKey}: Entered=${otp}, Result=${otpResult.valid}, Message=${otpResult.message}`);
+    logger.info(`Verifying OTP for ${verifyKey}: Entered=${otp}, Result=${otpResult.valid}, Message=${otpResult.message}`);
 
     if (!otpResult.valid) {
       return res.status(401).json({ message: otpResult.message });
@@ -236,6 +260,7 @@ const verifyOtp = async (req, res) => {
 
       user = await firebaseStorage.createUser(newUser);
       const token = generateToken(user);
+      setAuthCookie(res, token);
       publishEvent('customers.changed', { type: 'registered', userId: user.id });
 
       return res.status(201).json({
@@ -280,6 +305,7 @@ const verifyOtp = async (req, res) => {
     }
 
     const token = generateToken(user);
+    setAuthCookie(res, token);
     res.status(200).json({
       message: 'Welcome back!',
       user: sanitizeUser(user),
@@ -287,7 +313,7 @@ const verifyOtp = async (req, res) => {
       isNewUser: false
     });
   } catch (error) {
-    console.error('Verify OTP Error:', error);
+    logger.error('Verify OTP Error:', error);
     res.status(500).json({ message: 'OTP verification failed', error: error.message });
   }
 };
@@ -326,6 +352,7 @@ const register = async (req, res) => {
     });
 
     const token = generateToken(user);
+    setAuthCookie(res, token);
     publishEvent('customers.changed', { type: 'registered', userId: user.id });
 
     res.status(201).json({
@@ -334,7 +361,7 @@ const register = async (req, res) => {
       token
     });
   } catch (error) {
-    console.error('Register Error:', error);
+    logger.error('Register Error:', error);
     res.status(500).json({ message: 'Registration failed', error: error.message });
   }
 };
@@ -366,13 +393,14 @@ const login = async (req, res) => {
     }
 
     const token = generateToken(user);
+    setAuthCookie(res, token);
     res.status(200).json({
       message: 'Login successful!',
       user: sanitizeUser(user),
       token
     });
   } catch (error) {
-    console.error('Login Error:', error);
+    logger.error('Login Error:', error);
     res.status(500).json({ message: 'Login failed', error: error.message });
   }
 };
@@ -390,7 +418,7 @@ const getProfile = async (req, res) => {
 
     res.status(200).json({ user: sanitizeUser(user) });
   } catch (error) {
-    console.error('Get Profile Error:', error);
+    logger.error('Get Profile Error:', error);
     res.status(500).json({ message: 'Failed to get profile', error: error.message });
   }
 };
@@ -421,7 +449,7 @@ const updateProfile = async (req, res) => {
       user: sanitizeUser(user)
     });
   } catch (error) {
-    console.error('Update Profile Error:', error);
+    logger.error('Update Profile Error:', error);
     res.status(500).json({ message: 'Failed to update profile', error: error.message });
   }
 };
@@ -453,7 +481,7 @@ const changePassword = async (req, res) => {
 
     res.status(200).json({ message: 'Password changed successfully' });
   } catch (error) {
-    console.error('Change Password Error:', error);
+    logger.error('Change Password Error:', error);
     res.status(500).json({ message: 'Failed to change password', error: error.message });
   }
 };
@@ -480,7 +508,7 @@ const setPassword = async (req, res) => {
 
     res.status(200).json({ message: 'Password set successfully' });
   } catch (error) {
-    console.error('Set Password Error:', error);
+    logger.error('Set Password Error:', error);
     res.status(500).json({ message: 'Failed to set password', error: error.message });
   }
 };
@@ -521,38 +549,43 @@ const resetPasswordWithOtp = async (req, res) => {
 
     res.status(200).json({ message: 'Password updated successfully' });
   } catch (error) {
-    console.error('Reset Password With OTP Error:', error);
+    logger.error('Reset Password With OTP Error:', error);
     res.status(500).json({ message: 'Failed to update password', error: error.message });
   }
 };
 
-// @desc    Admin login with PIN
+// @desc    Admin login with password
 // @route   POST /api/auth/admin-login
 // @access  Public
 const adminLogin = async (req, res) => {
   try {
-    const { pin } = req.body;
+    const { email, password } = req.body;
 
-    if (pin !== '1234') {
-      return res.status(401).json({ message: 'Invalid admin PIN' });
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    const adminUser = {
-      id: 'admin_12345',
-      name: 'System Admin',
-      role: 'admin',
-      email: 'admin@niraa.com'
-    };
+    const user = await firebaseStorage.findUserByEmail(email);
 
-    const token = generateToken(adminUser);
+    if (!user || user.role !== 'admin') {
+      return res.status(401).json({ message: 'Invalid admin credentials' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password || '');
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Invalid admin credentials' });
+    }
+
+    const token = generateToken(user);
+    setAuthCookie(res, token);
 
     res.status(200).json({
       message: 'Admin login successful!',
-      user: adminUser,
+      user: sanitizeUser(user),
       token
     });
   } catch (error) {
-    console.error('Admin Login Error:', error);
+    logger.error('Admin Login Error:', error);
     res.status(500).json({ message: 'Admin login failed', error: error.message });
   }
 };
@@ -576,7 +609,7 @@ const verifyFirebase = async (req, res) => {
     try {
       decodedToken = await auth.verifyIdToken(idToken);
     } catch (err) {
-      console.error('Firebase token verification failed:', err.message);
+      logger.error('Firebase token verification failed:', err.message);
       return res.status(401).json({ message: 'Invalid or expired Firebase token' });
     }
 
@@ -622,6 +655,7 @@ const verifyFirebase = async (req, res) => {
 
       user = await firebaseStorage.createUser(newUser);
       const token = generateToken(user);
+      setAuthCookie(res, token);
       publishEvent('customers.changed', { type: 'registered', userId: user.id });
 
       return res.status(201).json({
@@ -659,6 +693,7 @@ const verifyFirebase = async (req, res) => {
     }
 
     const token = generateToken(user);
+    setAuthCookie(res, token);
     res.status(200).json({
       message: 'Welcome back!',
       user: sanitizeUser(user),
@@ -666,7 +701,7 @@ const verifyFirebase = async (req, res) => {
       isNewUser: false
     });
   } catch (error) {
-    console.error('Verify Firebase Error:', error);
+    logger.error('Verify Firebase Error:', error);
     res.status(500).json({ message: 'Firebase authentication failed', error: error.message });
   }
 };
@@ -677,6 +712,11 @@ module.exports = {
   verifyOtp,
   register,
   login,
+  // cookie-based session helpers
+  logout: async (req, res) => {
+    clearAuthCookie(res);
+    res.status(200).json({ message: 'Logged out' });
+  },
   getProfile,
   updateProfile,
   changePassword,

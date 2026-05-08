@@ -573,7 +573,6 @@ export default function AdminOrders() {
   const timerRef = useRef(null);
   const prevOrderIds = useRef(new Set());
 
-  const getToken = () => localStorage.getItem('niraa_token');
   const user = JSON.parse(localStorage.getItem('niraa_user') || 'null');
   const isAdmin = user?.role === 'admin';
 
@@ -582,9 +581,8 @@ export default function AdminOrders() {
     if (!isAdmin) return;
     quiet ? setRefreshing(true) : setLoading(true);
     try {
-      const token = getToken();
       const res = await fetch(`${API_BASE_URL}/orders`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed');
@@ -623,10 +621,10 @@ export default function AdminOrders() {
   const updateStatus = async (id, status, paymentStatus, refundStatus) => {
     setUpdatingId(id);
     try {
-      const token = getToken();
       const res = await fetch(`${API_BASE_URL}/orders/${id}/status`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, paymentStatus, refundStatus }),
       });
       const updated = await res.json();

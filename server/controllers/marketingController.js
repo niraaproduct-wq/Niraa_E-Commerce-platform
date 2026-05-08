@@ -3,6 +3,7 @@
 const { getFirebase } = require('../config/firebase');
 const { uploadBuffer, deleteImage } = require('../config/cloudinary');
 const broadcastProvider = require('../services/broadcastProvider');
+const logger = require('../utils/logger');
 
 // Firestore collection names
 const COLLECTIONS = {
@@ -44,6 +45,7 @@ exports.getMarketingStats = async (req, res) => {
     try {
         const User = require('../models/User');
 
+
         const [
             bannersSnap,
             logsSnap,
@@ -58,7 +60,7 @@ exports.getMarketingStats = async (req, res) => {
             User.countDocuments({ role: { $ne: 'admin' }, phone: { $exists: true, $ne: null } }),
         ]);
 
-        const totalSentSnap = await db
+        const totalSentSnap = await getDb()
             .collection(COLLECTIONS.BROADCAST_LOGS)
             .where('status', '==', 'sent')
             .count()
@@ -78,7 +80,7 @@ exports.getMarketingStats = async (req, res) => {
             },
         });
     } catch (err) {
-        console.error('[Marketing] getMarketingStats:', err);
+        logger.error('[Marketing] getMarketingStats:', err);
         return res.status(500).json({ success: false, message: 'Failed to fetch stats.' });
     }
 };
@@ -103,7 +105,7 @@ exports.sendBroadcast = async (req, res) => {
         }
 
         // Create pending log in Firestore
-        const logRef = db.collection(COLLECTIONS.BROADCAST_LOGS).doc();
+        const logRef = getDb().collection(COLLECTIONS.BROADCAST_LOGS).doc();
         await logRef.set({
             id: logRef.id,
             message: message.trim(),
@@ -147,7 +149,7 @@ exports.sendBroadcast = async (req, res) => {
                 })
             );
     } catch (err) {
-        console.error('[Marketing] sendBroadcast:', err);
+        logger.error('[Marketing] sendBroadcast:', err);
         return res.status(500).json({ success: false, message: 'Server error during broadcast.' });
     }
 };
@@ -157,7 +159,7 @@ exports.sendBroadcast = async (req, res) => {
  */
 exports.getBroadcastLogs = async (req, res) => {
     try {
-        const snap = await db
+        const snap = await getDb()
             .collection(COLLECTIONS.BROADCAST_LOGS)
             .orderBy('createdAt', 'desc')
             .limit(30)
@@ -166,7 +168,7 @@ exports.getBroadcastLogs = async (req, res) => {
         const logs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         return res.json({ success: true, logs });
     } catch (err) {
-        console.error('[Marketing] getBroadcastLogs:', err);
+        logger.error('[Marketing] getBroadcastLogs:', err);
         return res.status(500).json({ success: false, message: 'Failed to fetch logs.' });
     }
 };
@@ -178,7 +180,7 @@ exports.getBroadcastLogs = async (req, res) => {
  */
 exports.getBanners = async (req, res) => {
     try {
-        const snap = await db
+        const snap = await getDb()
             .collection(COLLECTIONS.BANNERS)
             .orderBy('order', 'asc')
             .get();
@@ -186,7 +188,7 @@ exports.getBanners = async (req, res) => {
         const banners = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         return res.json({ success: true, banners });
     } catch (err) {
-        console.error('[Marketing] getBanners:', err);
+        logger.error('[Marketing] getBanners:', err);
         return res.status(500).json({ success: false, message: 'Failed to fetch banners.' });
     }
 };
@@ -212,7 +214,7 @@ exports.createBanner = async (req, res) => {
             imagePublicId = result.public_id;
         }
 
-        const docRef = db.collection(COLLECTIONS.BANNERS).doc();
+        const docRef = getDb().collection(COLLECTIONS.BANNERS).doc();
         const banner = {
             id: docRef.id,
             title,
@@ -231,7 +233,7 @@ exports.createBanner = async (req, res) => {
         await docRef.set(banner);
         return res.status(201).json({ success: true, banner });
     } catch (err) {
-        console.error('[Marketing] createBanner:', err);
+        logger.error('[Marketing] createBanner:', err);
         return res.status(500).json({ success: false, message: 'Failed to create banner.' });
     }
 };
@@ -243,7 +245,7 @@ exports.createBanner = async (req, res) => {
 exports.updateBanner = async (req, res) => {
     try {
         const { id } = req.params;
-        const docRef = db.collection(COLLECTIONS.BANNERS).doc(id);
+        const docRef = getDb().collection(COLLECTIONS.BANNERS).doc(id);
         const snap = await docRef.get();
 
         if (!snap.exists) {
@@ -275,7 +277,7 @@ exports.updateBanner = async (req, res) => {
         const updated = { id, ...existing, ...updates };
         return res.json({ success: true, banner: updated });
     } catch (err) {
-        console.error('[Marketing] updateBanner:', err);
+        logger.error('[Marketing] updateBanner:', err);
         return res.status(500).json({ success: false, message: 'Failed to update banner.' });
     }
 };
@@ -286,7 +288,7 @@ exports.updateBanner = async (req, res) => {
 exports.deleteBanner = async (req, res) => {
     try {
         const { id } = req.params;
-        const docRef = db.collection(COLLECTIONS.BANNERS).doc(id);
+        const docRef = getDb().collection(COLLECTIONS.BANNERS).doc(id);
         const snap = await docRef.get();
 
         if (!snap.exists) {
@@ -299,7 +301,7 @@ exports.deleteBanner = async (req, res) => {
         await docRef.delete();
         return res.json({ success: true, message: 'Banner deleted.' });
     } catch (err) {
-        console.error('[Marketing] deleteBanner:', err);
+        logger.error('[Marketing] deleteBanner:', err);
         return res.status(500).json({ success: false, message: 'Failed to delete banner.' });
     }
 };
@@ -310,7 +312,7 @@ exports.deleteBanner = async (req, res) => {
 exports.toggleBanner = async (req, res) => {
     try {
         const { id } = req.params;
-        const docRef = db.collection(COLLECTIONS.BANNERS).doc(id);
+        const docRef = getDb().collection(COLLECTIONS.BANNERS).doc(id);
         const snap = await docRef.get();
 
         if (!snap.exists) {
@@ -322,7 +324,7 @@ exports.toggleBanner = async (req, res) => {
 
         return res.json({ success: true, banner: { id, ...snap.data(), isActive: newActive } });
     } catch (err) {
-        console.error('[Marketing] toggleBanner:', err);
+        logger.error('[Marketing] toggleBanner:', err);
         return res.status(500).json({ success: false, message: 'Failed to toggle banner.' });
     }
 };

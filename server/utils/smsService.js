@@ -12,7 +12,8 @@
  */
 
 const https = require('https');
-const http = require('http');
+const http = require('http');const logger = require('./logger');
+
 
 // SMS Provider configuration from environment
 const SMS_PROVIDER = process.env.SMS_PROVIDER || 'development'; // development, fast2sms, msg91, twilio, textlocal
@@ -44,8 +45,8 @@ const sendSMS = async (phone, otp, message = null) => {
       
       default:
         // Development mode - log to console
-        console.log(`\n📱 SMS OTP for ${phone}: ${otp}`);
-        console.log(`   Message: ${smsMessage}\n`);
+        logger.info(`\n📱 SMS OTP for ${phone}: ${otp}`);
+        logger.info(`   Message: ${smsMessage}\n`);
         return {
           success: true,
           message: 'OTP sent (development mode - check console)',
@@ -54,7 +55,7 @@ const sendSMS = async (phone, otp, message = null) => {
         };
     }
   } catch (error) {
-    console.error('SMS Service Error:', error.message);
+    logger.error('SMS Service Error:', error.message);
     return {
       success: false,
       message: `Failed to send SMS: ${error.message}`,

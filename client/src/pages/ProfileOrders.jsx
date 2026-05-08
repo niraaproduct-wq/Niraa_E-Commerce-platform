@@ -420,9 +420,8 @@ const ProfileOrders = () => {
 
   const fetchOrders = async () => {
     try {
-      const token = localStorage.getItem('niraa_token');
       const response = await fetch(`${API_BASE_URL}/orders/my`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
       });
       if (response.ok) {
         const data = await response.json();
@@ -437,13 +436,12 @@ const ProfileOrders = () => {
 
   const handleCancelOrder = async (orderId, reasonKey, reasonText) => {
     try {
-      const token = localStorage.getItem('niraa_token');
       const response = await fetch(`${API_BASE_URL}/orders/${orderId}/cancel`, {
         method: 'PUT',
         headers: { 
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({ reasonKey, reasonText })
       });
       

@@ -139,10 +139,10 @@ const Profile = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const token = localStorage.getItem('niraa_token');
       const res = await fetch(`${API_BASE_URL}/auth/profile`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: formData.name, email: formData.email, address: { addressLine1: formData.address, city: formData.city, pincode: formData.pincode } })
       });
       if (res.ok) {
@@ -178,10 +178,10 @@ const Profile = () => {
     if (passwordForm.newPassword.length < 6) return toast.error('Min 6 characters');
     setLoading(true);
     try {
-      const token = localStorage.getItem('niraa_token');
       const res = await fetch(`${API_BASE_URL}/auth/reset-password-with-otp`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ otp: passwordForm.otp, newPassword: passwordForm.newPassword })
       });
       if (res.ok) {

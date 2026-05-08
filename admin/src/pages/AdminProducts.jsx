@@ -109,15 +109,8 @@ const AdminProducts = () => {
 
   const fetchProducts = async () => {
     try {
-      const token = localStorage.getItem('niraa_token');
-      if (!token) {
-        toast.error('Session expired. Please login again.');
-        setReadOnlyMode(true);
-        return;
-      }
-
       const res = await fetch(`${API_BASE_URL}/admin/products`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
       });
 
       if (res.ok) {
@@ -209,10 +202,9 @@ const AdminProducts = () => {
       const compressedFile = await compressImage(file);
       const uploadData = new FormData();
       uploadData.append('image', compressedFile);
-      const token = localStorage.getItem('niraa_token');
       const res = await fetch(`${API_BASE_URL}/admin/upload`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
         body: uploadData,
       });
       if (res.ok) {
@@ -241,13 +233,13 @@ const AdminProducts = () => {
     e.preventDefault();
     if (readOnlyMode) { toast.error('Editing disabled in read-only mode'); return; }
     try {
-      const token = localStorage.getItem('niraa_token');
       const url = editingProduct
         ? `${API_BASE_URL}/admin/products/${editingProduct._id}`
         : `${API_BASE_URL}/admin/products`;
       const res = await fetch(url, {
         method: editingProduct ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
       if (res.ok) {
@@ -285,10 +277,9 @@ const AdminProducts = () => {
   const handleDelete = async (id) => {
     if (readOnlyMode) { toast.error('Deletion disabled in read-only mode'); return; }
     try {
-      const token = localStorage.getItem('niraa_token');
       const res = await fetch(`${API_BASE_URL}/admin/products/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) { toast.success('Product deleted'); fetchProducts(); }
       else { toast.error('Delete failed'); }

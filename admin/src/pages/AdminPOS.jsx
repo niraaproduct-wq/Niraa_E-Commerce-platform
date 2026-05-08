@@ -148,13 +148,12 @@ const AdminPOS = () => {
         deliveryStatus: deliveryStatus
       };
 
-      const token = localStorage.getItem('niraa_token');
       const res = await fetch(`${API_BASE_URL}/orders`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
         },
+        credentials: 'include',
         body: JSON.stringify(orderData)
       });
 

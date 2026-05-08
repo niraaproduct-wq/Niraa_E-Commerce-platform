@@ -1,21 +1,43 @@
 const { Resend } = require('resend');
+const logger = require('./logger');
 
-// Initialize Resend with API Key from environment variables
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy initialize Resend only when needed (after checking API key exists)
+let resend = null;
+
+const initializeResend = () => {
+  if (!resend && process.env.RESEND_API_KEY && process.env.RESEND_API_KEY !== 'your_resend_api_key_here') {
+    try {
+      resend = new Resend(process.env.RESEND_API_KEY);
+    } catch (error) {
+      logger.warn(`Failed to initialize Resend: ${error.message}`);
+      resend = null;
+    }
+  }
+  return resend;
+};
 
 const sendEmailOTP = async (email, otp, customerName = 'Customer') => {
   try {
     // If no API key or placeholder is used, fallback to development mode
     if (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY === 'your_resend_api_key_here') {
-      console.warn('!!! VALID RESEND_API_KEY MISSING: Falling back to Development Mode !!!');
-      console.log('Please add your real Resend API Key to the .env file.');
-      console.log(`To: ${email} | OTP: ${otp} | Customer: ${customerName}`);
+      logger.warn('!!! VALID RESEND_API_KEY MISSING: Falling back to Development Mode !!!');
+      logger.info('Please add your real Resend API Key to the .env file.');
+      logger.info(`To: ${email} | OTP: ${otp} | Customer: ${customerName}`);
       return { success: true, devOtp: otp };
     }
 
-    console.log(`Attempting to send email to ${email} via Resend API`);
+    // Initialize Resend client
+    const resendClient = initializeResend();
+    
+    if (!resendClient) {
+      logger.warn('Resend client not available, falling back to Development Mode');
+      logger.info(`To: ${email} | OTP: ${otp} | Customer: ${customerName}`);
+      return { success: true, devOtp: otp };
+    }
 
-    const { data, error } = await resend.emails.send({
+    logger.info(`Attempting to send email to ${email} via Resend API`);
+
+    const { data, error } = await resendClient.emails.send({
       // NOTE: Using support@ instead of noreply@ for better deliverability
       // If domain is not yet verified in Resend dashboard, this might need to stay as onboarding@resend.dev
       from: 'NiraaCare <support@niraacare.com>',
@@ -85,15 +107,15 @@ const sendEmailOTP = async (email, otp, customerName = 'Customer') => {
     });
 
     if (error) {
-      console.error('Resend API Error:', error);
+      logger.error(`Resend API Error: ${error.message}`, { error });
       return { success: false, message: `Resend error: ${error.message}` };
     }
 
-    console.log('Email sent successfully via Resend:', data.id);
+    logger.info(`Email sent successfully via Resend: ${data.id}`);
     return { success: true };
 
   } catch (error) {
-    console.error('Send Email Error (Resend):', error);
+    logger.error(`Send Email Error (Resend): ${error.message}`, { error });
     return { success: false, message: error.message };
   }
 };

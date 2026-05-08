@@ -13,10 +13,48 @@ const toPlainUser = (doc) => {
   };
 };
 
-const getAllUsers = async () => {
+const getUsers = async ({ role, isActive, search, limit = 20, skip = 0 }) => {
   const { db } = getFirebase();
-  const snap = await db.collection(USERS_COLLECTION).get();
-  return snap.docs.map((doc) => toPlainUser(doc));
+  let query = db.collection(USERS_COLLECTION);
+
+  if (role) {
+    query = query.where('role', '==', role);
+  }
+  
+  if (isActive !== undefined) {
+    query = query.where('isActive', '==', isActive);
+  }
+
+  // Fetch without orderBy to avoid needing composite indexes.
+  // We sort in memory after filtering, which is fine for admin use.
+  const snapshot = await query.get();
+  let users = snapshot.docs.map(toPlainUser).filter(Boolean);
+
+
+  // Sort by creation date descending (in memory)
+  users.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+  if (search) {
+    const q = String(search).toLowerCase();
+    users = users.filter(u =>
+      String(u.name || '').toLowerCase().includes(q) ||
+      String(u.phone || '').toLowerCase().includes(q) ||
+      String(u.email || '').toLowerCase().includes(q)
+    );
+  }
+
+  const total = users.length;
+  const paginated = users.slice(skip, skip + limit);
+
+  return { users: paginated, total };
+};
+
+const getAllUsers = async () => {
+  // Keeping this for legacy but with a warning. Should be replaced by getUsers.
+  console.warn('getAllUsers called. This is a performance risk for large datasets.');
+  const { db } = getFirebase();
+  const snap = await db.collection(USERS_COLLECTION).limit(1000).get();
+  return snap.docs.map((doc) => toPlainUser(doc)).filter(Boolean);
 };
 
 const findUserByPhone = async (phone) => {
@@ -114,6 +152,7 @@ const updateUser = async (userId, updateData) => {
 
 module.exports = {
   getAllUsers,
+  getUsers,
   findUserByPhone,
   findUserByEmail,
   findUserByFirebaseUid,

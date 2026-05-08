@@ -1,5 +1,6 @@
 const { getFirebase } = require('../config/firebase');
 const { publishEvent } = require('../utils/realtimeHub');
+const logger = require('../utils/logger');
 
 const ORDERS_COLLECTION = 'orders';
 
@@ -96,7 +97,7 @@ const placeOrder = async (req, res) => {
     
     res.status(201).json(savedOrder);
   } catch (err) {
-    console.error('Place Order Error:', err.message);
+    logger.error('Place Order Error:', err.message);
     res.status(400).json({ message: err.message });
   }
 };
@@ -115,6 +116,8 @@ const getAllOrders = async (req, res) => {
 };
 
 // @desc    Get single order
+// @route   GET /api/orders/:id
+// @access  Private (owner or admin)
 const getOrder = async (req, res) => {
   try {
     const { db } = getFirebase();
@@ -122,7 +125,20 @@ const getOrder = async (req, res) => {
     
     if (!doc.exists) return res.status(404).json({ message: 'Order not found' });
     
-    res.json(toPlainOrder(doc));
+    const order = toPlainOrder(doc);
+
+    // Security check: Only admin or the customer who placed the order can see it
+    const isAdmin = req.user?.role === 'admin';
+    const isOwner = req.user && (
+      order.customerPhone === req.user.phone ||
+      order.userId === req.user.id
+    );
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ message: 'Access denied. You can only view your own orders.' });
+    }
+    
+    res.json(order);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -206,7 +222,7 @@ const updateOrderStatus = async (req, res) => {
     
     res.json(updatedOrder);
   } catch (err) {
-    console.error('Update Order Status Error:', err.message);
+    logger.error('Update Order Status Error:', err.message);
     res.status(500).json({ message: err.message });
   }
 };
@@ -240,9 +256,10 @@ const getOrderStats = async (req, res) => {
 const getMyOrders = async (req, res) => {
   try {
     const { db } = getFirebase();
+    const { page = 1, limit = 10 } = req.query;
+    const limitNum = Number(limit);
+    const skip = (Number(page) - 1) * limitNum;
     
-    // We use the authenticated user's ID to look up their phone number
-    // Then we query orders by customerPhone since placeOrder saves customerPhone
     const userSnapshot = await db.collection('users').doc(req.user.id).get();
     
     if (!userSnapshot.exists) {
@@ -251,18 +268,27 @@ const getMyOrders = async (req, res) => {
     
     const userData = userSnapshot.data();
     
-    const snapshot = await db.collection(ORDERS_COLLECTION)
+    // Fetch without orderBy to avoid needing a composite index on customerPhone + createdAt.
+    const fullSnapshot = await db.collection(ORDERS_COLLECTION)
       .where('customerPhone', '==', userData.phone)
       .get();
-      
-    const orders = snapshot.docs.map(toPlainOrder);
+
+    let orders = fullSnapshot.docs.map(toPlainOrder).filter(Boolean);
+
+    // Sort in memory (descending by createdAt)
+    orders.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+    const total = orders.length;
+    const paginated = orders.slice(skip, skip + limitNum);
     
-    // Sort client-side if needed since Firestore requires composite index for where + orderBy
-    orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    
-    res.json(orders);
+    res.json({
+      orders,
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / limitNum)
+    });
   } catch (err) {
-    console.error('Get My Orders Error:', err);
+    logger.error('Get My Orders Error:', err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -376,7 +402,7 @@ const cancelMyOrder = async (req, res) => {
 
     res.json(updatedOrder);
   } catch (err) {
-    console.error('Cancel Order Error:', err.message);
+    logger.error('Cancel Order Error:', err.message);
     res.status(400).json({ message: err.message });
   }
 };

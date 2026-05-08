@@ -13,25 +13,30 @@ const {
   checkPhone,
   adminLogin,
   resetPasswordWithOtp,
-  verifyFirebase
+  verifyFirebase,
+  logout
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
+const { authLimiter, otpLimiter } = require('../middleware/security');
+const validate = require('../middleware/validate');
+const schemas = require('../validators/schemas');
 
 // Public routes
-router.post('/check-phone', checkPhone);
-router.post('/send-otp', sendOtp);
-router.post('/send-email-otp', sendEmailOtp);
-router.post('/verify-otp', verifyOtp);
-router.post('/verify-firebase', verifyFirebase);
-router.post('/register', register);
-router.post('/login', login);
-router.post('/admin-login', adminLogin);
+router.post('/check-phone',      validate(schemas.auth.checkPhone),      checkPhone);
+router.post('/send-otp',         otpLimiter, validate(schemas.auth.sendOtp),      sendOtp);
+router.post('/send-email-otp',   otpLimiter, validate(schemas.auth.sendEmailOtp), sendEmailOtp);
+router.post('/verify-otp',       validate(schemas.auth.verifyOtp),       verifyOtp);
+router.post('/verify-firebase',  validate(schemas.auth.verifyFirebase),  verifyFirebase);
+router.post('/register',         authLimiter, validate(schemas.auth.register),    register);
+router.post('/login',            authLimiter, validate(schemas.auth.login),       login);
+router.post('/admin-login',      authLimiter, validate(schemas.auth.adminLogin),  adminLogin);
+router.post('/logout', logout);
 
 // Protected routes
-router.get('/profile', protect, getProfile);
-router.put('/profile', protect, updateProfile);
-router.put('/change-password', protect, changePassword);
-router.put('/reset-password-with-otp', protect, resetPasswordWithOtp);
-router.post('/set-password', protect, setPassword);
+router.get('/profile',                    protect, getProfile);
+router.put('/profile',                    protect, validate(schemas.auth.updateProfile),       updateProfile);
+router.put('/change-password',            protect, validate(schemas.auth.changePassword),      changePassword);
+router.put('/reset-password-with-otp',   protect, validate(schemas.auth.resetPasswordWithOtp), resetPasswordWithOtp);
+router.post('/set-password',              protect, validate(schemas.auth.setPassword),         setPassword);
 
 module.exports = router;

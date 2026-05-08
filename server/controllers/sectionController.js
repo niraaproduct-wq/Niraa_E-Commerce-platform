@@ -1,4 +1,5 @@
 const { getFirebase } = require('../config/firebase');
+const logger = require('../utils/logger');
 
 const SECTIONS_COLLECTION = 'pageSections';
 
@@ -31,7 +32,7 @@ const getPublicSections = async (req, res) => {
 
     res.json({ success: true, sections, page });
   } catch (error) {
-    console.error('Error fetching public sections:', error);
+    logger.error('Error fetching public sections:', error);
     res.status(500).json({ success: false, message: 'Failed to load page content' });
   }
 };
@@ -59,7 +60,7 @@ const getAdminSections = async (req, res) => {
 
     res.json({ success: true, sections, page });
   } catch (error) {
-    console.error('Error fetching admin sections:', error);
+    logger.error('Error fetching admin sections:', error);
     res.status(500).json({ success: false, message: 'Failed to load sections' });
   }
 };
@@ -101,7 +102,7 @@ const createSection = async (req, res) => {
       section: { id: docRef.id, _id: docRef.id, ...sectionData }
     });
   } catch (error) {
-    console.error('Error creating section:', error);
+    logger.error('Error creating section:', error);
     res.status(500).json({ success: false, message: 'Failed to create section' });
   }
 };
@@ -137,7 +138,7 @@ const updateSection = async (req, res) => {
 
     res.json({ success: true, message: 'Section saved as draft', section: toPlainSection(updated) });
   } catch (error) {
-    console.error('Error updating section:', error);
+    logger.error('Error updating section:', error);
     res.status(500).json({ success: false, message: 'Failed to update section' });
   }
 };
@@ -168,7 +169,7 @@ const deleteSection = async (req, res) => {
     await docRef.delete();
     res.json({ success: true, message: 'Section deleted' });
   } catch (error) {
-    console.error('Error deleting section:', error);
+    logger.error('Error deleting section:', error);
     res.status(500).json({ success: false, message: 'Failed to delete section' });
   }
 };
@@ -198,7 +199,7 @@ const reorderSections = async (req, res) => {
 
     res.json({ success: true, message: 'Sections reordered', sections });
   } catch (error) {
-    console.error('Error reordering sections:', error);
+    logger.error('Error reordering sections:', error);
     res.status(500).json({ success: false, message: 'Failed to reorder sections' });
   }
 };
@@ -238,7 +239,7 @@ const publishPage = async (req, res) => {
       publishedAt
     });
   } catch (error) {
-    console.error('Error publishing page:', error);
+    logger.error('Error publishing page:', error);
     res.status(500).json({ success: false, message: 'Failed to publish changes' });
   }
 };
@@ -267,7 +268,7 @@ const revertSection = async (req, res) => {
 
     res.json({ success: true, message: 'Reverted to published version', section: toPlainSection(updated) });
   } catch (error) {
-    console.error('Error reverting section:', error);
+    logger.error('Error reverting section:', error);
     res.status(500).json({ success: false, message: 'Failed to revert section' });
   }
 };
@@ -314,7 +315,7 @@ const duplicateSection = async (req, res) => {
       section: { id: newDocRef.id, _id: newDocRef.id, ...duplicateData }
     });
   } catch (error) {
-    console.error('Error duplicating section:', error);
+    logger.error('Error duplicating section:', error);
     res.status(500).json({ success: false, message: 'Failed to duplicate section' });
   }
 };

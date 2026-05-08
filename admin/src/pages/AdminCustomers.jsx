@@ -224,12 +224,10 @@ export default function AdminCustomers() {
     try {
       if (!quiet) setLoading(true);
       else setRefreshing(true);
-      const token = localStorage.getItem('niraa_token');
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
       const [ordersRes, registeredRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/orders`, { headers }),
-        fetch(`${API_BASE_URL}/admin/customers?limit=5000`, { headers }),
+        fetch(`${API_BASE_URL}/orders`, { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/admin/customers?limit=5000`, { credentials: 'include' }),
       ]);
 
       if (!ordersRes.ok || !registeredRes.ok) throw new Error('Failed to load data');

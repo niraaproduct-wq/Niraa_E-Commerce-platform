@@ -469,8 +469,7 @@ const AdminBuilder = () => {
   const fetchSections = async (page) => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('niraa_token');
-      const res = await fetch(`${API_BASE_URL}/sections/admin/${page}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API_BASE_URL}/sections/admin/${page}`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         const initial = data.sections || [];
@@ -569,10 +568,10 @@ const AdminBuilder = () => {
   const saveSections = async () => {
     setSaving(true);
     try {
-      const token = localStorage.getItem('niraa_token');
       const res = await fetch(`${API_BASE_URL}/sections/bulk/${activePage}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sections }),
       });
       if (res.ok) {
@@ -590,10 +589,9 @@ const AdminBuilder = () => {
   const publishSections = async () => {
     await saveSections();
     try {
-      const token = localStorage.getItem('niraa_token');
       const res = await fetch(`${API_BASE_URL}/sections/${activePage}/publish`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
+        credentials: 'include',
       });
       if (res.ok) {
         setPublished(true);

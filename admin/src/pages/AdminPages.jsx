@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate, useNavigate, Link, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../utils/constants';
+import AdminLoginPage from './AdminLogin.jsx';
 import AdminBuilder from './AdminBuilder';
 import AdminCustomers from './AdminCustomers';
 import AdminProducts from './AdminProducts';
@@ -279,10 +280,14 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       : location.pathname.startsWith(to);
 
   const handleLogout = () => {
-    localStorage.removeItem('niraa_token');
-    localStorage.removeItem('niraa_user');
-    localStorage.removeItem('niraa_admin_auth');
-    navigate('/login');
+    (async () => {
+      try {
+        await fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' });
+      } catch { /* ignore */ }
+      localStorage.removeItem('niraa_user');
+      localStorage.removeItem('niraa_admin_auth');
+      navigate('/login');
+    })();
   };
 
   const NAV = [
@@ -572,8 +577,7 @@ const AdminDashboard = () => {
   useEffect(() => {
     (async () => {
       try {
-        const token = localStorage.getItem('niraa_token');
-        const res = await fetch(`${API_BASE_URL}/admin/dashboard`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(`${API_BASE_URL}/admin/dashboard`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           setStats(data.stats);
@@ -735,140 +739,41 @@ const AdminInventory = () => (
 );
 
 // ─── Login ────────────────────────────────────────────────────────────────────
-const AdminLogin = ({ setAuth }) => {
-  const [pin, setPin] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const navigate = useNavigate();
-  const inputRef = useRef(null);
-
-  useEffect(() => { inputRef.current?.focus(); }, []);
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setError(''); setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/admin-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        localStorage.setItem('niraa_token', data.token);
-        localStorage.setItem('niraa_user', JSON.stringify(data.user));
-        localStorage.setItem('niraa_admin_auth', 'true');
-        setAuth(true);
-        navigate('/dashboard');
-      } else {
-        setError(data.message || 'Invalid PIN');
-        setPin('');
-      }
-    } catch {
-      setError('Connection error. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'var(--bg)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'var(--sans)',
-      position: 'relative', overflow: 'hidden',
-    }}>
-      <style>{GLOBAL_CSS}</style>
-
-      {/* Radial glow */}
-      <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(46,184,154,0.07) 0%, transparent 70%)',
-      }} />
-      {/* Grid pattern */}
-      <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.04,
-        backgroundImage: 'linear-gradient(var(--text-primary) 1px, transparent 1px), linear-gradient(90deg, var(--text-primary) 1px, transparent 1px)',
-        backgroundSize: '40px 40px',
-      }} />
-
-      <form onSubmit={handleLogin} className="animate-in" style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border-active)',
-        borderRadius: 20, padding: '40px 36px',
-        width: '100%', maxWidth: 390,
-        position: 'relative',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.4), 0 24px 60px rgba(0,0,0,0.5)',
-      }}>
-        {/* Accent line at top */}
-        <div style={{ position: 'absolute', top: 0, left: 40, right: 40, height: 1, background: 'linear-gradient(90deg, transparent, var(--accent), transparent)', borderRadius: 99 }} />
-
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 36 }}>
-          <div style={{ width: 42, height: 42, borderRadius: 12, background: 'linear-gradient(135deg, var(--accent), #1a8a72)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px var(--accent-glow)' }}>
-            <span style={{ color: '#021a14', fontWeight: 900, fontSize: 20, fontFamily: 'var(--display)' }}>N</span>
-          </div>
-          <div>
-            <div style={{ fontFamily: 'var(--display)', color: 'var(--text-primary)', fontWeight: 800, fontSize: 18, letterSpacing: '-0.01em' }}>NIRAA</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 2 }}>Admin Console</div>
-          </div>
-        </div>
-
-        <div style={{ fontFamily: 'var(--display)', fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: 6 }}>Welcome back</div>
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 28 }}>Enter your admin PIN to access the console</div>
-
-        <div style={{ marginBottom: 24 }}>
-          <label style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--display)' }}>Admin PIN</label>
-          <div style={{ position: 'relative' }}>
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }}>
-              <Ic d={P.shield} size={15} />
-            </span>
-            <input
-              ref={inputRef}
-              type="password"
-              value={pin}
-              onChange={e => setPin(e.target.value)}
-              placeholder="••••••"
-              className="input"
-              style={{ paddingLeft: 38, fontFamily: 'var(--mono)', letterSpacing: 8, fontSize: 18, borderColor: error ? 'var(--red)' : undefined }}
-            />
-          </div>
-          {error && (
-            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--red)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Ic d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" size={13} />
-              {error}
-            </div>
-          )}
-        </div>
-
-        <button type="submit" disabled={loading || !pin} className="btn btn-primary" style={{ width: '100%', padding: '13px', fontSize: 14 }}>
-          {loading ? 'Verifying…' : 'Continue →'}
-        </button>
-
-        <div style={{ marginTop: 20, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
-          Secure admin access · NIRAA v2.0
-        </div>
-      </form>
-    </div>
-  );
-};
-
 // ─── Routes ───────────────────────────────────────────────────────────────────
 export const AdminRoutes = () => {
   const [auth, setAuth] = useState(() => {
     try {
       const user = JSON.parse(localStorage.getItem('niraa_user') || 'null');
-      const token = localStorage.getItem('niraa_token');
       const adminAuth = localStorage.getItem('niraa_admin_auth') === 'true';
-      return adminAuth && !!token && user?.role === 'admin';
+      return adminAuth && user?.role === 'admin';
     } catch { return false; }
   });
+
+  // Verify cookie-based session on load (handles refresh/new tab)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/auth/profile`, { credentials: 'include' });
+        if (!res.ok) throw new Error('not authed');
+        const data = await res.json();
+        if (data?.user?.role === 'admin') {
+          localStorage.setItem('niraa_user', JSON.stringify(data.user));
+          localStorage.setItem('niraa_admin_auth', 'true');
+          setAuth(true);
+        } else {
+          throw new Error('not admin');
+        }
+      } catch {
+        localStorage.removeItem('niraa_admin_auth');
+        setAuth(false);
+      }
+    })();
+  }, []);
 
   if (!auth) {
     return (
       <Routes>
-        <Route path="/login" element={<AdminLogin setAuth={setAuth} />} />
+        <Route path="/login" element={<AdminLoginPage />} />
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     );

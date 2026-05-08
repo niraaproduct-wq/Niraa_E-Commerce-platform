@@ -1,25 +1,23 @@
 const express = require('express');
 const router = express.Router();
+const { createPaymentOrder, verifyPayment, refundPayment } = require('../controllers/paymentController');
+const { handleWebhook } = require('../controllers/webhookController');
 const { protect, adminOnly } = require('../middleware/authMiddleware');
-const {
-  createPaymentOrder,
-  verifyPayment,
-  getPaymentHistory,
-  getPaymentDetails,
-  refundPayment,
-  getAllPayments
-} = require('../controllers/paymentController');
+const validate = require('../middleware/validate');
+const schemas = require('../validators/schemas');
 
-// Public routes
-router.post('/create-order', createPaymentOrder);
-router.post('/verify', verifyPayment);
+// ──────────────────────────────────────────────────────────────────────────────
+// WEBHOOK (must be BEFORE express.json() parses the body — raw body needed for
+// signature verification). We register it here but the body parsing is
+// handled in app.js with the rawBody middleware on this route.
+// ──────────────────────────────────────────────────────────────────────────────
+router.post('/webhook', express.json(), handleWebhook);
 
-// Protected routes
-router.get('/history', protect, getPaymentHistory);
-router.get('/:id', protect, getPaymentDetails);
-router.post('/:id/refund', protect, refundPayment);
+// ── Authenticated payment routes ──────────────────────────────────────────────
+router.post('/create', protect, validate(schemas.payments.createOrder), createPaymentOrder);
+router.post('/verify', protect, validate(schemas.payments.verify), verifyPayment);
 
-// Admin routes
-router.get('/', protect, adminOnly, getAllPayments);
+// ── Admin-only refund ─────────────────────────────────────────────────────────
+router.post('/refund', protect, adminOnly, validate(schemas.payments.refund), refundPayment);
 
 module.exports = router;

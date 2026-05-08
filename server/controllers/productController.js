@@ -1,4 +1,6 @@
 const { getFirebase } = require('../config/firebase');
+const logger = require('../utils/logger');
+
 
 const PRODUCTS_COLLECTION = 'products';
 
@@ -22,6 +24,10 @@ const getProducts = async (req, res) => {
     const { category, featured, search, page = 1, limit = 20 } = req.query;
     const { db } = getFirebase();
     
+    const limitNum = Number(limit);
+    const pageNum = Number(page);
+    const skip = (pageNum - 1) * limitNum;
+
     let query = db.collection(PRODUCTS_COLLECTION).where('isActive', '==', true);
     
     if (category) {
@@ -30,31 +36,36 @@ const getProducts = async (req, res) => {
     if (featured) {
       query = query.where('isFeatured', '==', true);
     }
-    
-    // Firestore does not do nice regex searching natively, so we fetch then filter in memory for search
-    // In production with larger datasets, use Algolia/Elasticsearch or specifically crafted tokens.
+
+    // Single query — fetch all matching docs and handle sorting/pagination in memory.
+    // This avoids needing composite indexes and works across all firebase-admin versions.
     const snapshot = await query.get();
-    let products = snapshot.docs.map(toPlainProduct);
-    
+    let products = snapshot.docs.map(toPlainProduct).filter(Boolean);
+
+
+    // Sort by creation date (descending)
+    products.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+    // Apply text search filter if needed
     if (search) {
       const searchLower = search.toLowerCase();
-      products = products.filter(p => p.name && p.name.toLowerCase().includes(searchLower));
+      products = products.filter(p => 
+        (p.name && p.name.toLowerCase().includes(searchLower)) ||
+        (p.description && p.description.toLowerCase().includes(searchLower))
+      );
     }
-    
-    // Sort and paginate in memory since we already fetched
-    products.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-    
+
     const total = products.length;
-    const skip = (Number(page) - 1) * Number(limit);
-    const paginatedProducts = products.slice(skip, skip + Number(limit));
+    const paginatedProducts = products.slice(skip, skip + limitNum);
 
     res.json({ 
       products: paginatedProducts, 
       total, 
-      page: Number(page), 
-      pages: Math.ceil(total / Number(limit)) 
+      page: pageNum, 
+      pages: Math.ceil(total / limitNum) 
     });
   } catch (err) {
+    logger.error('Get Products Error:', err.message);
     res.status(500).json({ message: err.message });
   }
 };

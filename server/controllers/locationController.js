@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 // Location Controller - Handles geolocation and address services
 // In production, integrate with Google Maps API or similar service
 
@@ -31,7 +32,7 @@ const detectLocation = async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Detect Location Error:', error);
+    logger.error('Detect Location Error:', error);
     res.status(500).json({ 
       message: 'Failed to detect location', 
       error: error.message 
@@ -84,7 +85,7 @@ const reverseGeocode = async (req, res) => {
           });
         }
       } catch (err) {
-        console.error('Google Maps Geocode Error, falling back to OSM:', err);
+        logger.error('Google Maps Geocode Error, falling back to OSM:', err);
       }
     }
 
@@ -155,7 +156,7 @@ const reverseGeocode = async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Reverse Geocode Error:', error);
+    logger.error('Reverse Geocode Error:', error);
     res.status(500).json({ 
       message: 'Failed to reverse geocode', 
       error: error.message 
@@ -202,7 +203,7 @@ const getAddressSuggestions = async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Get Address Suggestions Error:', error);
+    logger.error('Get Address Suggestions Error:', error);
     res.status(500).json({ 
       message: 'Failed to get suggestions', 
       error: error.message 
@@ -240,7 +241,7 @@ const validateAddress = async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Validate Address Error:', error);
+    logger.error('Validate Address Error:', error);
     res.status(500).json({ 
       message: 'Failed to validate address', 
       error: error.message 
