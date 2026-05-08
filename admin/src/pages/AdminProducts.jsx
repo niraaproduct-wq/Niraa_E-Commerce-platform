@@ -498,7 +498,14 @@ const AdminProducts = () => {
       </div>
 
       {/* ─── Table ─── */}
-      <div style={{ background: T.white, border: `1.5px solid ${T.gray200}`, borderRadius: T.radiusLg, boxShadow: T.shadow, overflowX: 'auto' }}>
+      <div style={{ 
+        background: T.white, 
+        border: `1.5px solid ${T.gray200}`, 
+        borderRadius: T.radiusLg, 
+        boxShadow: T.shadow, 
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch' // Smooth scroll for iOS
+      }}>
         {loading ? (
           <div style={{ padding: '60px 24px', textAlign: 'center', color: T.gray400, fontSize: 14 }}>
             Loading products…
@@ -509,7 +516,7 @@ const AdminProducts = () => {
             <p style={{ margin: 0, color: T.gray400, fontSize: 14 }}>No products found</p>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', minWidth: '950px', borderCollapse: 'collapse', tableLayout: 'auto' }}>
             <thead>
               <tr style={{ background: T.gray50, borderBottom: `1.5px solid ${T.gray200}` }}>
                 {['Product', 'Category', 'Offer Price', 'Stock', 'Status', 'Barcode', ''].map(h => (
