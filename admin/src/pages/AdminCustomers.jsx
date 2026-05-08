@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
+import { useRealtime } from '../context/RealtimeContext.jsx';
 import { formatPrice } from '../utils/formatPrice.js';
 import { API_BASE_URL } from '../utils/constants.js';
 
@@ -212,8 +213,8 @@ export default function AdminCustomers() {
   const [activityFilter, setActivityFilter] = useState('all');
   const [customerTypeFilter, setCustomerTypeFilter] = useState('all');
   const [sortBy, setSortBy] = useState('lastOrder');
-  const [connectionStatus, setConnectionStatus] = useState('offline');
   const [metrics, setMetrics] = useState({ totalRegisteredCustomers: 0, customersOrderedToday: 0, activeCustomers30Days: 0 });
+  const { lastEvent, socket } = useRealtime();
   const [refreshing, setRefreshing] = useState(false);
 
   const normalizePhone = (phone) => String(phone || '').replace(/[^0-9]/g, '');
@@ -307,23 +308,14 @@ export default function AdminCustomers() {
 
   useEffect(() => { if (isAdmin) loadCustomers(); }, [isAdmin]);
 
+  // Listen for realtime events from the global socket
   useEffect(() => {
-    if (!isAdmin) return;
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    let wsHost = window.location.hostname === 'localhost' ? 'localhost:5000' : window.location.host;
-    if (API_BASE_URL.startsWith('http')) wsHost = API_BASE_URL.replace(/^https?:\/\//, '').replace(/\/api$/, '');
-    const ws = new WebSocket(`${wsProtocol}://${wsHost}/ws`);
-    ws.onopen = () => setConnectionStatus('online');
-    ws.onclose = () => setConnectionStatus('offline');
-    ws.onerror = () => setConnectionStatus('offline');
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data?.event === 'orders.changed' || data?.event === 'customers.changed') loadCustomers(true);
-      } catch { }
-    };
-    return () => ws.close();
-  }, [isAdmin]);
+    if (lastEvent?.event === 'orders.changed' || lastEvent?.event === 'customers.changed') {
+      loadCustomers(true);
+    }
+  }, [lastEvent, loadCustomers]);
+
+  const connectionStatus = socket ? 'online' : 'offline';
 
   const filteredCustomers = useMemo(() => {
     const now = new Date();

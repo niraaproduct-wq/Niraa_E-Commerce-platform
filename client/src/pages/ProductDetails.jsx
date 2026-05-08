@@ -123,10 +123,12 @@ const ProductDetails = () => {
   );
 
   const currentPrice = selectedVariant ? selectedVariant.price : (product.price || 0);
-  const currentOriginalPrice = selectedVariant ? selectedVariant.originalPrice : (product.originalPrice || 0);
+  const currentOriginalPrice = selectedVariant 
+    ? (selectedVariant.originalPrice || selectedVariant.comparePrice) 
+    : (product.comparePrice || product.originalPrice || 0);
   const currentStock = selectedVariant ? selectedVariant.stockQuantity : (product.stock || 0);
-  const discountPct = currentOriginalPrice ? Math.round((1 - currentPrice / currentOriginalPrice) * 100) : (product.discount || 0);
-  const savings = currentOriginalPrice ? currentOriginalPrice - currentPrice : 0;
+  const discountPct = currentOriginalPrice > currentPrice ? Math.round((1 - currentPrice / currentOriginalPrice) * 100) : 0;
+  const savings = currentOriginalPrice > currentPrice ? currentOriginalPrice - currentPrice : 0;
 
   const addSelectedToCart = () => {
     const pToAdd = selectedVariant
@@ -242,24 +244,16 @@ const ProductDetails = () => {
           letter-spacing: -0.01em;
         }
         .action-btn:active { transform: scale(0.97); }
-        .action-btn--cart {
-          background: #fff8e6;
-          color: #92640a;
-          border: 1.5px solid rgba(200,168,75,0.3);
+        .action-btns-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
         }
-        .action-btn--cart:hover { background: #fef0bc; border-color: #c8a84b; }
-        .action-btn--buy {
-          background: linear-gradient(135deg, var(--teal), var(--teal-dark));
-          color: #fff;
-          box-shadow: 0 8px 24px rgba(42,125,114,0.3);
+        @media (max-width: 600px) {
+          .action-btns-grid {
+            grid-template-columns: 1fr;
+          }
         }
-        .action-btn--buy:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(42,125,114,0.4); }
-        .action-btn--wa {
-          background: linear-gradient(135deg, #25D366, #1da851);
-          color: #fff;
-          box-shadow: 0 8px 24px rgba(37,211,102,0.3);
-        }
-        .action-btn--wa:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(37,211,102,0.4); }
 
         .tabs-row {
           display: flex;
@@ -430,33 +424,51 @@ const ProductDetails = () => {
           </div>
 
           {/* Price */}
-          <div style={{ background: 'linear-gradient(135deg, #f8fffe, #f0faf8)', borderRadius: 18, padding: '18px 16px', border: '1px solid rgba(42,125,114,0.1)' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: savings > 0 ? 8 : 0 }}>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', fontWeight: 900, color: 'var(--teal-dark)', letterSpacing: '-0.04em' }}>
-                {formatPrice(currentPrice)}
-              </span>
-              {currentOriginalPrice && (
-                <span style={{ textDecoration: 'line-through', color: 'var(--gray-400)', fontSize: '1.1rem', fontWeight: 500 }}>
-                  {formatPrice(currentOriginalPrice)}
+          <div style={{ background: 'linear-gradient(135deg, #f8fffe, #f0faf8)', borderRadius: 18, padding: '24px 20px', border: '1px solid rgba(42,125,114,0.1)' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 12 }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--teal)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Offer Price</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.8rem', fontWeight: 900, color: 'var(--teal-dark)', letterSpacing: '-0.04em', lineHeight: 1 }}>
+                  {formatPrice(currentPrice)}
                 </span>
-              )}
-              {discountPct > 0 && (
-                <span style={{
-                  background: 'linear-gradient(135deg, #e53e3e, #c53030)',
-                  color: '#fff', fontWeight: 900, fontSize: '0.82rem',
-                  padding: '3px 10px', borderRadius: 8,
-                  boxShadow: '0 4px 12px rgba(229,62,62,0.25)',
-                }}>
-                  {discountPct}% OFF
-                </span>
-              )}
+                {currentOriginalPrice > currentPrice && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ textDecoration: 'line-through', color: 'var(--gray-400)', fontSize: '1.4rem', fontWeight: 500 }}>
+                      {formatPrice(currentOriginalPrice)}
+                    </span>
+                    <span style={{
+                      background: 'linear-gradient(135deg, #e53e3e, #c53030)',
+                      color: '#fff', fontWeight: 900, fontSize: '0.9rem',
+                      padding: '4px 12px', borderRadius: 10,
+                      boxShadow: '0 4px 12px rgba(229,62,62,0.25)',
+                    }}>
+                      {discountPct}% OFF
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
+            
             {savings > 0 && (
-              <div style={{ color: '#16a34a', fontWeight: 800, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <FiCheck size={14} /> You save {formatPrice(savings)}!
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, borderTop: '1px solid rgba(0,0,0,0.05)', paddingTop: 12 }}>
+                 <span style={{ fontSize: '1rem', color: 'var(--gray-500)', fontWeight: 600 }}>MRP: {formatPrice(currentOriginalPrice)}</span>
+                 <span style={{ 
+                   background: '#f0faf8', 
+                   color: '#16a34a', 
+                   fontWeight: 800, 
+                   fontSize: '1rem', 
+                   padding: '4px 12px', 
+                   borderRadius: 8,
+                   border: '1px solid rgba(22,163,74,0.1)'
+                 }}>
+                   Save {formatPrice(savings)}
+                 </span>
               </div>
             )}
-            <div style={{ marginTop: 8, fontSize: '0.78rem', color: 'var(--gray-500)' }}>Inclusive of all taxes • Free delivery in Dharmapuri area</div>
+            
+            <div style={{ marginTop: 4, fontSize: '0.82rem', color: 'var(--gray-500)' }}>
+              Inclusive of all taxes • Free delivery in Dharmapuri area
+            </div>
           </div>
 
           {/* Variants */}
@@ -509,15 +521,28 @@ const ProductDetails = () => {
 
           {/* CTA Buttons */}
           <div style={{ display: 'grid', gap: 10 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <button className="action-btn action-btn--cart" onClick={addSelectedToCart}>
+            <div className="action-btns-grid">
+              <button className="action-btn action-btn--cart" onClick={addSelectedToCart} style={{
+                background: '#fff8e6',
+                color: '#92640a',
+                border: '1.5px solid rgba(200,168,75,0.3)',
+              }}>
                 <FiShoppingCart size={17} /> Add to Cart
               </button>
-              <button className="action-btn action-btn--buy" onClick={handleBuyNow}>
+              <button className="action-btn action-btn--buy" onClick={handleBuyNow} style={{
+                background: 'linear-gradient(135deg, var(--teal), var(--teal-dark))',
+                color: '#fff',
+                boxShadow: '0 8px 24px rgba(42,125,114,0.3)',
+              }}>
                 <FiZap size={17} /> Buy Now
               </button>
             </div>
-            <a href={waLink} target="_blank" rel="noreferrer" className="action-btn action-btn--wa" style={{ textDecoration: 'none' }}>
+            <a href={waLink} target="_blank" rel="noreferrer" className="action-btn" style={{ 
+              background: 'linear-gradient(135deg, #25D366, #1da851)',
+              color: '#fff',
+              boxShadow: '0 8px 24px rgba(37,211,102,0.3)',
+              textDecoration: 'none' 
+            }}>
               <AiOutlineWhatsApp size={20} /> Order via WhatsApp
             </a>
           </div>

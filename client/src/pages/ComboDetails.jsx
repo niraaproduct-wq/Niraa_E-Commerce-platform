@@ -7,7 +7,7 @@ import { WHATSAPP_NUMBER } from '../utils/constants.js';
 import { FiShoppingCart, FiZap, FiCheck, FiArrowLeft, FiTruck, FiShield, FiGift } from 'react-icons/fi';
 import { AiOutlineWhatsApp } from 'react-icons/ai';
 import { db } from '../config/firebase';
-import { collection, query, where, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, limit, onSnapshot, documentId, getDocs } from 'firebase/firestore';
 
 const TRUST_POINTS = [
   { icon: <FiShield size={14} />, text: 'Guaranteed Savings' },
@@ -21,6 +21,7 @@ const ComboDetails = () => {
   const [mainImage, setMainImage] = useState(null);
   const [qty, setQty] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [dynamicItems, setDynamicItems] = useState({});
   const navigate = useNavigate();
   const { addToCart, items, updateQty } = useCart();
 
@@ -31,13 +32,35 @@ const ComboDetails = () => {
 
     // Listen for real-time updates
     const q = query(collection(db, 'products'), where('slug', '==', slug), limit(1));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
       if (!snapshot.empty) {
         const docSnap = snapshot.docs[0];
         const data = docSnap.data();
         const p = { id: docSnap.id, _id: docSnap.id, ...data };
         setProduct(p);
         setMainImage(img => img || p.images?.[0] || p.image);
+
+        // Fetch dynamic product details for combo items
+        const comboItems = p.comboItems || [];
+        const productIds = comboItems
+          .map(item => typeof item === 'object' ? item.productId : null)
+          .filter(Boolean);
+
+        if (productIds.length > 0) {
+          try {
+            // Batch fetch products by ID
+            const qItems = query(collection(db, 'products'), where(documentId(), 'in', productIds));
+            const itemsSnap = await getDocs(qItems);
+            const latestData = itemsSnap.docs.reduce((acc, d) => {
+              acc[d.id] = { id: d.id, ...d.data() };
+              return acc;
+            }, {});
+            setDynamicItems(latestData);
+          } catch (err) {
+            console.error('Error fetching dynamic combo items:', err);
+          }
+        }
+        
         setLoading(false);
       } else {
         setLoading(false);
@@ -89,14 +112,22 @@ const ComboDetails = () => {
 
   // Compute Prices
   const comboItemsList = product.comboItems || [];
-  const hasItemPrices = comboItemsList.some(i => i.price && typeof i === 'object');
   
-  // Calculate total individual price if we have item prices, otherwise fallback to product.originalPrice
+  // Calculate total individual price based on dynamic data if available
   let totalIndividualPrice = 0;
-  if (hasItemPrices) {
-    totalIndividualPrice = comboItemsList.reduce((acc, item) => acc + (Number(item.price) || 0) * (Number(item.qty) || 1), 0);
-  } else {
-    totalIndividualPrice = product.originalPrice || product.comparePrice || product.price;
+  comboItemsList.forEach(item => {
+    const productId = typeof item === 'object' ? item.productId : null;
+    const latestProd = productId ? dynamicItems[productId] : null;
+    
+    // Prioritize dynamic price, then hardcoded item price, then 0
+    const price = latestProd ? (latestProd.price || 0) : (typeof item === 'object' ? (item.price || 0) : 0);
+    const itemQty = typeof item === 'object' ? (item.qty || 1) : 1;
+    totalIndividualPrice += price * itemQty;
+  });
+
+  // If no prices found yet, fallback to comparePrice/originalPrice/price
+  if (totalIndividualPrice === 0) {
+    totalIndividualPrice = product.comparePrice || product.originalPrice || product.price || 0;
   }
   
   const comboPrice = product.price || 0;
@@ -198,18 +229,16 @@ const ComboDetails = () => {
           letter-spacing: -0.01em;
         }
         .action-btn:active { transform: scale(0.97); }
-        .action-btn--cart {
-          background: #fff8e6;
-          color: #92640a;
-          border: 1.5px solid rgba(200,168,75,0.4);
+        .action-btns-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
         }
-        .action-btn--cart:hover { background: #fef0bc; border-color: #c8a84b; }
-        .action-btn--buy {
-          background: linear-gradient(135deg, #d4a843, #b48616);
-          color: #fff;
-          box-shadow: 0 8px 24px rgba(200,168,75,0.3);
+        @media (max-width: 600px) {
+          .action-btns-grid {
+            grid-template-columns: 1fr;
+          }
         }
-        .action-btn--buy:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(200,168,75,0.4); }
 
         .price-breakdown {
           background: linear-gradient(135deg, #fffdf8, #fffdf8);
@@ -322,8 +351,11 @@ const ComboDetails = () => {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: '#f8fafc', padding: 16, borderRadius: 16, border: '1px solid #e2e8f0' }}>
                 {comboItemsList.map((item, idx) => {
-                  const itemName = typeof item === 'object' ? item.name : item;
-                  const itemPrice = typeof item === 'object' && item.price ? item.price : null;
+                  const productId = typeof item === 'object' ? item.productId : null;
+                  const latestProd = productId ? dynamicItems[productId] : null;
+                  
+                  const itemName = latestProd ? latestProd.name : (typeof item === 'object' ? item.name : item);
+                  const itemPrice = latestProd ? latestProd.price : (typeof item === 'object' && item.price ? item.price : null);
                   const itemQty = typeof item === 'object' && item.qty ? item.qty : 1;
                   
                   return (
@@ -335,9 +367,16 @@ const ComboDetails = () => {
                         </span>
                       </div>
                       {itemPrice && (
-                        <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)', fontWeight: 500 }}>
-                          {formatPrice(itemPrice * itemQty)}
-                        </span>
+                        <div style={{ textAlign: 'right' }}>
+                           <span style={{ fontSize: '0.9rem', color: 'var(--gray-800)', fontWeight: 700 }}>
+                            {formatPrice(itemPrice * itemQty)}
+                          </span>
+                          {latestProd && (latestProd.comparePrice || latestProd.originalPrice) > latestProd.price && (
+                             <div style={{ fontSize: '0.7rem', color: 'var(--gray-400)', textDecoration: 'line-through' }}>
+                                {formatPrice((latestProd.comparePrice || latestProd.originalPrice) * itemQty)}
+                             </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
@@ -347,21 +386,49 @@ const ComboDetails = () => {
           )}
 
           {/* Pricing & Value Comparison */}
-          <div className="price-breakdown">
-            <div className="breakdown-row" style={{ color: 'var(--gray-500)' }}>
-              <span>Total Individual Price:</span>
-              <span style={{ textDecoration: 'line-through' }}>{formatPrice(totalIndividualPrice)}</span>
+          <div style={{ background: 'linear-gradient(135deg, #fffdf8, #fffdf8)', border: '1px solid rgba(200,168,75,0.3)', borderRadius: 16, padding: '20px', marginTop: 16 }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#b48616', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Offer Price</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap', marginBottom: 8 }}>
+              <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.8rem', fontWeight: 900, color: '#b48616', letterSpacing: '-0.04em', lineHeight: 1 }}>
+                {formatPrice(comboPrice)}
+              </span>
+              {savingsAmount > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ textDecoration: 'line-through', color: 'var(--gray-400)', fontSize: '1.4rem', fontWeight: 500 }}>
+                    {formatPrice(totalIndividualPrice)}
+                  </span>
+                  <span style={{
+                    background: 'linear-gradient(135deg, #e53e3e, #c53030)',
+                    color: '#fff', fontWeight: 900, fontSize: '0.9rem',
+                    padding: '4px 12px', borderRadius: 10,
+                    boxShadow: '0 4px 12px rgba(229,62,62,0.25)',
+                  }}>
+                    {savingsPct}% OFF
+                  </span>
+                </div>
+              )}
             </div>
-            <div className="breakdown-row" style={{ color: 'var(--gray-800)', fontWeight: 700, fontSize: '1.1rem', marginTop: 8 }}>
-              <span>Combo Price:</span>
-              <span style={{ color: '#b48616', fontSize: '1.4rem', fontFamily: 'var(--font-display)', fontWeight: 900 }}>{formatPrice(comboPrice)}</span>
-            </div>
+            
             {savingsAmount > 0 && (
-              <div style={{ background: '#dcfce7', color: '#16a34a', padding: '8px 12px', borderRadius: 8, marginTop: 12, display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '0.95rem' }}>
-                <span>You Save:</span>
-                <span>{formatPrice(savingsAmount)} ({savingsPct}%)</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, borderTop: '1px solid rgba(200,168,75,0.1)', paddingTop: 12 }}>
+                 <span style={{ fontSize: '1rem', color: 'var(--gray-500)', fontWeight: 600 }}>MRP: {formatPrice(totalIndividualPrice)}</span>
+                 <span style={{ 
+                   background: '#fdf6e3', 
+                   color: '#16a34a', 
+                   fontWeight: 800, 
+                   fontSize: '1rem', 
+                   padding: '4px 12px', 
+                   borderRadius: 8,
+                   border: '1px solid rgba(22,163,74,0.1)'
+                 }}>
+                   Save {formatPrice(savingsAmount)}
+                 </span>
               </div>
             )}
+            
+            <div style={{ marginTop: 4, fontSize: '0.82rem', color: 'var(--gray-500)' }}>
+              Inclusive of all taxes • Free delivery in Dharmapuri area
+            </div>
           </div>
 
           {/* Quantity */}
@@ -383,15 +450,28 @@ const ComboDetails = () => {
 
           {/* CTA Buttons */}
           <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <button className="action-btn action-btn--cart" onClick={addSelectedToCart}>
+            <div className="action-btns-grid">
+              <button className="action-btn action-btn--cart" onClick={addSelectedToCart} style={{
+                background: '#fff8e6',
+                color: '#92640a',
+                border: '1.5px solid rgba(200,168,75,0.4)',
+              }}>
                 <FiShoppingCart size={17} /> Add Combo to Cart
               </button>
-              <button className="action-btn action-btn--buy" onClick={handleBuyNow}>
+              <button className="action-btn action-btn--buy" onClick={handleBuyNow} style={{
+                background: 'linear-gradient(135deg, #d4a843, #b48616)',
+                color: '#fff',
+                boxShadow: '0 8px 24px rgba(200,168,75,0.3)',
+              }}>
                 <FiZap size={17} /> Buy Combo Now
               </button>
             </div>
-            <a href={waLink} target="_blank" rel="noreferrer" className="action-btn" style={{ background: '#25D366', color: '#fff', textDecoration: 'none' }}>
+            <a href={waLink} target="_blank" rel="noreferrer" className="action-btn" style={{ 
+              background: 'linear-gradient(135deg, #25D366, #1da851)',
+              color: '#fff',
+              boxShadow: '0 8px 24px rgba(37,211,102,0.3)',
+              textDecoration: 'none' 
+            }}>
               <AiOutlineWhatsApp size={20} /> Order via WhatsApp
             </a>
           </div>

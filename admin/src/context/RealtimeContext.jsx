@@ -7,26 +7,34 @@ export const useRealtime = () => useContext(RealtimeContext);
 export const RealtimeProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [lastEvent, setLastEvent] = useState(null);
+  const isMounted = useRef(true);
   const reconnectTimer = useRef(null);
+  const socketRef = useRef(null);
 
   const connect = () => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // In development, the backend usually runs on port 5000
-    let wsUrl;
-    if (import.meta.env.DEV) {
-      wsUrl = `${protocol}//${window.location.hostname}:5000/ws`;
-    } else {
-      wsUrl = `${protocol}//${window.location.host}/ws`;
+    // If already connecting or connected, don't start another one
+    if (socketRef.current && (socketRef.current.readyState === WebSocket.CONNECTING || socketRef.current.readyState === WebSocket.OPEN)) {
+      return;
     }
 
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    let wsUrl = import.meta.env.DEV 
+      ? `${protocol}//${window.location.hostname}:5000/ws`
+      : `${protocol}//${window.location.host}/ws`;
+
+    console.log('📡 Attempting Admin Realtime connection...');
     const ws = new WebSocket(wsUrl);
+    socketRef.current = ws;
 
     ws.onopen = () => {
-      console.log('✅ Admin Realtime connected');
-      setSocket(ws);
+      if (isMounted.current) {
+        console.log('✅ Admin Realtime connected');
+        setSocket(ws);
+      }
     };
 
     ws.onmessage = (event) => {
+      if (!isMounted.current) return;
       try {
         const data = JSON.parse(event.data);
         console.log('🔔 Admin Realtime event:', data);
@@ -37,22 +45,36 @@ export const RealtimeProvider = ({ children }) => {
     };
 
     ws.onclose = () => {
-      console.log('❌ Admin Realtime disconnected, retrying in 5s...');
-      setSocket(null);
-      reconnectTimer.current = setTimeout(connect, 5000);
+      if (isMounted.current) {
+        console.log('❌ Admin Realtime disconnected, retrying in 5s...');
+        setSocket(null);
+        socketRef.current = null;
+        reconnectTimer.current = setTimeout(connect, 5000);
+      }
     };
 
     ws.onerror = (err) => {
-      console.error('Admin Realtime error:', err);
-      ws.close();
+      // Error will trigger onclose, so we just log it here
+      console.error('Admin Realtime connection error');
     };
   };
 
   useEffect(() => {
+    isMounted.current = true;
     connect();
+    
     return () => {
+      isMounted.current = false;
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      if (socket) socket.close();
+      if (socketRef.current) {
+        socketRef.current.onclose = null; // Prevent reconnect logic
+        socketRef.current.onerror = null;
+        // Only close if it's actually open to avoid warnings
+        if (socketRef.current.readyState === WebSocket.OPEN) {
+          socketRef.current.close();
+        }
+        socketRef.current = null;
+      }
     };
   }, []);
 

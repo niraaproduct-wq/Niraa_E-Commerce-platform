@@ -34,10 +34,13 @@ export default function ProductCard({ product, compact = false }) {
   };
 
   const imgSrc = getOptimizedImg(product?.image || (product?.images?.[0]));
-  const savings = (product?.originalPrice && product?.price) ? (product.originalPrice - product.price) : 0;
+  const mrp = product?.comparePrice || product?.originalPrice || 0;
+  const price = product?.price || 0;
+  const savings = (mrp > price) ? (mrp - price) : 0;
+  const discountPct = mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0;
   
   // Highlight badges (prioritize bestseller, then discount)
-  const badge = product.highlightBadge || (product.discount > 0 ? `${product.discount}% OFF` : null);
+  const badge = product.highlightBadge || (discountPct > 0 ? `${discountPct}% OFF` : null);
 
   const productLink = (product.productType === 'combo' || product.isCombo) 
     ? `/combos/${product.slug}` 
@@ -172,20 +175,50 @@ export default function ProductCard({ product, compact = false }) {
           </div>
 
           {/* Bottom Row: Price & CTA */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', gap: 10 }}>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span className="price-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, color: 'var(--gray-900)', letterSpacing: '-0.04em' }}>
-                  {formatPrice(product.price || 0)}
-                </span>
-                {product.originalPrice > product.price && (
-                   <span style={{ fontSize: '0.88rem', color: 'var(--gray-400)', textDecoration: 'line-through', fontWeight: 500 }}>
-                    {formatPrice(product.originalPrice)}
+          <div style={{ display: 'flex', flexDirection: 'column', marginTop: 'auto', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {/* Offer Price Row */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--teal)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Offer Price</span>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                  <span className="price-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, color: 'var(--gray-900)', letterSpacing: '-0.04em' }}>
+                    {formatPrice(price)}
                   </span>
-                )}
+                  {mrp > price && (
+                    <>
+                      <span style={{ fontSize: '0.9rem', color: 'var(--gray-400)', textDecoration: 'line-through', fontWeight: 500 }}>
+                        {formatPrice(mrp)}
+                      </span>
+                      <span style={{ 
+                        fontSize: '0.75rem', 
+                        color: '#ef4444', 
+                        fontWeight: 900,
+                        background: '#fff1f2',
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                      }}>
+                        {discountPct}% OFF
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
+              
+              {/* MRP & Savings Row */}
               {savings > 0 && (
-                <span style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 800 }}>Save {formatPrice(savings)}</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(0,0,0,0.04)', paddingTop: 6, marginTop: 2 }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--gray-500)', fontWeight: 600 }}>MRP: {formatPrice(mrp)}</span>
+                  <span style={{ 
+                    fontSize: '0.8rem', 
+                    color: '#16a34a', 
+                    fontWeight: 800,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}>
+                    Save {formatPrice(savings)}
+                  </span>
+                </div>
               )}
             </div>
 
@@ -193,25 +226,26 @@ export default function ProductCard({ product, compact = false }) {
               onClick={handleAddToCart}
               className="add-to-cart-btn"
               style={{
+                width: '100%',
                 background: 'linear-gradient(135deg, var(--teal), var(--teal-dark))',
                 color: '#fff', border: 'none',
-                borderRadius: 16,
+                borderRadius: 14,
+                padding: '12px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                 boxShadow: '0 10px 15px -3px rgba(42, 125, 114, 0.3)',
-                flexShrink: 0,
               }}
               onMouseEnter={e => { 
-                e.currentTarget.style.transform = 'scale(1.05) rotate(2deg)';
-                e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(42, 125, 114, 0.4)';
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 15px 20px -5px rgba(42, 125, 114, 0.4)';
               }}
               onMouseLeave={e => { 
-                e.currentTarget.style.transform = 'scale(1) rotate(0)';
+                e.currentTarget.style.transform = 'translateY(0)';
                 e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(42, 125, 114, 0.3)';
               }}
             >
               <FiShoppingCart size={18} />
-              <span className="btn-text" style={{ marginLeft: 8, fontSize: '0.85rem', fontWeight: 800 }}>Add to Cart</span>
+              <span style={{ marginLeft: 8, fontSize: '0.9rem', fontWeight: 800 }}>Add to Cart</span>
             </button>
           </div>
         </div>
@@ -254,13 +288,10 @@ export default function ProductCard({ product, compact = false }) {
               font-size: 1.1rem !important;
             }
             .add-to-cart-btn {
-              padding: 10px !important;
-              width: 40px !important;
-              height: 40px !important;
+              padding: 12px !important;
+              width: 100% !important;
+              height: auto !important;
               border-radius: 12px !important;
-            }
-            .btn-text {
-              display: none !important;
             }
           }
         `}</style>

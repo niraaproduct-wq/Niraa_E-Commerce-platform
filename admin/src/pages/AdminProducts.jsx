@@ -166,8 +166,8 @@ const AdminProducts = () => {
       const cleanName = (formData.name || 'PRD').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/(\d+(ML|LT|L|KG|G))/g, '');
       const prdCode = cleanName.slice(0, 4).padEnd(3, 'X');
       const itemCount = formData.comboItems?.length || 0;
-      const sizeCode = formData.productType === 'combo' 
-        ? `${itemCount}P` 
+      const sizeCode = formData.productType === 'combo'
+        ? `${itemCount}P`
         : (formData.size || 'NA').toUpperCase().replace(/\s/g, '').replace('LT', 'L');
       const typeCode = formData.productType === 'combo' ? 'C' : 'S';
       const newSKU = `${brand}-${catCode}-${prdCode}-${sizeCode}-${typeCode}`;
@@ -498,7 +498,7 @@ const AdminProducts = () => {
       </div>
 
       {/* ─── Table ─── */}
-      <div style={{ background: T.white, border: `1.5px solid ${T.gray200}`, borderRadius: T.radiusLg, boxShadow: T.shadow, overflow: 'hidden' }}>
+      <div style={{ background: T.white, border: `1.5px solid ${T.gray200}`, borderRadius: T.radiusLg, boxShadow: T.shadow, overflowX: 'auto' }}>
         {loading ? (
           <div style={{ padding: '60px 24px', textAlign: 'center', color: T.gray400, fontSize: 14 }}>
             Loading products…
@@ -512,7 +512,7 @@ const AdminProducts = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: T.gray50, borderBottom: `1.5px solid ${T.gray200}` }}>
-                {['Product', 'Category', 'Price', 'Stock', 'Status', 'Barcode', ''].map(h => (
+                {['Product', 'Category', 'Offer Price', 'Stock', 'Status', 'Barcode', ''].map(h => (
                   <th key={h} style={{ padding: '12px 20px', textAlign: h === 'Barcode' ? 'center' : 'left', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: T.gray400, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -766,8 +766,8 @@ const AdminProducts = () => {
                       <button
                         key={t.value}
                         type="button"
-                        onClick={() => setFormData(p => ({ 
-                          ...p, 
+                        onClick={() => setFormData(p => ({
+                          ...p,
                           productType: t.value,
                           category: t.value === 'combo' ? 'combo' : p.category,
                           size: t.value === 'combo' ? 'NA' : p.size
@@ -803,13 +803,13 @@ const AdminProducts = () => {
                           if (!selectedProd) return;
                           setFormData(prev => {
                             const items = [...prev.comboItems];
-                            items[idx] = { 
-                              productId: selectedProd._id, 
-                              name: selectedProd.name, 
-                              sku: selectedProd.sku || '', 
+                            items[idx] = {
+                              productId: selectedProd._id,
+                              name: selectedProd.name,
+                              sku: selectedProd.sku || '',
                               price: selectedProd.price || 0,
                               image: selectedProd.images?.[0] || selectedProd.image || '',
-                              qty: item.qty || 1 
+                              qty: item.qty || 1
                             };
                             return { ...prev, comboItems: items };
                           });
@@ -879,10 +879,10 @@ const AdminProducts = () => {
 
               {/* Price + Compare + Stock */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-                <Field label="Price (₹) *" focusedField={focusedField} id="price">
+                <Field label="Offer Price (₹) *" focusedField={focusedField} id="price">
                   <input type="number" name="price" value={formData.price} onChange={handleInput} onFocus={() => setFocusedField('price')} onBlur={() => setFocusedField(null)} required placeholder="0.00" min="0" step="0.01" style={{ ...input, border: `1.5px solid ${focusedField === 'price' ? T.tealMid : T.gray200}` }} />
                 </Field>
-                <Field label="Compare Price" focusedField={focusedField} id="comparePrice">
+                <Field label="MRP (₹)" focusedField={focusedField} id="comparePrice">
                   <input type="number" name="comparePrice" value={formData.comparePrice} onChange={handleInput} onFocus={() => setFocusedField('comparePrice')} onBlur={() => setFocusedField(null)} placeholder="0.00" min="0" step="0.01" style={{ ...input, border: `1.5px solid ${focusedField === 'comparePrice' ? T.tealMid : T.gray200}` }} />
                 </Field>
                 <Field label="Stock Qty *" focusedField={focusedField} id="stock">
