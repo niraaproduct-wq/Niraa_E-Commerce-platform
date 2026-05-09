@@ -20,6 +20,10 @@ const marketingRoutes = require('./routes/marketingRoutes');
 
 function createApp() {
   const app = express();
+  
+  // Trust proxy is required when deployed behind Render/Vercel load balancers
+  // to ensure rate limiters use the real client IP instead of the proxy IP
+  app.set('trust proxy', 1);
 
   // 1. Security Headers
   app.use(helmet({
@@ -73,7 +77,15 @@ function createApp() {
   // 5. Cookies (for HttpOnly auth)
   app.use(cookieParser());
 
-  app.use(express.json({ limit: '2mb' }));
+  app.use(express.json({ 
+    limit: '2mb',
+    verify: (req, res, buf) => {
+      // Capture raw body for webhook signature verification
+      if (req.originalUrl && req.originalUrl.includes('/webhook')) {
+        req.rawBody = buf;
+      }
+    }
+  }));
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
   // 6. Request logging

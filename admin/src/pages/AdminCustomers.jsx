@@ -307,21 +307,41 @@ export default function AdminCustomers() {
 
   useEffect(() => {
     if (!isAdmin) return;
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    let wsHost = window.location.hostname === 'localhost' ? 'localhost:5000' : window.location.host;
-    if (API_BASE_URL.startsWith('http')) wsHost = API_BASE_URL.replace(/^https?:\/\//, '').replace(/\/api$/, '');
-    const ws = new WebSocket(`${wsProtocol}://${wsHost}/ws`);
-    ws.onopen = () => setConnectionStatus('online');
-    ws.onclose = () => setConnectionStatus('offline');
-    ws.onerror = () => setConnectionStatus('offline');
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data?.event === 'orders.changed' || data?.event === 'customers.changed') loadCustomers(true);
-      } catch { }
+    const API_BASE = API_BASE_URL || 'http://localhost:5000/api';
+    const WS_BASE = API_BASE
+      .replace('/api', '')
+      .replace('https://', 'wss://')
+      .replace('http://', 'ws://');
+    
+    let ws = null;
+    let isMounted = true;
+
+    try {
+      ws = new WebSocket(`${WS_BASE}/ws`);
+      ws.onopen = () => { if (isMounted) setConnectionStatus('online'); };
+      ws.onclose = () => { if (isMounted) setConnectionStatus('offline'); };
+      ws.onerror = () => { if (isMounted) setConnectionStatus('offline'); };
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data?.event === 'orders.changed' || data?.event === 'customers.changed') loadCustomers(true);
+        } catch { }
+      };
+    } catch (error) {
+      console.warn("WebSocket initialization failed:", error);
+    }
+
+    return () => {
+      isMounted = false;
+      if (ws) {
+        if (ws.readyState === WebSocket.CONNECTING) {
+          ws.onopen = () => ws.close();
+        } else {
+          ws.close();
+        }
+      }
     };
-    return () => ws.close();
-  }, [isAdmin]);
+  }, [isAdmin, loadCustomers]);
 
   const filteredCustomers = useMemo(() => {
     const now = new Date();

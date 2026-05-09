@@ -33,9 +33,10 @@ const handleWebhook = async (req, res) => {
   // 2. Verify the webhook signature to ensure it is genuinely from Razorpay
   let isValid = false;
   try {
+    const payloadBuffer = req.rawBody ? req.rawBody : Buffer.from(JSON.stringify(req.body));
     const expectedSignature = crypto
       .createHmac('sha256', secret)
-      .update(JSON.stringify(req.body))
+      .update(payloadBuffer)
       .digest('hex');
     isValid = expectedSignature === signature;
   } catch (err) {

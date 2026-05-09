@@ -377,7 +377,7 @@ const AdminProducts = () => {
 
   /* ══════════════ RENDER ══════════════ */
   return (
-    <div style={{ fontFamily: T.font, color: T.gray800, minHeight: '100vh', background: T.gray50, padding: '32px 32px 64px' }}>
+    <div style={{ fontFamily: T.font, color: T.gray800, minHeight: '100vh', background: T.gray50, padding: '32px 32px 64px', width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
 
       {/* ─ Not Admin Banner ─ */}
       {!isAdmin && (
@@ -395,7 +395,7 @@ const AdminProducts = () => {
       )}
 
       {/* ─── Page Header ─── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32, flexWrap: 'wrap', gap: 16 }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.tealMid, marginBottom: 6 }}>
             Niraa Admin
@@ -429,7 +429,7 @@ const AdminProducts = () => {
       </div>
 
       {/* ─── Stat Cards ─── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 28 }}>
         {[
           { label: 'Total Products', value: products.length, color: T.teal, bg: T.tealLight },
           { label: 'Low Stock', value: lowStockCount, color: '#854F0B', bg: T.amberLight },
@@ -442,8 +442,8 @@ const AdminProducts = () => {
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20 }}>
-        <div style={{ position: 'relative', flex: 1 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: '1 1 250px' }}>
           <FaSearch style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: T.gray400, fontSize: 13, pointerEvents: 'none' }} />
           <input
             value={search}
@@ -489,7 +489,28 @@ const AdminProducts = () => {
       </div>
 
       {/* ─── Table ─── */}
-      <div style={{ background: T.white, border: `1.5px solid ${T.gray200}`, borderRadius: T.radiusLg, boxShadow: T.shadow, overflow: 'hidden' }}>
+      <div className="niraa-table-wrap" style={{ background: T.white, border: `1.5px solid ${T.gray200}`, borderRadius: T.radiusLg, boxShadow: T.shadow, overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+        <style>{`.niraa-table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; width: 100%; max-width: 100%; }
+        .niraa-table-wrap table { min-width: 900px !important; }
+        .niraa-table-wrap th:last-child,
+        .niraa-table-wrap td:last-child {
+          position: sticky;
+          right: 0;
+          z-index: 2;
+          background: ${T.white};
+          box-shadow: -4px 0 12px rgba(0,0,0,0.05);
+        }
+        .niraa-table-wrap th:last-child {
+          background: ${T.gray50};
+          z-index: 3;
+        }
+        .niraa-table-wrap tr:hover td:last-child {
+          background: ${T.gray50};
+        }
+        .niraa-table-wrap::-webkit-scrollbar { height: 8px; }
+        .niraa-table-wrap::-webkit-scrollbar-track { background: ${T.gray50}; border-radius: 4px; }
+        .niraa-table-wrap::-webkit-scrollbar-thumb { background: ${T.gray300}; border-radius: 4px; }
+        .niraa-table-wrap::-webkit-scrollbar-thumb:hover { background: ${T.gray400}; }`}</style>
         {loading ? (
           <div style={{ padding: '60px 24px', textAlign: 'center', color: T.gray400, fontSize: 14 }}>
             Loading products…
@@ -500,7 +521,7 @@ const AdminProducts = () => {
             <p style={{ margin: 0, color: T.gray400, fontSize: 14 }}>No products found</p>
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: T.gray50, borderBottom: `1.5px solid ${T.gray200}` }}>
                 {['Product', 'Category', 'Price', 'Stock', 'Status', 'Barcode', ''].map(h => (
@@ -552,9 +573,18 @@ const AdminProducts = () => {
                     </td>
                     {/* Price */}
                     <td style={{ padding: '14px 20px', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.tealMid, marginBottom: 2 }}>Offer Price</div>
                       <div style={{ fontWeight: 700, fontSize: 15, color: T.gray900, letterSpacing: '-0.01em' }}>₹{product.price}</div>
                       {product.comparePrice && (
-                        <div style={{ fontSize: 12, color: T.gray400, textDecoration: 'line-through', marginTop: 1 }}>₹{product.comparePrice}</div>
+                        <div style={{ fontSize: 11, color: T.gray400, marginTop: 3 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>MRP: </span>
+                          <span style={{ textDecoration: 'line-through' }}>₹{product.comparePrice}</span>
+                          {product.price && product.comparePrice > product.price && (
+                            <span style={{ marginLeft: 6, background: '#FCE8E8', color: T.red, fontWeight: 800, fontSize: 10, padding: '1px 6px', borderRadius: 6 }}>
+                              {Math.round(((product.comparePrice - product.price) / product.comparePrice) * 100)}% OFF
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
                     {/* Stock */}

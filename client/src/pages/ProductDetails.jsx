@@ -123,7 +123,9 @@ const ProductDetails = () => {
   );
 
   const currentPrice = selectedVariant ? selectedVariant.price : (product.price || 0);
-  const currentOriginalPrice = selectedVariant ? selectedVariant.originalPrice : (product.originalPrice || 0);
+  const currentOriginalPrice = selectedVariant
+    ? (selectedVariant.originalPrice || selectedVariant.comparePrice || product.comparePrice || product.originalPrice || 0)
+    : (product.comparePrice || product.originalPrice || 0);
   const currentStock = selectedVariant ? selectedVariant.stockQuantity : (product.stock || 0);
   const discountPct = currentOriginalPrice ? Math.round((1 - currentPrice / currentOriginalPrice) * 100) : (product.discount || 0);
   const savings = currentOriginalPrice ? currentOriginalPrice - currentPrice : 0;
@@ -431,31 +433,38 @@ const ProductDetails = () => {
 
           {/* Price */}
           <div style={{ background: 'linear-gradient(135deg, #f8fffe, #f0faf8)', borderRadius: 18, padding: '18px 16px', border: '1px solid rgba(42,125,114,0.1)' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: savings > 0 ? 8 : 0 }}>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', fontWeight: 900, color: 'var(--teal-dark)', letterSpacing: '-0.04em' }}>
-                {formatPrice(currentPrice)}
-              </span>
-              {currentOriginalPrice && (
-                <span style={{ textDecoration: 'line-through', color: 'var(--gray-400)', fontSize: '1.1rem', fontWeight: 500 }}>
-                  {formatPrice(currentOriginalPrice)}
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: '0.9rem', color: 'var(--gray-600)', fontWeight: 800 }}>Offer Price</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginTop: 6 }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', fontWeight: 900, color: 'var(--teal-dark)', letterSpacing: '-0.04em' }}>
+                  {formatPrice(currentPrice)}
                 </span>
-              )}
-              {discountPct > 0 && (
-                <span style={{
-                  background: 'linear-gradient(135deg, #e53e3e, #c53030)',
-                  color: '#fff', fontWeight: 900, fontSize: '0.82rem',
-                  padding: '3px 10px', borderRadius: 8,
-                  boxShadow: '0 4px 12px rgba(229,62,62,0.25)',
-                }}>
-                  {discountPct}% OFF
-                </span>
+
+                {discountPct > 0 && (
+                  <span style={{
+                    background: 'linear-gradient(135deg, #e53e3e, #c53030)',
+                    color: '#fff', fontWeight: 900, fontSize: '0.82rem',
+                    padding: '3px 10px', borderRadius: 8,
+                    boxShadow: '0 4px 12px rgba(229,62,62,0.25)',
+                  }}>
+                    {discountPct}% OFF
+                  </span>
+                )}
+              </div>
+
+              {currentOriginalPrice > 0 && (
+                <div style={{ marginTop: 8, color: 'var(--gray-500)', fontSize: '0.95rem' }}>
+                  <div>MRP: <span style={{ textDecoration: 'line-through', color: 'var(--gray-400)', fontWeight: 700 }}>{formatPrice(currentOriginalPrice)}</span></div>
+                </div>
               )}
             </div>
+
             {savings > 0 && (
-              <div style={{ color: '#16a34a', fontWeight: 800, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <FiCheck size={14} /> You save {formatPrice(savings)}!
+              <div style={{ color: '#16a34a', fontWeight: 800, fontSize: '0.95rem', marginTop: 8 }}>
+                Save {formatPrice(savings)}
               </div>
             )}
+
             <div style={{ marginTop: 8, fontSize: '0.78rem', color: 'var(--gray-500)' }}>Inclusive of all taxes • Free delivery in Dharmapuri area</div>
           </div>
 

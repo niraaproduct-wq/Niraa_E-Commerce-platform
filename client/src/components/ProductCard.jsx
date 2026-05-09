@@ -34,10 +34,15 @@ export default function ProductCard({ product, compact = false }) {
   };
 
   const imgSrc = getOptimizedImg(product?.image || (product?.images?.[0]));
-  const savings = (product?.originalPrice && product?.price) ? (product.originalPrice - product.price) : 0;
-  
-  // Highlight badges (prioritize bestseller, then discount)
-  const badge = product.highlightBadge || (product.discount > 0 ? `${product.discount}% OFF` : null);
+
+  // Offer price = product.price, MRP = product.comparePrice (falls back to product.originalPrice)
+  const mrp = product?.comparePrice || product?.originalPrice || 0;
+  const offerPrice = product?.price || 0;
+  const savings = mrp > offerPrice ? mrp - offerPrice : 0;
+  const discountPct = mrp > offerPrice ? Math.round(((mrp - offerPrice) / mrp) * 100) : 0;
+
+  // Highlight badges (prioritize highlightBadge, then discount %)
+  const badge = product.highlightBadge || (discountPct > 0 ? `${discountPct}% OFF` : null);
 
   const productLink = (product.productType === 'combo' || product.isCombo) 
     ? `/combos/${product.slug}` 
@@ -171,49 +176,81 @@ export default function ProductCard({ product, compact = false }) {
              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }}></span> {product.salesCount || '500+'} customers trusted this
           </div>
 
-          {/* Bottom Row: Price & CTA */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', gap: 10 }}>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span className="price-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, color: 'var(--gray-900)', letterSpacing: '-0.04em' }}>
-                  {formatPrice(product.price || 0)}
-                </span>
-                {product.originalPrice > product.price && (
-                   <span style={{ fontSize: '0.88rem', color: 'var(--gray-400)', textDecoration: 'line-through', fontWeight: 500 }}>
-                    {formatPrice(product.originalPrice)}
-                  </span>
-                )}
-              </div>
-              {savings > 0 && (
-                <span style={{ fontSize: '0.72rem', color: '#16a34a', fontWeight: 800 }}>Save {formatPrice(savings)}</span>
-              )}
-            </div>
+           {/* Bottom Row: Price & CTA */}
+           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto' }}>
+             {/* Price Section */}
+             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+               {/* Offer Price label */}
+               <div style={{ fontSize: '0.65rem', fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--teal)' }}>
+                 Offer Price
+               </div>
+               
+               {/* First line: Offer Price + MRP + Discount % */}
+               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                 <span className="price-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, color: 'var(--gray-900)', letterSpacing: '-0.04em', fontSize: '1.45rem' }}>
+                   {formatPrice(offerPrice)}
+                 </span>
+                 {mrp > offerPrice && (
+                   <>
+                     <span style={{ fontSize: '0.9rem', color: 'var(--gray-400)', textDecoration: 'line-through', fontWeight: 500 }}>
+                       {formatPrice(mrp)}
+                     </span>
+                     {discountPct > 0 && (
+                       <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#e53935', background: 'rgba(229, 57, 53, 0.15)', padding: '4px 8px', borderRadius: 4 }}>
+                         {discountPct}% OFF
+                       </span>
+                     )}
+                   </>
+                 )}
+               </div>
+               
+               {/* Second line: MRP + Save amount */}
+               {mrp > 0 && (
+                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--gray-600)', fontWeight: 500 }}>
+                   <span>MRP: {formatPrice(mrp)}</span>
+                   {savings > 0 && (
+                     <span style={{ color: '#16a34a', fontWeight: 700 }}>
+                       Save {formatPrice(savings)}
+                     </span>
+                   )}
+                 </div>
+               )}
+             </div>
 
-            <button
-              onClick={handleAddToCart}
-              className="add-to-cart-btn"
-              style={{
-                background: 'linear-gradient(135deg, var(--teal), var(--teal-dark))',
-                color: '#fff', border: 'none',
-                borderRadius: 16,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                boxShadow: '0 10px 15px -3px rgba(42, 125, 114, 0.3)',
-                flexShrink: 0,
-              }}
-              onMouseEnter={e => { 
-                e.currentTarget.style.transform = 'scale(1.05) rotate(2deg)';
-                e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(42, 125, 114, 0.4)';
-              }}
-              onMouseLeave={e => { 
-                e.currentTarget.style.transform = 'scale(1) rotate(0)';
-                e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(42, 125, 114, 0.3)';
-              }}
-            >
-              <FiShoppingCart size={18} />
-              <span className="btn-text" style={{ marginLeft: 8, fontSize: '0.85rem', fontWeight: 800 }}>Add to Cart</span>
-            </button>
-          </div>
+             {/* Add to Cart Button - Full Width */}
+             <button
+               onClick={handleAddToCart}
+               className="add-to-cart-btn"
+               style={{
+                 background: 'linear-gradient(135deg, var(--teal), var(--teal-dark))',
+                 color: '#fff',
+                 border: 'none',
+                 borderRadius: 12,
+                 padding: '12px 16px',
+                 display: 'flex',
+                 alignItems: 'center',
+                 justifyContent: 'center',
+                 cursor: 'pointer',
+                 transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                 boxShadow: '0 10px 15px -3px rgba(42, 125, 114, 0.3)',
+                 width: '100%',
+                 fontSize: '0.9rem',
+                 fontWeight: 700,
+                 gap: 6
+               }}
+               onMouseEnter={e => { 
+                 e.currentTarget.style.transform = 'translateY(-2px)';
+                 e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(42, 125, 114, 0.4)';
+               }}
+               onMouseLeave={e => { 
+                 e.currentTarget.style.transform = 'translateY(0)';
+                 e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(42, 125, 114, 0.3)';
+               }}
+             >
+               <FiShoppingCart size={18} />
+               <span>Add to Cart</span>
+             </button>
+           </div>
         </div>
 
         <style>{`

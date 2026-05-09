@@ -22,14 +22,11 @@ const getDb = () => getFirebase().db;
  * The marketing module itself is Firebase-based, but customer data lives in MongoDB.
  */
 const getCustomerPhones = async () => {
-    // Adjust model path to match your project structure
-    const User = require('../models/User');
-    const users = await User.find(
-        { role: { $ne: 'admin' }, phone: { $exists: true, $ne: null } },
-        { phone: 1 }
-    ).lean();
+    const firebaseStorage = require('../utils/firebaseStorage');
+    const users = await firebaseStorage.getAllUsers();
 
     return users
+        .filter(u => u.role !== 'admin' && u.phone)
         .map((u) => String(u.phone).replace(/\D/g, '').slice(-10))
         .filter((p) => p.length === 10);
 };
@@ -43,21 +40,19 @@ const nowISO = () => new Date().toISOString();
  */
 exports.getMarketingStats = async (req, res) => {
     try {
-        const User = require('../models/User');
-
+        const firebaseStorage = require('../utils/firebaseStorage');
+        const allUsers = await firebaseStorage.getAllUsers();
+        const reachableCustomers = allUsers.filter(u => u.role !== 'admin' && u.phone).length;
 
         const [
             bannersSnap,
-            logsSnap,
-            reachableCustomers,
+            recentLogsSnap,
         ] = await Promise.all([
             getDb().collection(COLLECTIONS.BANNERS).where('isActive', '==', true).count().get(),
             getDb().collection(COLLECTIONS.BROADCAST_LOGS)
-                .where('status', '==', 'sent')
                 .orderBy('createdAt', 'desc')
-                .limit(1)
+                .limit(20)
                 .get(),
-            User.countDocuments({ role: { $ne: 'admin' }, phone: { $exists: true, $ne: null } }),
         ]);
 
         const totalSentSnap = await getDb()
@@ -66,7 +61,8 @@ exports.getMarketingStats = async (req, res) => {
             .count()
             .get();
 
-        const lastLog = logsSnap.empty ? null : logsSnap.docs[0].data();
+        const lastLogDoc = recentLogsSnap.docs.find(d => d.data().status === 'sent');
+        const lastLog = lastLogDoc ? lastLogDoc.data() : null;
 
         return res.json({
             success: true,

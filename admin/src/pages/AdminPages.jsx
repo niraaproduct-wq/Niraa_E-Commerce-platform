@@ -308,11 +308,11 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       minHeight: '100vh',
       background: 'var(--bg)',
       display: 'flex', flexDirection: 'column', flexShrink: 0,
-      transition: 'width 0.25s cubic-bezier(.4,0,.2,1)',
-      overflow: 'hidden',
+      transition: 'width 0.25s cubic-bezier(.4,0,.2,1), transform 0.3s',
       borderRight: '1px solid var(--border)',
       position: 'relative',
-    }}>
+      zIndex: 10,
+    }} className="admin-sidebar">
       {/* Subtle gradient shimmer at top */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 180,
@@ -431,12 +431,13 @@ const TopBar = ({ title, subtitle, theme, toggleTheme }) => {
   const initials = (user?.name || 'Admin').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
   return (
-    <div style={{
-      height: 'var(--topbar-h)',
+    <div className="admin-topbar" style={{
+      minHeight: 'var(--topbar-h)',
       background: 'var(--surface)',
       borderBottom: '1px solid var(--border)',
-      display: 'flex', alignItems: 'center', padding: '0 22px', gap: 16, flexShrink: 0,
+      display: 'flex', alignItems: 'center', padding: '10px 22px', gap: 16, flexShrink: 0,
       backdropFilter: 'blur(12px)',
+      flexWrap: 'wrap',
     }}>
       <div style={{ flex: 1 }}>
         <div style={{ fontFamily: 'var(--display)', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1, letterSpacing: '-0.01em' }}>{title}</div>
@@ -520,12 +521,20 @@ const AdminLayout = ({ children }) => {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--surface-2)', fontFamily: 'var(--sans)' }}>
-      <style>{GLOBAL_CSS}{theme === 'light' ? LIGHT_TOKENS : ''}</style>
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--surface-2)', fontFamily: 'var(--sans)', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
+      <style>{GLOBAL_CSS}{theme === 'light' ? LIGHT_TOKENS : ''}
+        {`
+          @media (max-width: 768px) {
+            .admin-sidebar { position: absolute !important; left: 0; top: 0; bottom: 0; transform: translateX(-100%); }
+            .admin-sidebar.open { transform: translateX(0); box-shadow: 0 0 50px rgba(0,0,0,0.5); }
+            .admin-topbar { padding: 10px 14px !important; }
+          }
+        `}
+      </style>
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <TopBar title={meta.title} subtitle={meta.subtitle} theme={theme} toggleTheme={toggleTheme} />
-        <main style={{ flex: 1, padding: '22px 24px', overflowY: 'auto' }}>
+        <main style={{ flex: 1, padding: '22px 24px', overflowY: 'auto', overflowX: 'auto', minHeight: 0, minWidth: 0 }}>
           {children}
         </main>
       </div>
@@ -582,6 +591,10 @@ const AdminDashboard = () => {
           const data = await res.json();
           setStats(data.stats);
           setRecentOrders(data.recentOrders || []);
+        } else if (res.status === 401 || res.status === 403) {
+          // Invalid session or lost admin rights
+          localStorage.removeItem('niraa_admin_auth');
+          window.location.href = '/login';
         }
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
@@ -749,25 +762,12 @@ export const AdminRoutes = () => {
     } catch { return false; }
   });
 
-  // Verify cookie-based session on load (handles refresh/new tab)
+  // Admin auth is persisted via localStorage (set on login, cleared on logout).
+  // No server fetch needed on mount — avoids 401 console errors.
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/auth/profile`, { credentials: 'include' });
-        if (!res.ok) throw new Error('not authed');
-        const data = await res.json();
-        if (data?.user?.role === 'admin') {
-          localStorage.setItem('niraa_user', JSON.stringify(data.user));
-          localStorage.setItem('niraa_admin_auth', 'true');
-          setAuth(true);
-        } else {
-          throw new Error('not admin');
-        }
-      } catch {
-        localStorage.removeItem('niraa_admin_auth');
-        setAuth(false);
-      }
-    })();
+    const user = (() => { try { return JSON.parse(localStorage.getItem('niraa_user') || 'null'); } catch { return null; } })();
+    const adminAuth = localStorage.getItem('niraa_admin_auth') === 'true';
+    setAuth(adminAuth && user?.role === 'admin');
   }, []);
 
   if (!auth) {

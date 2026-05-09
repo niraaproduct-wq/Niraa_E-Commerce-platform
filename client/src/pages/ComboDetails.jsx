@@ -7,7 +7,7 @@ import { WHATSAPP_NUMBER } from '../utils/constants.js';
 import { FiShoppingCart, FiZap, FiCheck, FiArrowLeft, FiTruck, FiShield, FiGift } from 'react-icons/fi';
 import { AiOutlineWhatsApp } from 'react-icons/ai';
 import { db } from '../config/firebase';
-import { collection, query, where, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, limit, onSnapshot, getDocs } from 'firebase/firestore';
 
 const TRUST_POINTS = [
   { icon: <FiShield size={14} />, text: 'Guaranteed Savings' },
@@ -21,6 +21,7 @@ const ComboDetails = () => {
   const [mainImage, setMainImage] = useState(null);
   const [qty, setQty] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [comboItemsWithCurrentPrices, setComboItemsWithCurrentPrices] = useState([]);
   const navigate = useNavigate();
   const { addToCart, items, updateQty } = useCart();
 
@@ -31,13 +32,19 @@ const ComboDetails = () => {
 
     // Listen for real-time updates
     const q = query(collection(db, 'products'), where('slug', '==', slug), limit(1));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
       if (!snapshot.empty) {
         const docSnap = snapshot.docs[0];
         const data = docSnap.data();
         const p = { id: docSnap.id, _id: docSnap.id, ...data };
         setProduct(p);
         setMainImage(img => img || p.images?.[0] || p.image);
+        
+        // Fetch current prices for combo items if they exist
+        if (p.comboItems && p.comboItems.length > 0) {
+          await fetchComboItemsWithCurrentPrices(p.comboItems);
+        }
+        
         setLoading(false);
       } else {
         setLoading(false);
@@ -50,6 +57,86 @@ const ComboDetails = () => {
 
     return () => unsubscribe();
   }, [slug]);
+
+  // Fetch current prices for all combo items from database
+  const fetchComboItemsWithCurrentPrices = async (comboItems) => {
+    try {
+      // Fetch all active products once to allow fuzzy/normalized matching
+      const productsSnap = await getDocs(query(collection(db, 'products')));
+      const products = productsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      const normalize = (s = '') =>
+        s
+          .toString()
+          .toLowerCase()
+          .replace(/[–—_\/]+/g, ' ')
+          .replace(/[^a-z0-9\s]/g, '')
+          .replace(/\b(litre|liter|lt|l|ml|g|kg|500ml|750ml|1l|1lt|1lt)\b/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      const findProduct = (itemName) => {
+        if (!itemName) return null;
+        const n = normalize(itemName);
+
+        // Exact normalized match
+        let match = products.find((p) => normalize(p.name) === n);
+        if (match) return match;
+
+        // Contains / partial match
+        match = products.find((p) => {
+          const pn = normalize(p.name);
+          return (pn && n && (pn.includes(n) || n.includes(pn)));
+        });
+        if (match) return match;
+
+        // Try matching by slug
+        match = products.find((p) => p.slug && p.slug.toLowerCase() === itemName.toString().toLowerCase());
+        if (match) return match;
+
+        return null;
+      };
+
+      const updatedItems = await Promise.all(
+        comboItems.map(async (item) => {
+          // String item (e.g., "Dish Wash Lemon 750ml")
+          if (typeof item === 'string') {
+            const matched = findProduct(item);
+            if (matched) {
+              return { name: item, price: matched.price || 0, qty: 1, productId: matched.id };
+            }
+            return { name: item, price: 0, qty: 1 };
+          }
+
+          // Object item with name
+          if (typeof item === 'object' && item.name) {
+            const matched = findProduct(item.name);
+            if (matched) {
+              return {
+                ...item,
+                price: matched.price || item.price || 0,
+                qty: item.qty || 1,
+                productId: matched.id,
+              };
+            }
+            // keep as-is but ensure numeric fields
+            return {
+              ...item,
+              price: item.price || 0,
+              qty: item.qty || 1,
+            };
+          }
+
+          return item;
+        })
+      );
+
+      setComboItemsWithCurrentPrices(updatedItems);
+    } catch (err) {
+      console.error('Error fetching combo items prices:', err);
+      setComboItemsWithCurrentPrices(comboItems);
+    }
+  };
 
   const imageList = useMemo(() => {
     if (product?.images?.length) return product.images;
@@ -87,25 +174,31 @@ const ComboDetails = () => {
     </main>
   );
 
-  // Compute Prices
-  const comboItemsList = product.comboItems || [];
-  const hasItemPrices = comboItemsList.some(i => i.price && typeof i === 'object');
+  // Compute Prices Dynamically
+  const comboItemsList = comboItemsWithCurrentPrices.length > 0 ? comboItemsWithCurrentPrices : product?.comboItems || [];
   
-  // Calculate total individual price if we have item prices, otherwise fallback to product.originalPrice
+  // Calculate total individual price with current prices
   let totalIndividualPrice = 0;
-  if (hasItemPrices) {
-    totalIndividualPrice = comboItemsList.reduce((acc, item) => acc + (Number(item.price) || 0) * (Number(item.qty) || 1), 0);
-  } else {
-    totalIndividualPrice = product.originalPrice || product.comparePrice || product.price;
+  if (comboItemsList.length > 0) {
+    totalIndividualPrice = comboItemsList.reduce((acc, item) => {
+      const itemPrice = typeof item === 'object' && item.price ? Number(item.price) : 0;
+      const itemQty = typeof item === 'object' && item.qty ? Number(item.qty) : 1;
+      return acc + (itemPrice * itemQty);
+    }, 0);
   }
   
-  const comboPrice = product.price || 0;
+  // If no items or calculated price is 0, fallback to originalPrice
+  if (totalIndividualPrice === 0) {
+    totalIndividualPrice = product?.originalPrice || product?.comparePrice || product?.price || 0;
+  }
+  
+  const comboPrice = product?.price || 0;
   // Make sure totalIndividualPrice is at least comboPrice for sanity
   totalIndividualPrice = Math.max(totalIndividualPrice, comboPrice);
   
   const savingsAmount = totalIndividualPrice - comboPrice;
   const savingsPct = totalIndividualPrice > 0 ? Math.round((savingsAmount / totalIndividualPrice) * 100) : 0;
-  const currentStock = product.stock || 0;
+  const currentStock = product?.stock || 0;
 
   const addSelectedToCart = () => {
     const uid = product._id;
@@ -321,10 +414,10 @@ const ComboDetails = () => {
                 🧾 Included Products
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: '#f8fafc', padding: 16, borderRadius: 16, border: '1px solid #e2e8f0' }}>
-                {comboItemsList.map((item, idx) => {
-                  const itemName = typeof item === 'object' ? item.name : item;
-                  const itemPrice = typeof item === 'object' && item.price ? item.price : null;
-                  const itemQty = typeof item === 'object' && item.qty ? item.qty : 1;
+           {comboItemsList.map((item, idx) => {
+                   const itemName = typeof item === 'object' ? item.name : item;
+                   const itemPrice = typeof item === 'object' && item.price ? Number(item.price) : null;
+                   const itemQty = typeof item === 'object' && item.qty ? item.qty : 1;
                   
                   return (
                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: idx !== comboItemsList.length - 1 ? '1px solid #e2e8f0' : 'none', paddingBottom: idx !== comboItemsList.length - 1 ? 8 : 0 }}>

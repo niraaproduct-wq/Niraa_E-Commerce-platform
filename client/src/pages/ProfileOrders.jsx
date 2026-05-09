@@ -425,7 +425,9 @@ const ProfileOrders = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        setOrders(data);
+        setOrders(Array.isArray(data) ? data : (data?.orders || []));
+      } else {
+        console.error('Failed to fetch orders. Status:', response.status);
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -446,10 +448,9 @@ const ProfileOrders = () => {
       });
       
       if (response.ok) {
-        // Refresh orders after successful cancellation
         await fetchOrders();
       } else {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         alert(errorData.message || 'Failed to cancel order');
       }
     } catch (error) {
@@ -458,15 +459,17 @@ const ProfileOrders = () => {
     }
   };
 
+  const safeOrders = Array.isArray(orders) ? orders : [];
+
   const filteredOrders = filter === 'all'
-    ? orders
-    : orders.filter(o => o.status === filter);
+    ? safeOrders
+    : safeOrders.filter(o => o.status === filter);
 
   const stats = {
-    total: orders.length,
-    delivered: orders.filter(o => o.status === 'delivered').length,
-    active: orders.filter(o => !['delivered', 'cancelled'].includes(o.status)).length,
-    totalSpent: orders.reduce((sum, o) => sum + (o.total ?? o.totalAmount ?? 0), 0),
+    total: safeOrders.length,
+    delivered: safeOrders.filter(o => o.status === 'delivered').length,
+    active: safeOrders.filter(o => !['delivered', 'cancelled'].includes(o.status)).length,
+    totalSpent: safeOrders.reduce((sum, o) => sum + (o.total ?? o.totalAmount ?? 0), 0),
   };
 
   if (loading) {

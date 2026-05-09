@@ -10,14 +10,14 @@ export const RealtimeProvider = ({ children }) => {
   const reconnectTimer = useRef(null);
 
   const connect = () => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // In development, the backend usually runs on port 5000
-    let wsUrl;
-    if (import.meta.env.DEV) {
-      wsUrl = `${protocol}//${window.location.hostname}:5000/ws`;
-    } else {
-      wsUrl = `${protocol}//${window.location.host}/ws`;
-    }
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+    const WS_BASE = API_BASE
+      .replace('/api', '')
+      .replace('https://', 'wss://')
+      .replace('http://', 'ws://');
+
+    const wsUrl = `${WS_BASE}/ws`;
+    console.log("📡 WebSocket URL:", wsUrl);
 
     const ws = new WebSocket(wsUrl);
 
