@@ -184,6 +184,43 @@ const GLOBAL_CSS = `
     inset: -2px; border-radius: 50%; background: var(--green);
     animation: pulse-ring 1.4s ease-out infinite;
   }
+
+  @media (max-width: 768px) {
+    .admin-main-content {
+      padding: 16px 12px !important;
+    }
+    .stat-card-grid {
+      grid-template-columns: 1fr !important;
+    }
+    .recent-orders-table-wrapper {
+      max-width: 100vw;
+      overflow-x: auto;
+    }
+    .recent-orders-table-wrapper table {
+      width: max-content !important;
+      min-width: 100%;
+    }
+    
+    /* MOBILE SIDEBAR: Always icons, no labels */
+    .admin-sidebar {
+      width: var(--sidebar-collapsed-w) !important;
+    }
+    .admin-sidebar .section-label,
+    .admin-sidebar .nav-link span,
+    .admin-sidebar .sidebar-logo-text,
+    .admin-sidebar .sidebar-footer-text,
+    .admin-sidebar .hide-mobile {
+      display: none !important;
+    }
+    .admin-sidebar .nav-link {
+      justify-content: center !important;
+      padding: 12px 0 !important;
+    }
+    .admin-sidebar .sidebar-logo-container {
+      padding: 18px 0 !important;
+      justify-content: center !important;
+    }
+  }
 `;
 
 // ─── Light theme token overrides ─────────────────────────────────────────────
@@ -298,7 +335,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
   ];
 
   return (
-    <aside style={{
+    <aside className="admin-sidebar" style={{
       width: collapsed ? 'var(--sidebar-collapsed-w)' : 'var(--sidebar-w)',
       minHeight: '100vh',
       background: 'var(--bg)',
@@ -316,31 +353,30 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       }} />
 
       {/* Logo */}
-      <div style={{
+      <div className="sidebar-logo-container" style={{
         padding: collapsed ? '18px 0' : '18px 14px',
         borderBottom: '1px solid var(--border)',
         marginBottom: 6,
         flexShrink: 0,
+        display: 'flex', alignItems: 'center', gap: 10
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 34, height: 34,
-            borderRadius: 10,
-            background: 'linear-gradient(135deg, var(--accent) 0%, #1a8a72 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-            margin: collapsed ? '0 auto' : 0,
-            boxShadow: '0 2px 10px var(--accent-glow)',
-          }}>
-            <span style={{ color: '#021a14', fontWeight: 900, fontSize: 15, fontFamily: 'var(--display)' }}>N</span>
-          </div>
-          {!collapsed && (
-            <div style={{ overflow: 'hidden' }}>
-              <div style={{ fontFamily: 'var(--display)', color: 'var(--text-primary)', fontWeight: 800, fontSize: 16, letterSpacing: '-0.01em', lineHeight: 1 }}>NIRAA</div>
-              <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 2 }}>Admin Console</div>
-            </div>
-          )}
+        <div style={{
+          width: 34, height: 34,
+          borderRadius: 10,
+          background: 'linear-gradient(135deg, var(--accent) 0%, #1a8a72 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+          margin: collapsed ? '0 auto' : 0,
+          boxShadow: '0 2px 10px var(--accent-glow)',
+        }}>
+          <span style={{ color: '#021a14', fontWeight: 900, fontSize: 15, fontFamily: 'var(--display)' }}>N</span>
         </div>
+        {!collapsed && (
+          <div className="sidebar-logo-text" style={{ overflow: 'hidden' }}>
+            <div style={{ fontFamily: 'var(--display)', color: 'var(--text-primary)', fontWeight: 800, fontSize: 16, letterSpacing: '-0.01em', lineHeight: 1 }}>NIRAA</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 2 }}>Admin Console</div>
+          </div>
+        )}
       </div>
 
       {/* Nav */}
@@ -365,14 +401,14 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
             {NAV.map(item => (
               <Link key={item.to} to={item.to} className={`nav-link${isActive(item.to) ? ' active' : ''}`}>
                 <Ic d={item.icon} size={15} />
-                {item.label}
+                {!collapsed && <span>{item.label}</span>}
               </Link>
             ))}
             <div className="section-label" style={{ marginTop: 8 }}>Store</div>
             {STORE_NAV.map(item => (
               <Link key={item.to} to={item.to} className={`nav-link${isActive(item.to) ? ' active' : ''}`}>
                 <Ic d={item.icon} size={15} />
-                {item.label}
+                {!collapsed && <span>{item.label}</span>}
               </Link>
             ))}
           </>
@@ -386,17 +422,17 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
             className="nav-link"
             style={{ marginBottom: 2, display: 'flex' }}>
             <Ic d={P.eye} size={15} />
-            View Store
-            <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>↗</span>
+            <span className="sidebar-footer-text">View Store</span>
+            <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }} className="hide-mobile">↗</span>
           </a>
         )}
         <div className="nav-link" onClick={handleLogout} style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}>
           <Ic d={P.logout} size={15} />
-          {!collapsed && 'Sign Out'}
+          {!collapsed && <span className="sidebar-footer-text">Sign Out</span>}
         </div>
-        <button onClick={() => setCollapsed(c => !c)} style={{
+        <button className="hide-mobile" onClick={() => setCollapsed(c => !c)} style={{
           marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: '100%', gap: 6, padding: '7px', borderRadius: 'var(--radius)',
           background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)',
@@ -426,19 +462,19 @@ const TopBar = ({ title, subtitle, theme, toggleTheme }) => {
   const initials = (user?.name || 'Admin').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
   return (
-    <div style={{
+    <div className="admin-topbar" style={{
       height: 'var(--topbar-h)',
       background: 'var(--surface)',
       borderBottom: '1px solid var(--border)',
-      display: 'flex', alignItems: 'center', padding: '0 22px', gap: 16, flexShrink: 0,
+      display: 'flex', alignItems: 'center', padding: '0 22px', gap: 12, flexShrink: 0,
       backdropFilter: 'blur(12px)',
     }}>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontFamily: 'var(--display)', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1, letterSpacing: '-0.01em' }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, fontFamily: 'var(--sans)' }}>{subtitle}</div>}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: 'var(--display)', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, fontFamily: 'var(--sans)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subtitle}</div>}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {/* Live indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--green-dim)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: 99, fontSize: 11, fontWeight: 600, color: 'var(--green)', fontFamily: 'var(--sans)' }}>
           <div className="live-dot" />
@@ -515,12 +551,12 @@ const AdminLayout = ({ children }) => {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--surface-2)', fontFamily: 'var(--sans)' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--surface-2)', fontFamily: 'var(--sans)', width: '100vw', overflowX: 'hidden' }}>
       <style>{GLOBAL_CSS}{theme === 'light' ? LIGHT_TOKENS : ''}</style>
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <TopBar title={meta.title} subtitle={meta.subtitle} theme={theme} toggleTheme={toggleTheme} />
-        <main style={{ flex: 1, padding: '22px 24px', overflowY: 'auto' }}>
+        <main className="admin-main-content" style={{ flex: 1, padding: '22px 24px', overflowY: 'auto' }}>
           {children}
         </main>
       </div>
@@ -619,7 +655,7 @@ const AdminDashboard = () => {
       </div>
 
       {/* Stats grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+      <div className="stat-card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
         {STAT_CARDS.map((s, i) => <StatCard key={i} index={i} {...s} loading={loading} />)}
       </div>
 
@@ -652,7 +688,7 @@ const AdminDashboard = () => {
             <div style={{ fontSize: 13, marginTop: 4 }}>Orders will appear here once they come in.</div>
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div className="recent-orders-table-wrapper" style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--surface-2)' }}>

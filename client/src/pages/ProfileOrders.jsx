@@ -408,7 +408,7 @@ function OrderCard({ order, onCancel }) {
 }
 
 const ProfileOrders = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -421,12 +421,22 @@ const ProfileOrders = () => {
   const fetchOrders = async () => {
     try {
       const token = localStorage.getItem('niraa_token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
       const response = await fetch(`${API_BASE_URL}/orders/my`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
+
       if (response.ok) {
         const data = await response.json();
         setOrders(data);
+      } else if (response.status === 401) {
+        // Token is invalid or expired
+        console.warn('Session expired or unauthorized. Logging out.');
+        logout();
       }
     } catch (error) {
       console.error('Error fetching orders:', error);

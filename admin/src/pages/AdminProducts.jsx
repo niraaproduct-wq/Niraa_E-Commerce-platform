@@ -386,7 +386,7 @@ const AdminProducts = () => {
 
   /* ══════════════ RENDER ══════════════ */
   return (
-    <div style={{ fontFamily: T.font, color: T.gray800, minHeight: '100vh', background: T.gray50, padding: '32px 32px 64px' }}>
+    <div className="admin-page-container" style={{ fontFamily: T.font, color: T.gray800, minHeight: '100vh', background: T.gray50, padding: '32px 32px 64px' }}>
 
       {/* ─ Not Admin Banner ─ */}
       {!isAdmin && (
@@ -404,7 +404,7 @@ const AdminProducts = () => {
       )}
 
       {/* ─── Page Header ─── */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
+      <div className="admin-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.tealMid, marginBottom: 6 }}>
             Niraa Admin
@@ -438,7 +438,7 @@ const AdminProducts = () => {
       </div>
 
       {/* ─── Stat Cards ─── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div className="admin-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
         {[
           { label: 'Total Products', value: products.length, color: T.teal, bg: T.tealLight },
           { label: 'Low Stock', value: lowStockCount, color: '#854F0B', bg: T.amberLight },
@@ -451,45 +451,52 @@ const AdminProducts = () => {
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20 }}>
+      <div className="mobile-col" style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 24 }}>
+        {/* Expanded Search Bar */}
         <div style={{ position: 'relative', flex: 1 }}>
-          <FaSearch style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: T.gray400, fontSize: 13, pointerEvents: 'none' }} />
+          <FaSearch style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: T.gray400, fontSize: 14, pointerEvents: 'none' }} />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search products by name or description…"
+            placeholder="Search products by name, category or description..."
             style={{
               ...input, width: '100%', boxSizing: 'border-box',
-              paddingLeft: 40, fontSize: 14,
-              border: `1.5px solid ${T.gray200}`,
-              boxShadow: T.shadow,
+              paddingLeft: 44, paddingRight: 16, height: 48, fontSize: 15,
+              border: `2px solid ${T.gray200}`,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
               borderRadius: T.radiusLg,
+              transition: 'all 0.2s ease',
             }}
+            onFocus={e => { e.target.style.borderColor = T.tealMid; e.target.style.boxShadow = '0 4px 20px rgba(15,110,86,0.08)'; }}
+            onBlur={e => { e.target.style.borderColor = T.gray200; e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'; }}
           />
         </div>
 
+        {/* Small Status Toggle on Right */}
         <button
           onClick={() => setShowInactive(!showInactive)}
           style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 16px', borderRadius: T.radiusLg,
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '8px 14px', borderRadius: T.radius,
             border: `1.5px solid ${showInactive ? T.teal : T.gray200}`,
             background: showInactive ? T.tealLight : T.white,
             color: showInactive ? T.tealDark : T.gray600,
-            fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            fontSize: 12, fontWeight: 700, cursor: 'pointer',
             transition: 'all 0.2s',
             whiteSpace: 'nowrap',
-            boxShadow: T.shadow,
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+            height: 48,
           }}
         >
-          {showInactive ? 'Showing All' : 'Showing Active'}
+          <span className="hide-mobile">{showInactive ? 'Showing All' : 'Active Only'}</span>
+          <span className="show-mobile-only">{showInactive ? 'All' : 'Active'}</span>
           <div style={{
-            width: 32, height: 18, borderRadius: 99,
+            width: 28, height: 16, borderRadius: 99,
             background: showInactive ? T.teal : T.gray300,
             position: 'relative', transition: 'background 0.2s'
           }}>
             <div style={{
-              position: 'absolute', top: 3, left: showInactive ? 16 : 3,
+              position: 'absolute', top: 2, left: showInactive ? 14 : 2,
               width: 12, height: 12, borderRadius: '50%', background: '#fff',
               transition: 'left 0.2s'
             }} />
@@ -498,12 +505,15 @@ const AdminProducts = () => {
       </div>
 
       {/* ─── Table ─── */}
-      <div style={{ 
+      <div className="admin-table-wrapper" style={{ 
         background: T.white, 
         border: `1.5px solid ${T.gray200}`, 
         borderRadius: T.radiusLg, 
         boxShadow: T.shadow, 
         overflowX: 'auto',
+        width: '100%',
+        display: 'block',
+        position: 'relative',
         WebkitOverflowScrolling: 'touch' // Smooth scroll for iOS
       }}>
         {loading ? (
@@ -516,7 +526,7 @@ const AdminProducts = () => {
             <p style={{ margin: 0, color: T.gray400, fontSize: 14 }}>No products found</p>
           </div>
         ) : (
-          <table style={{ width: '100%', minWidth: '950px', borderCollapse: 'collapse', tableLayout: 'auto' }}>
+          <table style={{ width: '100%', minWidth: '1000px', borderCollapse: 'collapse', tableLayout: 'auto' }}>
             <thead>
               <tr style={{ background: T.gray50, borderBottom: `1.5px solid ${T.gray200}` }}>
                 {['Product', 'Category', 'Offer Price', 'Stock', 'Status', 'Barcode', ''].map(h => (
@@ -681,7 +691,7 @@ const AdminProducts = () => {
             <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20, maxHeight: 'calc(90vh - 160px)', overflowY: 'auto' }}>
 
               {/* Name + Category */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <Field label="Product Name *" focusedField={focusedField} id="name">
                   <input type="text" name="name" value={formData.name} onChange={handleInput} onFocus={() => setFocusedField('name')} onBlur={() => setFocusedField(null)} required placeholder="e.g. Niraa Floor Magic" style={{ ...input, border: `1.5px solid ${focusedField === 'name' ? T.tealMid : T.gray200}` }} />
                 </Field>
@@ -739,7 +749,7 @@ const AdminProducts = () => {
               </div>
 
               {/* Size + Product Type */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <Field label="Size / Volume" focusedField={focusedField} id="size">
                   <select
                     name="size"

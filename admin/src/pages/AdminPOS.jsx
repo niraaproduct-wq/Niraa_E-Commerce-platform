@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../utils/constants';
 import toast from 'react-hot-toast';
-import { 
-  FaBarcode, FaSearch, FaShoppingCart, FaTrash, FaPlus, FaMinus, 
+import {
+  FaBarcode, FaSearch, FaShoppingCart, FaTrash, FaPlus, FaMinus,
   FaUser, FaChevronRight, FaCheckCircle, FaPrint, FaTimes,
   FaTruck, FaWalking, FaMoneyBillWave, FaMobileAlt
 } from 'react-icons/fa';
@@ -68,7 +68,7 @@ const AdminPOS = () => {
     setCart(prev => {
       const existing = prev.find(item => item._id === product._id);
       if (existing) {
-        return prev.map(item => 
+        return prev.map(item =>
           item._id === product._id ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
@@ -99,8 +99,8 @@ const AdminPOS = () => {
 
     // Try to find by barcode/SKU first, then by name
     const searchTerm = search.trim().toUpperCase();
-    const found = products.find(p => 
-      (p.barcode && p.barcode.toUpperCase() === searchTerm) || 
+    const found = products.find(p =>
+      (p.barcode && p.barcode.toUpperCase() === searchTerm) ||
       (p.sku && p.sku.toUpperCase() === searchTerm) ||
       p.name.toLowerCase() === search.trim().toLowerCase()
     );
@@ -119,7 +119,7 @@ const AdminPOS = () => {
     if (cart.length === 0) return toast.error('Cart is empty');
     if (!paymentConfirmed) return toast.error('Please confirm payment first');
     if (deliveryMode === 'delivery' && !address.street.trim()) return toast.error('Please enter delivery address');
-    
+
     setProcessing(true);
     try {
       // Auto-status logic
@@ -138,8 +138,8 @@ const AdminPOS = () => {
         total: total,
         paymentMethod: paymentMethod,
         paymentStatus: 'paid',
-        status: orderStatus, 
-        address: deliveryMode === 'pickup' 
+        status: orderStatus,
+        address: deliveryMode === 'pickup'
           ? { street: 'POS Pickup', city: 'Store', pincode: '' }
           : { ...address, pincode: '' },
         customerType: 'walkin',
@@ -151,7 +151,7 @@ const AdminPOS = () => {
       const token = localStorage.getItem('niraa_token');
       const res = await fetch(`${API_BASE_URL}/orders`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
@@ -176,11 +176,11 @@ const AdminPOS = () => {
   };
 
   return (
-    <div style={{ display: 'flex', gap: 24, height: 'calc(100vh - 120px)', fontFamily: T.font }}>
-      
+    <div className="pos-container" style={{ display: 'flex', gap: 24, height: 'calc(100vh - 120px)', fontFamily: T.font }}>
+
       {/* ── Left Side: Scanner & Product Lookup ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
-        
+
         {/* Scanner Input */}
         <form onSubmit={handleScan} style={{ position: 'relative' }}>
           <div style={{
@@ -189,13 +189,13 @@ const AdminPOS = () => {
             boxShadow: T.shadow, border: `1.5px solid ${T.gray200}`
           }}>
             <FaBarcode style={{ color: T.teal, fontSize: 20 }} />
-            <input 
+            <input
               ref={scanInputRef}
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Scan Barcode or Type Product Name..."
               style={{
-                flex: 1, border: 'none', outline: 'none', 
+                flex: 1, border: 'none', outline: 'none',
                 fontSize: 16, color: T.gray800, background: 'transparent'
               }}
             />
@@ -208,15 +208,15 @@ const AdminPOS = () => {
         </form>
 
         {/* Product Grid / List */}
-        <div style={{ 
-          flex: 1, background: T.white, borderRadius: T.radiusLg, 
-          padding: 20, boxShadow: T.shadow, overflowY: 'auto' 
+        <div style={{
+          flex: 1, background: T.white, borderRadius: T.radiusLg,
+          padding: 20, boxShadow: T.shadow, overflowY: 'auto'
         }}>
           <h3 style={{ margin: '0 0 16px', fontSize: 16, color: T.gray900 }}>Fast Add</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
             {products.slice(0, 12).map(p => (
-              <div 
-                key={p._id} 
+              <div
+                key={p._id}
                 onClick={() => addToCart(p)}
                 style={{
                   padding: 12, borderRadius: T.radius, border: `1px solid ${T.gray200}`,
@@ -249,9 +249,9 @@ const AdminPOS = () => {
       </div>
 
       {/* ── Right Side: Cart & Checkout ── */}
-      <div style={{ 
-        width: 380, background: T.white, borderRadius: T.radiusLg, 
-        display: 'flex', flexDirection: 'column', boxShadow: T.shadow, overflow: 'hidden' 
+      <div className="pos-sidebar" style={{
+        width: 380, background: T.white, borderRadius: T.radiusLg,
+        display: 'flex', flexDirection: 'column', boxShadow: T.shadow, overflow: 'hidden'
       }}>
         <div style={{ padding: '20px 24px', background: T.teal, color: '#fff' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -305,16 +305,16 @@ const AdminPOS = () => {
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: T.gray400, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Customer Details</label>
             <div style={{ display: 'flex', gap: 8 }}>
-              <input 
-                value={customer.name} 
-                onChange={e => setCustomer({...customer, name: e.target.value})}
-                placeholder="Name" 
+              <input
+                value={customer.name}
+                onChange={e => setCustomer({ ...customer, name: e.target.value })}
+                placeholder="Name"
                 style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: `1px solid ${T.gray200}`, fontSize: 13 }}
               />
-              <input 
-                value={customer.phone} 
-                onChange={e => setCustomer({...customer, phone: e.target.value})}
-                placeholder="Phone" 
+              <input
+                value={customer.phone}
+                onChange={e => setCustomer({ ...customer, phone: e.target.value })}
+                placeholder="Phone"
                 style={{ width: 120, padding: '8px 12px', borderRadius: 8, border: `1px solid ${T.gray200}`, fontSize: 13 }}
               />
             </div>
@@ -322,16 +322,16 @@ const AdminPOS = () => {
 
           <div style={{ marginBottom: 16 }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: T.gray400, textTransform: 'uppercase', display: 'block', marginBottom: 8 }}>Delivery & Payment</label>
-            
+
             {/* Delivery Toggle */}
             <div style={{ display: 'flex', background: T.gray100, borderRadius: 8, padding: 3, marginBottom: 10 }}>
-              <button 
+              <button
                 onClick={() => setDeliveryMode('pickup')}
                 style={{ flex: 1, padding: '6px', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: deliveryMode === 'pickup' ? T.white : 'transparent', color: deliveryMode === 'pickup' ? T.teal : T.gray600, boxShadow: deliveryMode === 'pickup' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none' }}
               >
                 <FaWalking size={11} /> Pickup
               </button>
-              <button 
+              <button
                 onClick={() => setDeliveryMode('delivery')}
                 style={{ flex: 1, padding: '6px', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: deliveryMode === 'delivery' ? T.white : 'transparent', color: deliveryMode === 'delivery' ? T.teal : T.gray600, boxShadow: deliveryMode === 'delivery' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none' }}
               >
@@ -341,9 +341,9 @@ const AdminPOS = () => {
 
             {/* Address Field if Delivery */}
             {deliveryMode === 'delivery' && (
-              <input 
+              <input
                 value={address.street}
-                onChange={e => setAddress({...address, street: e.target.value})}
+                onChange={e => setAddress({ ...address, street: e.target.value })}
                 placeholder="Delivery Address"
                 style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: `1px solid ${T.gray200}`, fontSize: 13, marginBottom: 10 }}
               />
@@ -351,13 +351,13 @@ const AdminPOS = () => {
 
             {/* Payment Toggle */}
             <div style={{ display: 'flex', background: T.gray100, borderRadius: 8, padding: 3, marginBottom: 12 }}>
-              <button 
+              <button
                 onClick={() => setPaymentMethod('cash')}
                 style={{ flex: 1, padding: '6px', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: paymentMethod === 'cash' ? T.white : 'transparent', color: paymentMethod === 'cash' ? T.teal : T.gray600, boxShadow: paymentMethod === 'cash' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none' }}
               >
                 <FaMoneyBillWave size={11} /> Cash
               </button>
-              <button 
+              <button
                 onClick={() => setPaymentMethod('online')}
                 style={{ flex: 1, padding: '6px', border: 'none', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: paymentMethod === 'online' ? T.white : 'transparent', color: paymentMethod === 'online' ? T.teal : T.gray600, boxShadow: paymentMethod === 'online' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none' }}
               >
@@ -367,10 +367,10 @@ const AdminPOS = () => {
 
             {/* Confirm Payment Checkbox */}
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 12px', background: paymentConfirmed ? T.tealLight : T.white, border: `1px solid ${paymentConfirmed ? T.teal : T.gray200}`, borderRadius: 8, transition: 'all 0.2s' }}>
-              <input 
-                type="checkbox" 
-                checked={paymentConfirmed} 
-                onChange={e => setPaymentConfirmed(e.target.checked)} 
+              <input
+                type="checkbox"
+                checked={paymentConfirmed}
+                onChange={e => setPaymentConfirmed(e.target.checked)}
                 style={{ width: 16, height: 16, accentColor: T.teal }}
               />
               <span style={{ fontSize: 13, fontWeight: 700, color: paymentConfirmed ? T.teal : T.gray700 }}>
@@ -384,7 +384,7 @@ const AdminPOS = () => {
             <span style={{ fontSize: 24, fontWeight: 800, color: T.teal }}>₹{total}</span>
           </div>
 
-          <button 
+          <button
             onClick={handleCheckout}
             disabled={processing || cart.length === 0}
             style={{
