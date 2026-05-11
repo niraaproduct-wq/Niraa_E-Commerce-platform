@@ -1,6 +1,7 @@
 const { getFirebase } = require('../config/firebase');
 
 const USERS_COLLECTION = 'users';
+const ADMINS_COLLECTION = 'admins';
 
 const normalizePhone = (phone = '') => String(phone).replace(/\D/g, '').slice(-10);
 
@@ -150,6 +151,48 @@ const updateUser = async (userId, updateData) => {
   return toPlainUser(updated);
 };
 
+// ─── Admin Helpers ────────────────────────────────────────────────────────────
+const findAdminByEmail = async (email) => {
+  if (!email) return null;
+  const { db } = getFirebase();
+  const snap = await db
+    .collection(ADMINS_COLLECTION)
+    .where('email', '==', String(email).toLowerCase().trim())
+    .limit(1)
+    .get();
+
+  if (snap.empty) return null;
+  return toPlainUser(snap.docs[0]);
+};
+
+const findAdminById = async (id) => {
+  const { db } = getFirebase();
+  const doc = await db.collection(ADMINS_COLLECTION).doc(String(id)).get();
+  return toPlainUser(doc);
+};
+
+const createAdmin = async (adminData) => {
+  const { db } = getFirebase();
+  const now = new Date().toISOString();
+  const docRef = db.collection(ADMINS_COLLECTION).doc();
+
+  const payload = {
+    firstName: adminData.firstName || 'Admin',
+    lastName: adminData.lastName || '',
+    name: adminData.name || `${adminData.firstName || 'Admin'} ${adminData.lastName || ''}`.trim(),
+    email: adminData.email.toLowerCase().trim(),
+    phone: adminData.phone || '',
+    password: adminData.password,
+    role: 'admin',
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await docRef.set(payload);
+  return { id: docRef.id, ...payload };
+};
+
 module.exports = {
   getAllUsers,
   getUsers,
@@ -159,4 +202,8 @@ module.exports = {
   findUserById,
   createUser,
   updateUser,
+  // Admin exports
+  findAdminByEmail,
+  findAdminById,
+  createAdmin,
 };

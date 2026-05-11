@@ -182,10 +182,12 @@ const Checkout = () => {
 
     const payload = {
       customerName: form.name, customerPhone: form.phone.replace(/\D/g, '').slice(-10),
+      customerEmail: user?.email || '',
       address: { street: form.street, city: form.city, pincode: form.pincode },
       items: items.map(i => ({ product: i._id, variantId: i.variantId, name: i.name, variantDesc: i.variantDesc, image: i.image || i.images?.[0] || '', price: i.price, quantity: i.qty })),
       subtotal, discount: 0, total: subtotal, paymentMethod, viaWhatsApp: sendViaWhatsApp,
     };
+    if (user?.id || user?._id) payload.userId = user.id || user._id;
 
     try {
       setLoading(true);

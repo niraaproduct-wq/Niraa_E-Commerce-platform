@@ -186,7 +186,7 @@ export default function ProductCard({ product, compact = false }) {
                </div>
                
                {/* First line: Offer Price + MRP + Discount % */}
-               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                  <span className="price-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, color: 'var(--gray-900)', letterSpacing: '-0.04em', fontSize: '1.45rem' }}>
                    {formatPrice(offerPrice)}
                  </span>
@@ -204,7 +204,7 @@ export default function ProductCard({ product, compact = false }) {
                  )}
                </div>
                
-               {/* Second line: MRP + Save amount */}
+               {/* Second line: MRP left + Save right — original layout */}
                {mrp > 0 && (
                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--gray-600)', fontWeight: 500 }}>
                    <span>MRP: {formatPrice(mrp)}</span>
@@ -217,39 +217,50 @@ export default function ProductCard({ product, compact = false }) {
                )}
              </div>
 
-             {/* Add to Cart Button - Full Width */}
+             {/* Mobile-only cart icon row — appears below price, right-aligned, hidden on desktop */}
              <button
+               className="mobile-cart-icon"
                onClick={handleAddToCart}
-               className="add-to-cart-btn"
-               style={{
-                 background: 'linear-gradient(135deg, var(--teal), var(--teal-dark))',
-                 color: '#fff',
-                 border: 'none',
-                 borderRadius: 12,
-                 padding: '12px 16px',
-                 display: 'flex',
-                 alignItems: 'center',
-                 justifyContent: 'center',
-                 cursor: 'pointer',
-                 transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                 boxShadow: '0 10px 15px -3px rgba(42, 125, 114, 0.3)',
-                 width: '100%',
-                 fontSize: '0.9rem',
-                 fontWeight: 700,
-                 gap: 6
-               }}
-               onMouseEnter={e => { 
-                 e.currentTarget.style.transform = 'translateY(-2px)';
-                 e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(42, 125, 114, 0.4)';
-               }}
-               onMouseLeave={e => { 
-                 e.currentTarget.style.transform = 'translateY(0)';
-                 e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(42, 125, 114, 0.3)';
-               }}
+               style={{ display: 'none' }}
              >
-               <FiShoppingCart size={18} />
-               <span>Add to Cart</span>
+               <FiShoppingCart size={16} />
              </button>
+
+             {/* Add to Cart Button - Full Width on desktop, icon inline on mobile */}
+             <div className="cart-btn-wrapper">
+               <button
+                 onClick={handleAddToCart}
+                 className="add-to-cart-btn"
+                 style={{
+                   background: 'linear-gradient(135deg, var(--teal), var(--teal-dark))',
+                   color: '#fff',
+                   border: 'none',
+                   borderRadius: 12,
+                   padding: '12px 16px',
+                   display: 'flex',
+                   alignItems: 'center',
+                   justifyContent: 'center',
+                   cursor: 'pointer',
+                   transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                   boxShadow: '0 10px 15px -3px rgba(42, 125, 114, 0.3)',
+                   width: '100%',
+                   fontSize: '0.9rem',
+                   fontWeight: 700,
+                   gap: 6
+                 }}
+                 onMouseEnter={e => { 
+                   e.currentTarget.style.transform = 'translateY(-2px)';
+                   e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(42, 125, 114, 0.4)';
+                 }}
+                 onMouseLeave={e => { 
+                   e.currentTarget.style.transform = 'translateY(0)';
+                   e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(42, 125, 114, 0.3)';
+                 }}
+               >
+                 <FiShoppingCart size={18} />
+                 <span className="btn-text">Add to Cart</span>
+               </button>
+             </div>
            </div>
         </div>
 
@@ -269,8 +280,12 @@ export default function ProductCard({ product, compact = false }) {
           .btn-text {
             display: inline-block;
           }
-          
-          @media (max-width: 640px) {
+          .cart-btn-wrapper {
+            display: block;
+          }
+
+          /* ── Mobile: icon-only button lives inside MRP/Save row ── */
+          @media (max-width: 641px) {
             .product-card-content {
               padding: 12px 14px 16px !important;
             }
@@ -290,11 +305,31 @@ export default function ProductCard({ product, compact = false }) {
             .price-text {
               font-size: 1.1rem !important;
             }
-            .add-to-cart-btn {
-              padding: 10px !important;
-              width: 40px !important;
-              height: 40px !important;
-              border-radius: 12px !important;
+            /* Hide full-width button on mobile */
+            .cart-btn-wrapper {
+              display: none !important;
+            }
+            /* Mobile cart icon — right-aligned, below MRP/Save, in normal flow */
+            .mobile-cart-icon {
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              width: 38px !important;
+              height: 38px !important;
+              min-width: 38px !important;
+              border-radius: 50% !important;
+              background: linear-gradient(135deg, var(--teal), var(--teal-dark)) !important;
+              color: #fff !important;
+              border: none !important;
+              cursor: pointer !important;
+              box-shadow: 0 4px 12px rgba(42,125,114,0.4) !important;
+              margin-left: auto !important;
+              margin-top: 8px !important;
+              transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+            }
+            .mobile-cart-icon:active {
+              transform: scale(0.92) !important;
+              box-shadow: 0 2px 8px rgba(42,125,114,0.3) !important;
             }
             .btn-text {
               display: none !important;

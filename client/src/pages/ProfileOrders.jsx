@@ -11,12 +11,12 @@ const STATUS_CONFIG = {
   confirmed: { color: '#b45309', bg: '#fffbeb', label: 'Confirmed', icon: '✅', step: 1 },
   packed: { color: '#6d28d9', bg: '#f5f3ff', label: 'Packed', icon: '📦', step: 2 },
   shipped: { color: '#0369a1', bg: '#f0f9ff', label: 'Shipped', icon: '🚢', step: 3 },
-  'out-for-delivery': { color: '#1d4ed8', bg: '#eff6ff', label: 'Delivery', icon: '🚚', step: 4 },
+  'out_for_delivery': { color: '#1d4ed8', bg: '#eff6ff', label: 'Delivery', icon: '🚚', step: 4 },
   delivered: { color: '#15803d', bg: '#f0fdf4', label: 'Delivered', icon: '🎉', step: 5 },
   cancelled: { color: '#dc2626', bg: '#fef2f2', label: 'Cancelled', icon: '❌', step: -1 },
 };
 
-const ORDER_STEPS = ['placed', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered'];
+const ORDER_STEPS = ['placed', 'confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered'];
 
 function CancellationModal({ order, onClose, onConfirm }) {
   const [reason, setReason] = useState('');
@@ -392,7 +392,7 @@ function OrderCard({ order, onCancel }) {
                 Note: We will try to stop the courier. If they can't be stopped, you may need to refuse at your doorstep.
               </p>
             </div>
-          ) : order.status === 'out-for-delivery' ? (
+          ) : order.status === 'out_for_delivery' ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
               <span style={{ fontSize: '1.1rem' }}>🚚</span>
               <div>
@@ -408,7 +408,7 @@ function OrderCard({ order, onCancel }) {
 }
 
 const ProfileOrders = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -416,18 +416,31 @@ const ProfileOrders = () => {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [user]);
 
   const fetchOrders = async () => {
     try {
+      const token = localStorage.getItem('niraa_token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
       const response = await fetch(`${API_BASE_URL}/orders/my`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
         credentials: 'include',
       });
+
       if (response.ok) {
         const data = await response.json();
-        setOrders(Array.isArray(data) ? data : (data?.orders || []));
-      } else {
-        console.error('Failed to fetch orders. Status:', response.status);
+        setOrders(data.orders || []);
+      } else if (response.status === 401) {
+        // Token is invalid or expired
+        console.warn('Session expired or unauthorized. Logging out.');
+        logout();
       }
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -438,19 +451,22 @@ const ProfileOrders = () => {
 
   const handleCancelOrder = async (orderId, reasonKey, reasonText) => {
     try {
+      const token = localStorage.getItem('niraa_token');
       const response = await fetch(`${API_BASE_URL}/orders/${orderId}/cancel`, {
         method: 'PUT',
-        headers: { 
+        headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         credentials: 'include',
         body: JSON.stringify({ reasonKey, reasonText })
       });
-      
+
       if (response.ok) {
+        // Refresh orders after successful cancellation
         await fetchOrders();
       } else {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = await response.json();
         alert(errorData.message || 'Failed to cancel order');
       }
     } catch (error) {
@@ -583,7 +599,7 @@ const ProfileOrders = () => {
                 { id: 'confirmed', label: '✅ Confirmed' },
                 { id: 'packed', label: '📦 Packed' },
                 { id: 'shipped', label: '🚢 Shipped' },
-                { id: 'out-for-delivery', label: '🚚 Delivery' },
+                { id: 'out_for_delivery', label: '🚚 Delivery' },
                 { id: 'delivered', label: '🎉 Delivered' },
                 { id: 'cancelled', label: '❌ Cancelled' },
               ].map(f => (

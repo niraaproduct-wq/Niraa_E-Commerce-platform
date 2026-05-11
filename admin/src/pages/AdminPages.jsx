@@ -256,6 +256,8 @@ const P = {
   chevronL: 'M15 18l-6-6 6-6',
   ellipsis: 'M12 5v.01M12 12v.01M12 19v.01',
   plus: 'M12 5v14M5 12h14',
+  menu: 'M3 12h18M3 6h18M3 18h18',
+  x: 'M18 6L6 18M6 6l12 12',
 };
 
 // ─── Status config ─────────────────────────────────────────────────────────────
@@ -270,9 +272,14 @@ const STATUS = {
 };
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
-const Sidebar = ({ collapsed, setCollapsed }) => {
+const Sidebar = ({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) => {
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    // Close mobile menu on route change
+    setMobileOpen(false);
+  }, [location.pathname, setMobileOpen]);
 
   const isActive = (to) =>
     to === '/dashboard'
@@ -312,7 +319,21 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       borderRight: '1px solid var(--border)',
       position: 'relative',
       zIndex: 10,
-    }} className="admin-sidebar">
+    }} className={`admin-sidebar ${mobileOpen ? 'open' : ''}`}>
+      {/* Mobile close button */}
+      <button 
+        onClick={() => setMobileOpen(false)}
+        className="mobile-only"
+        style={{
+          position: 'absolute', top: 12, right: 12,
+          width: 32, height: 32, borderRadius: 8,
+          background: 'var(--surface-3)', border: '1px solid var(--border)',
+          display: 'none', alignItems: 'center', justifyContent: 'center',
+          color: 'var(--text-primary)', cursor: 'pointer', zIndex: 20
+        }}
+      >
+        <Ic d={P.x} size={18} />
+      </button>
       {/* Subtle gradient shimmer at top */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 180,
@@ -421,7 +442,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
 };
 
 // ─── Top Bar ──────────────────────────────────────────────────────────────────
-const TopBar = ({ title, subtitle, theme, toggleTheme }) => {
+const TopBar = ({ title, subtitle, theme, toggleTheme, setMobileOpen }) => {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -439,6 +460,22 @@ const TopBar = ({ title, subtitle, theme, toggleTheme }) => {
       backdropFilter: 'blur(12px)',
       flexWrap: 'wrap',
     }}>
+      {/* Mobile Menu Toggle */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="mobile-only menu-toggle"
+        style={{
+          display: 'none',
+          width: 38, height: 38, borderRadius: 'var(--radius)',
+          background: 'var(--surface-3)', border: '1px solid var(--border)',
+          alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', color: 'var(--text-primary)',
+          marginRight: 8
+        }}
+      >
+        <Ic d={P.menu} size={20} />
+      </button>
+
       <div style={{ flex: 1 }}>
         <div style={{ fontFamily: 'var(--display)', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1, letterSpacing: '-0.01em' }}>{title}</div>
         {subtitle && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, fontFamily: 'var(--sans)' }}>{subtitle}</div>}
@@ -508,6 +545,7 @@ const PAGE_META = {
 
 const AdminLayout = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('niraa_theme') || 'dark');
   const location = useLocation();
   const meta = PAGE_META[location.pathname] || { title: 'Admin', subtitle: '' };
@@ -524,16 +562,23 @@ const AdminLayout = ({ children }) => {
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--surface-2)', fontFamily: 'var(--sans)', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
       <style>{GLOBAL_CSS}{theme === 'light' ? LIGHT_TOKENS : ''}
         {`
-          @media (max-width: 768px) {
-            .admin-sidebar { position: absolute !important; left: 0; top: 0; bottom: 0; transform: translateX(-100%); }
+          @media (max-width: 670px) {
+            .admin-sidebar { 
+              position: fixed !important; 
+              left: 0; top: 0; bottom: 0; 
+              transform: translateX(-100%); 
+              width: 260px !important;
+            }
             .admin-sidebar.open { transform: translateX(0); box-shadow: 0 0 50px rgba(0,0,0,0.5); }
             .admin-topbar { padding: 10px 14px !important; }
+            .mobile-only { display: flex !important; }
+            main { padding: 16px !important; }
           }
         `}
       </style>
-      <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
+      <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <TopBar title={meta.title} subtitle={meta.subtitle} theme={theme} toggleTheme={toggleTheme} />
+        <TopBar title={meta.title} subtitle={meta.subtitle} theme={theme} toggleTheme={toggleTheme} setMobileOpen={setMobileOpen} />
         <main style={{ flex: 1, padding: '22px 24px', overflowY: 'auto', overflowX: 'auto', minHeight: 0, minWidth: 0 }}>
           {children}
         </main>

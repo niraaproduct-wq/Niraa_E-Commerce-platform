@@ -2,8 +2,8 @@ const bcrypt = require('bcryptjs');
 const { getFirebase } = require('../server/config/firebase');
 const firebaseStorage = require('../server/utils/firebaseStorage');
 
-// Load environment variables from root .env
-require('dotenv').config({ path: '../.env' });
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 async function createAdminUser() {
   try {
@@ -15,7 +15,7 @@ async function createAdminUser() {
     const adminPhone = '9876543210';
     
     // Check if admin already exists
-    const existingAdmin = await firebaseStorage.findUserByEmail(adminEmail);
+    const existingAdmin = await firebaseStorage.findAdminByEmail(adminEmail);
     
     if (existingAdmin) {
       console.log('❌ Admin user already exists with email:', adminEmail);
@@ -28,18 +28,13 @@ async function createAdminUser() {
     const hashedPassword = await bcrypt.hash(adminPassword, salt);
     
     // Create admin user
-    const adminUser = await firebaseStorage.createUser({
+    const adminUser = await firebaseStorage.createAdmin({
       firstName: 'Admin',
       lastName: 'User',
       name: 'Admin User',
       email: adminEmail,
       phone: adminPhone,
       password: hashedPassword,
-      hasPassword: true,
-      role: 'admin',
-      isVerified: true,
-      isActive: true,
-      profileComplete: true
     });
     
     console.log('✅ Admin user created successfully!');

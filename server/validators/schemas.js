@@ -6,8 +6,8 @@ const indianPhone = Joi.string()
   .pattern(/^[+]?[\d\s\-()]{10,15}$/)
   .messages({ 'string.pattern.base': 'Please provide a valid phone number (10–15 digits)' });
 
-const password = Joi.string().min(6).max(128)
-  .messages({ 'string.min': 'Password must be at least 6 characters' });
+const password = Joi.string().min(8).max(128)
+  .messages({ 'string.min': 'Password must be at least 8 characters' });
 
 const objectId = Joi.string().min(1).max(128); // Firestore doc IDs
 
@@ -28,7 +28,7 @@ const sendOtp = Joi.object({
 
 const sendEmailOtp = Joi.object({
   phone: indianPhone.required(),
-  email: Joi.string().email().required()
+  email: Joi.string().email().allow('', null)
 });
 
 const verifyOtp = Joi.object({
@@ -179,11 +179,24 @@ const placeOrder = Joi.object({
   customerName: safeString.allow('', null),
   customerPhone: indianPhone.allow('', null),
   customerEmail: Joi.string().email().allow('', null),
-  shippingAddress: Joi.object().allow(null),
+  address: Joi.object().allow(null),
   total: Joi.number().min(0),
   subtotal: Joi.number().min(0),
+  discount: Joi.number().min(0).allow(null, 0),
+  taxRate: Joi.number().min(0).allow(null, 0),
+  taxAmount: Joi.number().min(0).allow(null, 0),
   deliveryCharge: Joi.number().min(0),
-  paymentMethod: Joi.string().valid('cod', 'online', 'razorpay', 'upi').allow('', null),
+  paymentMethod: Joi.string().valid('cod', 'online', 'razorpay', 'upi', 'cash', 'card', 'split').allow('', null),
+  status: Joi.string().allow('', null),
+  paymentStatus: Joi.string().allow('', null),
+  customerType: Joi.string().allow('', null),
+  source: Joi.string().allow('', null),
+  orderType: Joi.string().allow('', null),
+  cashier: Joi.string().allow('', null),
+  cashierId: objectId.allow('', null),
+  posOrderId: Joi.string().allow('', null),
+  deliveryMode: Joi.string().allow('', null),
+  deliveryStatus: Joi.string().allow('', null),
   notes: longString.allow('', null),
 }).options({ allowUnknown: true });
 

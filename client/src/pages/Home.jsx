@@ -371,8 +371,8 @@ export default function Home() {
         }
         .floating-badge {
           position: absolute;
-          top: 24px;
-          right: 24px;
+          top: 16px;
+          right: 16px;
           background: rgba(255,255,255,0.9);
           backdrop-filter: blur(8px);
           padding: 8px 16px;
@@ -385,6 +385,45 @@ export default function Home() {
           align-items: center;
           gap: 6px;
           z-index: 10;
+        }
+
+        /* ── Combo card mobile responsive ── */
+        .combo-deal-badge {
+          display: inline-block;
+        }
+        .combo-card-name {
+          font-size: 1.8rem;
+        }
+        .combo-price-main {
+          font-size: 2.4rem;
+        }
+        .combo-price-orig {
+          font-size: 1.1rem;
+        }
+        .combo-btn-view, .combo-btn-wa {
+          font-size: 0.9rem;
+          padding: 14px 16px;
+        }
+
+        @media (max-width: 641px) {
+          .combo-card-name {
+            font-size: clamp(1rem, 4vw, 1.4rem) !important;
+          }
+          .combo-price-main {
+            font-size: clamp(1.5rem, 6vw, 2rem) !important;
+          }
+          .combo-price-orig {
+            font-size: 0.85rem !important;
+          }
+          .combo-cta-row {
+            gap: 8px !important;
+            margin-bottom: 14px !important;
+          }
+          .combo-btn-view, .combo-btn-wa {
+            font-size: 0.72rem !important;
+            padding: 10px 8px !important;
+            border-radius: 10px !important;
+          }
         }
       `}</style>
 
@@ -496,6 +535,15 @@ export default function Home() {
             <div className="hero-combo-card" style={{ minHeight: 460, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: '24px', background: 'linear-gradient(135deg, #062019 0%, #0f362e 100%)' }}>
               <img src={mainCombo.image || mainCombo.images?.[0] || bannerImage} alt="NIRAA products"
                 style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.35, mixBlendMode: 'luminosity' }} />
+
+              {/* "Best Value Deal" — always pinned top-left */}
+              <div className="combo-deal-badge" style={{
+                position: 'absolute', top: 16, left: 16, zIndex: 5,
+                background: 'linear-gradient(135deg, #c8a84b, #d4a843)',
+                color: '#fff', borderRadius: 999, fontSize: '0.65rem', fontWeight: 800,
+                padding: '5px 14px', letterSpacing: '0.06em', textTransform: 'uppercase',
+                boxShadow: '0 4px 12px rgba(200,168,75,0.4)'
+              }}>🏆 Best Value Deal</div>
               
               <div className="floating-badge">
                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#16a34a', display: 'inline-block', animation: 'pulse 2s infinite' }} />
@@ -503,14 +551,7 @@ export default function Home() {
               </div>
 
               <div style={{ position: 'relative', zIndex: 2 }}>
-                <div style={{
-                  display: 'inline-block', background: 'linear-gradient(135deg, #c8a84b, #d4a843)',
-                  color: '#fff', borderRadius: 999, fontSize: '0.65rem', fontWeight: 800,
-                  padding: '5px 14px', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14,
-                  boxShadow: '0 4px 12px rgba(200,168,75,0.4)'
-                }}>🏆 Best Value Deal</div>
-
-                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 900, color: '#fff', lineHeight: 1.15, marginBottom: 8, textShadow: '0 2px 10px rgba(0,0,0,0.4)' }}>
+                <div className="combo-card-name" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, color: '#fff', lineHeight: 1.15, marginBottom: 8, textShadow: '0 2px 10px rgba(0,0,0,0.4)' }}>
                   {mainCombo.name}
                 </div>
                 
@@ -521,18 +562,18 @@ export default function Home() {
                 )}
 
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20 }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.4rem', fontWeight: 900, color: '#4ade80', textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>
+                  <span className="combo-price-main" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, color: '#4ade80', textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>
                     {formatPrice(mainCombo.price)}
                   </span>
                   {mainCombo.originalPrice > mainCombo.price && (
-                    <span style={{ textDecoration: 'line-through', color: '#aadecd', fontSize: '1.1rem', fontWeight: 600 }}>
+                    <span className="combo-price-orig" style={{ textDecoration: 'line-through', color: '#aadecd', fontWeight: 600 }}>
                       {formatPrice(mainCombo.originalPrice)}
                     </span>
                   )}
                 </div>
 
-                <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
-                  <Link to={`/combos/${mainCombo.slug}`} style={{
+                <div className="combo-cta-row" style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
+                  <Link to={`/combos/${mainCombo.slug}`} className="combo-btn-view" style={{
                     background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)', border: '1.5px solid rgba(255,255,255,0.4)',
                     color: '#fff', padding: '14px 16px', borderRadius: 14, fontWeight: 800, textDecoration: 'none', fontSize: '0.9rem', flex: 1, textAlign: 'center', transition: 'all 0.2s',
                     boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
@@ -540,7 +581,7 @@ export default function Home() {
                   onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.25)'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)'; }}
                   >View Combo Deal</Link>
-                  <a href={waLink} target="_blank" rel="noreferrer" style={{
+                  <a href={waLink} target="_blank" rel="noreferrer" className="combo-btn-wa" style={{
                     background: '#25D366', color: '#fff', padding: '14px 16px', borderRadius: 14, fontWeight: 800, textDecoration: 'none', fontSize: '0.9rem', flex: 1, textAlign: 'center', boxShadow: '0 8px 24px rgba(37,211,102,0.3)', transition: 'all 0.2s'
                   }}
                   onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }}

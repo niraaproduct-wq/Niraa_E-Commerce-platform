@@ -12,11 +12,16 @@ const ALLOWED_MIME_TYPES = [
   'image/avif',
 ];
 
+// Allowed extensions
+const ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif'];
+
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 const fileFilter = (req, file, cb) => {
-  if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-    logger.warn(`[Upload] Rejected file: ${file.originalname} (type: ${file.mimetype})`);
+  const ext = path.extname(file.originalname).toLowerCase();
+  
+  if (!ALLOWED_MIME_TYPES.includes(file.mimetype) || !ALLOWED_EXTENSIONS.includes(ext)) {
+    logger.warn(`[Upload] Rejected file: ${file.originalname} (type: ${file.mimetype}, ext: ${ext})`);
     return cb(new Error(`Invalid file type. Only images are allowed (jpeg, png, webp, gif, avif).`), false);
   }
   cb(null, true);

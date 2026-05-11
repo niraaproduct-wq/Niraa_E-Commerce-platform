@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const { getFirebase } = require('../config/firebase');
 const { publishEvent } = require('../utils/realtimeHub');
 const logger = require('../utils/logger');
@@ -9,11 +10,25 @@ const toPlainOrder = (doc) => {
   return { id: doc.id, _id: doc.id, ...doc.data() };
 };
 
-// @desc    Place new order (guest checkout)
+// @desc    Place new order (guest or authenticated)
 const placeOrder = async (req, res) => {
   try {
     const { db } = getFirebase();
     const { items } = req.body;
+    
+    // Check if user is authenticated (optional)
+    let userId = null;
+    const authHeader = req.headers.authorization;
+    const token = req.cookies?.niraa_token || (authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
+    
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded) userId = decoded.id;
+      } catch (e) {
+        // Ignore invalid token for guest checkout
+      }
+    }
 
     if (!items || items.length === 0) {
       return res.status(400).json({ message: 'No items in order' });
@@ -74,10 +89,12 @@ const placeOrder = async (req, res) => {
       }
 
       // 4. Create the order
+      const isPosOrder = (req.body.customerType === 'walkin' || req.body.source === 'pos');
       const orderData = {
         ...req.body,
-        status: req.body.status || 'placed',
-        paymentStatus: req.body.paymentStatus || 'pending',
+        userId: userId || req.body.userId || null,
+        status: req.body.status ?? (isPosOrder ? 'delivered' : 'placed'),
+        paymentStatus: req.body.paymentStatus ?? (isPosOrder ? 'paid' : 'pending'),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -87,7 +104,9 @@ const placeOrder = async (req, res) => {
       return orderRef.id;
     });
 
-    const savedOrder = { id: orderId, _id: orderId, ...req.body, status: 'placed' };
+    // Read back saved order document so the client receives accurate stored values
+    const orderDoc = await db.collection(ORDERS_COLLECTION).doc(orderId).get();
+    const savedOrder = toPlainOrder(orderDoc);
     
     // Notify clients about the new order
     publishEvent('orders.changed', { type: 'created', orderId: savedOrder._id });
@@ -260,20 +279,49 @@ const getMyOrders = async (req, res) => {
     const limitNum = Number(limit);
     const skip = (Number(page) - 1) * limitNum;
     
-    const userSnapshot = await db.collection('users').doc(req.user.id).get();
+    const userData = req.user;
     
-    if (!userSnapshot.exists) {
-      return res.status(404).json({ message: 'User not found' });
+    if (!userData) {
+      logger.warn('[Orders] getMyOrders called without user data');
+      return res.status(401).json({ message: 'Unauthorized' });
     }
-    
-    const userData = userSnapshot.data();
-    
-    // Fetch without orderBy to avoid needing a composite index on customerPhone + createdAt.
-    const fullSnapshot = await db.collection(ORDERS_COLLECTION)
-      .where('customerPhone', '==', userData.phone)
-      .get();
 
-    let orders = fullSnapshot.docs.map(toPlainOrder).filter(Boolean);
+    const userId = userData.id;
+    const userPhone = userData.phone ? String(userData.phone).replace(/\D/g, '').slice(-10) : null;
+    
+    logger.debug(`[Orders] Fetching orders for User: ${userId}, Phone: ${userPhone}`);
+
+    // Fetch all orders - searching by userId or normalized phone
+    // We fetch all to be safe about format variations, though where() is better for scale.
+    const fullSnapshot = await db.collection(ORDERS_COLLECTION).get();
+
+    let orders = fullSnapshot.docs
+      .map(toPlainOrder)
+      .filter(o => {
+        if (!o) return false;
+        
+        // 1. Match by userId (best)
+        const orderUserId = o.userId || o.customerId || o.user || o.uid || null;
+        const currentUserId = userId ? String(userId) : null;
+        if (orderUserId && currentUserId && String(orderUserId) === currentUserId) return true;
+        
+        // 2. Match by email (very reliable)
+        const userEmail = userData.email ? String(userData.email).toLowerCase().trim() : null;
+        const orderEmail = o.customerEmail ? String(o.customerEmail).toLowerCase().trim() : null;
+        if (userEmail && orderEmail && userEmail === orderEmail) return true;
+        
+        // 3. Match by phone (backup for legacy/guest orders)
+        if (userPhone && o.customerPhone) {
+          const orderPhone = String(o.customerPhone).replace(/\D/g, '').slice(-10);
+          const match = orderPhone === userPhone;
+          if (match) logger.debug(`[Orders] Phone match found for order ${o.id}`);
+          return match;
+        }
+        
+        return false;
+      });
+
+    logger.info(`[Orders] Found ${orders.length} orders for User: ${userId} (Phone: ${userPhone})`);
 
     // Sort in memory (descending by createdAt)
     orders.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));

@@ -143,7 +143,7 @@ const uploadProductImage = async (req, res) => {
 const createProduct = async (req, res) => {
   try {
     const { db } = getFirebase();
-    logger.info('Admin Create Product Body:', req.body);
+    logger.info('Admin Create Product:', { name: req.body.name, category: req.body.category });
     const { name, description, price, comparePrice, category, images, stock, variants, tags, isActive, isFeatured, shortBenefit, highlightBadge, salesCount, rating } = req.body;
 
     const productData = {
@@ -203,7 +203,7 @@ const createProduct = async (req, res) => {
 const updateProduct = async (req, res) => {
   try {
     const { db } = getFirebase();
-    logger.info('Admin Update Product Body:', req.params.id, req.body);
+    logger.info('Admin Update Product:', { id: req.params.id, name: req.body.name });
     const docRef = db.collection('products').doc(req.params.id);
     const existing = await docRef.get();
 
@@ -422,7 +422,7 @@ const getOrder = async (req, res) => {
 const updateOrderStatus = async (req, res) => {
   try {
     const { status, trackingNumber, notes } = req.body;
-    const { db, admin } = getFirebase();
+    const { db, FieldValue } = getFirebase();
 
     const docRef = db.collection('orders').doc(req.params.id);
     
@@ -479,7 +479,7 @@ const updateOrderStatus = async (req, res) => {
       if (trackingNumber) updateData.trackingNumber = trackingNumber;
       if (notes) {
         updateData.adminNotes = notes;
-        updateData.statusHistory = admin.firestore.FieldValue.arrayUnion({
+        updateData.statusHistory = FieldValue.arrayUnion({
           status,
           note: notes,
           date: new Date().toISOString()

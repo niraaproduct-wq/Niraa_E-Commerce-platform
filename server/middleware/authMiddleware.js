@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const firebaseStorage = require('../utils/firebaseStorage');
+const logger = require('../utils/logger');
 
 const protect = async (req, res, next) => {
   const bearer = req.header('Authorization')?.replace('Bearer ', '');
@@ -13,8 +14,13 @@ const protect = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
-    // Get full user record to check status (no hardcoded bypass)
-    const user = await firebaseStorage.findUserById(decoded.id);
+    // Get full user record from appropriate collection based on role
+    let user;
+    if (decoded.role === 'admin') {
+      user = await firebaseStorage.findAdminById(decoded.id);
+    } else {
+      user = await firebaseStorage.findUserById(decoded.id);
+    }
     
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
@@ -36,6 +42,11 @@ const protect = async (req, res, next) => {
 
 const adminOnly = (req, res, next) => {
   if (req.user?.role === 'admin') return next();
+  logger.warn(`[Auth] 403 Forbidden: User ${req.user?.id} has role '${req.user?.role}', but admin is required.`, {
+    userId: req.user?.id,
+    role: req.user?.role,
+    path: req.originalUrl
+  });
   res.status(403).json({ message: 'Admin access required' });
 };
 

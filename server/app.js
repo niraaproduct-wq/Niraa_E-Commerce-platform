@@ -122,7 +122,10 @@ function createApp() {
   app.use('/api/users', userRoutes);
   app.use('/api/locations', locationRoutes);
   app.use('/api/payments', paymentRoutes);
-  app.use('/api/test', testRoutes);
+  // Test routes only in non-production environments
+  if (process.env.NODE_ENV !== 'production') {
+    app.use('/api/test', testRoutes);
+  }
   app.use('/api/marketing', marketingRoutes);
 
   // Root path
@@ -130,21 +133,22 @@ function createApp() {
     res.json({ message: 'NIRAA API is running 🌿', status: 'ok' });
   });
 
-  // Error handler
+  // Error handler — never expose stack traces or internal details in production
   app.use((err, req, res, next) => {
+    const isProd = process.env.NODE_ENV === 'production';
     logger.error(err.message, {
       requestId: req.id,
-      stack: err.stack,
+      stack: isProd ? undefined : err.stack,
       url: req.originalUrl,
       method: req.method,
     });
 
     const status = err.status || 500;
-    const message = err.message || 'Something went wrong!';
+    const message = isProd ? 'Something went wrong. Please try again later.' : (err.message || 'Something went wrong!');
 
     res.status(status).json({
       message,
-      error: process.env.NODE_ENV === 'production' ? {} : err.message,
+      ...(isProd ? {} : { error: err.message }),
     });
   });
 

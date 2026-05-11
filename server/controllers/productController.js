@@ -206,7 +206,7 @@ const deleteProduct = async (req, res) => {
 // @access  Public
 const addReview = async (req, res) => {
   try {
-    const { db, admin } = getFirebase();
+    const { db, FieldValue } = getFirebase();
     const { name, rating, comment } = req.body;
     
     const docRef = db.collection(PRODUCTS_COLLECTION).doc(req.params.id);
@@ -225,7 +225,7 @@ const addReview = async (req, res) => {
     
     // Use Firestore arrayUnion
     await docRef.update({
-      reviews: admin.firestore.FieldValue.arrayUnion(review)
+      reviews: FieldValue.arrayUnion(review)
     });
     
     res.status(201).json({ message: 'Review added' });

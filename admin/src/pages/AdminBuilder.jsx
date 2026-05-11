@@ -218,9 +218,20 @@ const PreviewTestimonial = ({ data }) => (
   </div>
 );
 
+const sanitizeHtml = (html) => {
+  if (!html || typeof html !== 'string') return '';
+  return html
+    .replace(/<script[\s\S]*?>[^]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[^]*?<\/style>/gi, '')
+    .replace(/<(iframe|object|embed|form|input|textarea|button)[^>]*>[\s\S]*?<\/\1>/gi, '')
+    .replace(/<(iframe|object|embed|form|input|textarea|button)\s*\/?>/gi, '')
+    .replace(/\s+on\w+\s*=\s*["']?[^"'>]*["']?/gi, '')
+    .replace(/\s+(href|src|action)\s*=\s*["']?javascript:[^"'>]*["']?/gi, '');
+};
+
 const PreviewRichText = ({ data }) => (
   <div style={{ padding: `${data.padding || 24}px`, background: '#f9fafb', borderRadius: 8, fontSize: 13, color: '#374151' }}
-    dangerouslySetInnerHTML={{ __html: data.html || '<p>Rich text content</p>' }} />
+    dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.html || '<p>Rich text content</p>') }} />
 );
 
 const PreviewFeatured = ({ data }) => (

@@ -99,20 +99,20 @@ const STATUS_META = {
   confirmed: { label: 'Confirmed', emoji: '✅', bg: '#fffbeb', fg: '#b45309', border: '#fde68a', dot: '#d97706' },
   packed: { label: 'Packed', emoji: '📦', bg: '#f5f3ff', fg: '#6d28d9', border: '#ddd6fe', dot: '#7c3aed' },
   shipped: { label: 'Shipped', emoji: '🚢', bg: '#f0f9ff', fg: '#0369a1', border: '#bae6fd', dot: '#0ea5e9' },
-  'out-for-delivery': { label: 'Delivery', emoji: '🚚', bg: '#eff6ff', fg: '#1d4ed8', border: '#bfdbfe', dot: '#3b82f6' },
+  'out_for_delivery': { label: 'Delivery', emoji: '🚚', bg: '#eff6ff', fg: '#1d4ed8', border: '#bfdbfe', dot: '#3b82f6' },
   delivered: { label: 'Delivered', emoji: '🎉', bg: '#f0fdf4', fg: '#15803d', border: '#bbf7d0', dot: '#22c55e' },
   cancelled: { label: 'Cancelled', emoji: '❌', bg: '#fff1f2', fg: '#be123c', border: '#fecdd3', dot: '#f43f5e' },
 };
 
-const STATUS_ORDER = ['placed', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered'];
-const ALL_STATUSES = ['placed', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered', 'cancelled'];
+const STATUS_ORDER = ['placed', 'confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered'];
+const ALL_STATUSES = ['placed', 'confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered', 'cancelled'];
 
 const NEXT_STATUS = {
   placed: 'confirmed',
   confirmed: 'packed',
   packed: 'shipped',
-  shipped: 'out-for-delivery',
-  'out-for-delivery': 'delivered',
+  shipped: 'out_for_delivery',
+  'out_for_delivery': 'delivered',
 };
 
 const NEXT_LABEL = {
@@ -120,7 +120,7 @@ const NEXT_LABEL = {
   confirmed: '📦 Mark Packed',
   packed: '🚢 Mark Shipped',
   shipped: '🚚 Mark for Delivery',
-  'out-for-delivery': '🎉 Mark Delivered',
+  'out_for_delivery': '🎉 Mark Delivered',
 };
 
 /* ─── helpers ──────────────────────────────────────────────────────────── */
@@ -254,7 +254,7 @@ function OrderCard({ order: o, onStatusChange, updating }) {
             boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
           }}>
             <div style={{ fontSize: '2rem', marginBottom: 8 }}>{STATUS_META[confirmStatus]?.emoji}</div>
-            
+
             {confirmStatus === 'delivered' && o.paymentStatus !== 'paid' ? (
               <>
                 <div style={{ fontWeight: 800, color: '#111827', fontSize: '1.05rem', marginBottom: 6 }}>
@@ -299,7 +299,7 @@ function OrderCard({ order: o, onStatusChange, updating }) {
       )}
 
       <div style={{ padding: '16px 18px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
+        <div className="order-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontWeight: 900, color: '#111827', fontSize: '1rem', fontFamily: 'monospace', letterSpacing: '0.05em' }}>
@@ -314,7 +314,7 @@ function OrderCard({ order: o, onStatusChange, updating }) {
                 {meta.label}
               </span>
               {(() => {
-                const isWalkin = o.customerType === 'walkin' || o.address?.street === 'POS Walk-in' || o.customerName === 'Walk-in Customer';
+                const isWalkin = o.customerType === 'walkin' || o.address?.street === 'POS Walk-in' || o.address?.street === 'POS Pickup' || o.customerName === 'Walk-in Customer';
                 const type = isWalkin ? 'walkin' : 'online';
                 return (
                   <span style={{
@@ -361,7 +361,7 @@ function OrderCard({ order: o, onStatusChange, updating }) {
           </div>
         </div>
 
-        <div style={{
+        <div className="admin-form-grid" style={{
           marginTop: 12, padding: '10px 14px', background: '#f8fafc', borderRadius: 12,
           display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
         }}>
@@ -376,7 +376,18 @@ function OrderCard({ order: o, onStatusChange, updating }) {
             <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Deliver to</div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4, color: '#374151', fontSize: '0.82rem', marginTop: 2, fontWeight: 600 }}>
               <Icon.MapPin />
-              <span style={{ lineHeight: 1.4 }}>{o.address?.street || '-'}, {o.address?.city || '-'} {o.address?.pincode ? `- ${o.address.pincode}` : ''}</span>
+              <span style={{ lineHeight: 1.4 }}>
+                {(() => {
+                  const addr = o.address || o.shippingAddress;
+                  if (!addr) return '-';
+                  const parts = [];
+                  if (addr.street) parts.push(addr.street);
+                  if (addr.address) parts.push(addr.address); // alternative key
+                  if (addr.city) parts.push(addr.city);
+                  const main = parts.join(', ') || '-';
+                  return addr.pincode ? `${main} - ${addr.pincode}` : main;
+                })()}
+              </span>
             </div>
           </div>
         </div>
@@ -572,7 +583,10 @@ export default function AdminOrders() {
   const [newCount, setNewCount] = useState(0);
   const timerRef = useRef(null);
   const prevOrderIds = useRef(new Set());
+  const [showStatusSidebar, setShowStatusSidebar] = useState(false);
+  const [showSourceSidebar, setShowSourceSidebar] = useState(false);
 
+  const getToken = () => localStorage.getItem('niraa_token');
   const user = JSON.parse(localStorage.getItem('niraa_user') || 'null');
   const isAdmin = user?.role === 'admin';
 
@@ -581,8 +595,9 @@ export default function AdminOrders() {
     if (!isAdmin) return;
     quiet ? setRefreshing(true) : setLoading(true);
     try {
+      const token = getToken();
       const res = await fetch(`${API_BASE_URL}/orders`, {
-        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed');
@@ -621,10 +636,10 @@ export default function AdminOrders() {
   const updateStatus = async (id, status, paymentStatus, refundStatus) => {
     setUpdatingId(id);
     try {
+      const token = getToken();
       const res = await fetch(`${API_BASE_URL}/orders/${id}/status`, {
         method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status, paymentStatus, refundStatus }),
       });
       const updated = await res.json();
@@ -659,7 +674,7 @@ export default function AdminOrders() {
     let list = orders;
     if (filterStatus !== 'all') list = list.filter(o => o.status === filterStatus);
     if (customerTypeFilter !== 'all') list = list.filter(o => {
-      const isWalkin = o.customerType === 'walkin' || o.address?.street === 'POS Walk-in' || o.customerName === 'Walk-in Customer';
+      const isWalkin = o.customerType === 'walkin' || o.address?.street === 'POS Walk-in' || o.address?.street === 'POS Pickup' || o.customerName === 'Walk-in Customer';
       const type = isWalkin ? 'walkin' : 'online';
       return type === customerTypeFilter;
     });
@@ -698,9 +713,27 @@ export default function AdminOrders() {
         .ao-filter-tab.active { background:#0f766e !important; color:#fff !important; }
         .ao-sort-btn:hover { background:#e5e7eb !important; }
         input[type=text]:focus { outline:none; border-color:#0f766e !important; box-shadow:0 0 0 3px #0f766e22 !important; }
+        
+        @media (max-width: 768px) {
+          .desktop-filter-tabs { display: none !important; }
+          .mobile-filter-trigger { display: flex !important; }
+        }
+        
+        .mobile-sidebar-overlay {
+          position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000;
+          backdrop-filter: blur(2px); animation: fadeIn 0.2s ease;
+        }
+        .mobile-sidebar {
+          position: fixed; right: 0; top: 0; bottom: 0; width: 280px;
+          background: #fff; z-index: 1001; padding: 24px;
+          box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+          animation: slideInSidebar 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        @keyframes slideInSidebar { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
 
-      <div style={{ padding: '18px 16px', maxWidth: 760, margin: '0 auto', fontFamily: 'system-ui,-apple-system,sans-serif' }}>
+      <div className="admin-page-container" style={{ padding: '18px 16px', maxWidth: 760, margin: '0 auto', fontFamily: 'system-ui,-apple-system,sans-serif' }}>
 
         {/* ── not admin banner ── */}
         {!isAdmin && (
@@ -710,7 +743,7 @@ export default function AdminOrders() {
         )}
 
         {/* ── page title + refresh ── */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div className="admin-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
             <h2 style={{ margin: 0, fontSize: '1.45rem', fontWeight: 900, color: '#0f766e', letterSpacing: '-0.02em' }}>
               Orders
@@ -743,17 +776,17 @@ export default function AdminOrders() {
         </div>
 
         {/* ── stats bar ── */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
-          <StatCard label="Revenue" value={formatPrice(stats.revenue)} sub="(non-cancelled)" color="#0f766e" bg="#f0fdf9" />
-          <StatCard label="Placed" value={stats.placed || 0} color={STATUS_META.placed.dot} bg={STATUS_META.placed.bg} />
-          <StatCard label="Confirmed" value={stats.confirmed || 0} color={STATUS_META.confirmed.dot} bg={STATUS_META.confirmed.bg} />
-          <StatCard label="Delivering" value={stats['out-for-delivery'] || 0} color={STATUS_META['out-for-delivery'].dot} bg={STATUS_META['out-for-delivery'].bg} />
-          <StatCard label="Delivered" value={stats.delivered || 0} color={STATUS_META.delivered.dot} bg={STATUS_META.delivered.bg} />
-          <StatCard label="Cancelled" value={stats.cancelled || 0} color={STATUS_META.cancelled.dot} bg={STATUS_META.cancelled.bg} />
+        <div className="admin-stats-grid" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18 }}>
+          <div className="stat-card-container"><StatCard label="Revenue" value={formatPrice(stats.revenue)} sub="(non-cancelled)" color="#0f766e" bg="#f0fdf9" /></div>
+          <div className="stat-card-container"><StatCard label="Placed" value={stats.placed || 0} color={STATUS_META.placed.dot} bg={STATUS_META.placed.bg} /></div>
+          <div className="stat-card-container"><StatCard label="Confirmed" value={stats.confirmed || 0} color={STATUS_META.confirmed.dot} bg={STATUS_META.confirmed.bg} /></div>
+          <div className="stat-card-container"><StatCard label="Delivering" value={stats['out_for_delivery'] || 0} color={STATUS_META['out_for_delivery'].dot} bg={STATUS_META['out_for_delivery'].bg} /></div>
+          <div className="stat-card-container"><StatCard label="Delivered" value={stats.delivered || 0} color={STATUS_META.delivered.dot} bg={STATUS_META.delivered.bg} /></div>
+          <div className="stat-card-container"><StatCard label="Cancelled" value={stats.cancelled || 0} color={STATUS_META.cancelled.dot} bg={STATUS_META.cancelled.bg} /></div>
         </div>
 
         {/* ── search + sort ── */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <div className="filters-bar" style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>
             <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }}>
               <Icon.Search />
@@ -796,9 +829,17 @@ export default function AdminOrders() {
         </div>
 
         {/* status filter tabs */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        {/* Status Filter Trigger (Mobile) */}
+        <button className="mobile-filter-trigger"
+          onClick={() => setShowStatusSidebar(true)}
+          style={{ display: 'none', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, fontSize: '0.85rem', fontWeight: 700, color: '#374151', marginBottom: 12 }}>
+          <Icon.Filter /> {filterStatus === 'all' ? 'All Status' : STATUS_META[filterStatus].label}
+        </button>
+
+        {/* Status Filter Tabs (Desktop) */}
+        <div className="desktop-filter-tabs" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
           {[
-            { key: 'all', label: 'All Status', count: stats.all },
+            { key: 'all', label: 'All Status', count: stats.all, emoji: '📋' },
             ...ALL_STATUSES.map(s => ({ key: s, label: STATUS_META[s].label, count: stats[s] || 0, emoji: STATUS_META[s].emoji })),
           ].map(tab => (
             <button
@@ -822,8 +863,15 @@ export default function AdminOrders() {
           ))}
         </div>
 
-        {/* type filter tabs */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 18, padding: '8px 0', borderTop: '1px solid #f1f5f9' }}>
+        {/* Source Filter Trigger (Mobile) */}
+        <button className="mobile-filter-trigger"
+          onClick={() => setShowSourceSidebar(true)}
+          style={{ display: 'none', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, fontSize: '0.85rem', fontWeight: 700, color: '#374151', marginBottom: 18 }}>
+          🌐 {customerTypeFilter === 'all' ? 'All Sources' : customerTypeFilter === 'online' ? 'Website' : 'Shop'}
+        </button>
+
+        {/* type filter tabs (Desktop) */}
+        <div className="desktop-filter-tabs" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 18, padding: '8px 0', borderTop: '1px solid #f1f5f9' }}>
           {[
             { key: 'all', label: 'All Sources', icon: '🌐' },
             { key: 'online', label: 'Website / Online', icon: '🛒' },
@@ -889,6 +937,55 @@ export default function AdminOrders() {
           <div style={{ textAlign: 'center', color: '#9ca3af', fontSize: '0.78rem', marginTop: 20, fontWeight: 600 }}>
             Showing {displayed.length} of {orders.length} orders · Auto-refreshes every 45s
           </div>
+        )}
+
+        {/* ── Mobile Sidebars ── */}
+        {showStatusSidebar && (
+          <>
+            <div className="mobile-sidebar-overlay" onClick={() => setShowStatusSidebar(false)} />
+            <div className="mobile-sidebar">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#0f766e' }}>Order Status</h3>
+                <button onClick={() => setShowStatusSidebar(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><Icon.X /></button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[
+                  { key: 'all', label: 'All Status', count: stats.all, emoji: '📋' },
+                  ...ALL_STATUSES.map(s => ({ key: s, label: STATUS_META[s].label, count: stats[s] || 0, emoji: STATUS_META[s].emoji })),
+                ].map(tab => (
+                  <button key={tab.key} onClick={() => { setFilter(tab.key); setShowStatusSidebar(false); }}
+                    style={{ textAlign: 'left', padding: '14px 16px', borderRadius: 14, border: '1px solid #e5e7eb', background: filterStatus === tab.key ? '#0f766e' : '#fff', color: filterStatus === tab.key ? '#fff' : '#374151', fontSize: 14, fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>{tab.emoji} {tab.label}</span>
+                    <span style={{ opacity: 0.6 }}>{tab.count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {showSourceSidebar && (
+          <>
+            <div className="mobile-sidebar-overlay" onClick={() => setShowSourceSidebar(false)} />
+            <div className="mobile-sidebar">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: '#334155' }}>Order Source</h3>
+                <button onClick={() => setShowSourceSidebar(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}><Icon.X /></button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[
+                  { key: 'all', label: 'All Sources', icon: '🌐' },
+                  { key: 'online', label: 'Website / Online', icon: '🛒' },
+                  { key: 'walkin', label: 'Shop / Walk-in', icon: '🏬' },
+                ].map(t => (
+                  <button key={t.key} onClick={() => { setCustomerTypeFilter(t.key); setShowSourceSidebar(false); }}
+                    style={{ textAlign: 'left', padding: '14px 16px', borderRadius: 14, border: '1px solid #e5e7eb', background: customerTypeFilter === t.key ? '#334155' : '#fff', color: customerTypeFilter === t.key ? '#fff' : '#475569', fontSize: 14, fontWeight: 700, display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <span>{t.icon}</span> {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
         )}
       </div>
     </>
