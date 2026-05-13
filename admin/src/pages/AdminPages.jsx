@@ -408,7 +408,7 @@ const Sidebar = ({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) => {
       {/* Bottom actions */}
       <div style={{ padding: collapsed ? '10px 6px' : '10px 10px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
         {!collapsed && (
-          <a href="https://niraa-customer.vercel.app" target="_blank" rel="noreferrer"
+          <a href="https://niraacare.com" target="_blank" rel="noreferrer"
             className="nav-link"
             style={{ marginBottom: 2, display: 'flex' }}>
             <Ic d={P.eye} size={15} />

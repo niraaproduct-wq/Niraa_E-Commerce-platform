@@ -20,8 +20,13 @@ import ProfileOrders  from '../pages/ProfileOrders.jsx';
 
 const AdminRedirect = () => {
   React.useEffect(() => {
-    // Redirect to the admin port (5174)
-    window.location.href = window.location.protocol + '//' + window.location.hostname + ':5174';
+    // In development, redirect to the admin port (5174)
+    // In production, redirect to the admin custom domain
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      window.location.href = window.location.protocol + '//' + window.location.hostname + ':5174';
+    } else {
+      window.location.href = 'https://admin.niraacare.com';
+    }
   }, []);
   return <div style={{ padding: 40, textAlign: 'center', fontFamily: 'sans-serif' }}>Redirecting to Admin Panel...</div>;
 };

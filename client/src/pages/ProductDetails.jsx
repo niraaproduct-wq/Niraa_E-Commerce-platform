@@ -60,8 +60,9 @@ const ProductDetails = () => {
         const data = docSnap.data();
         const p = { id: docSnap.id, _id: docSnap.id, ...data };
         setProduct(p);
-        setMainImage(img => img || p.images?.[0] || p.image);
-        setSelectedVariant(v => v || p.variants?.[0] || null);
+        setMainImage(p.images?.[0] || p.image);
+        setSelectedVariant(p.variants?.[0] || null);
+        setQty(1);
         setLoading(false);
         fetchRelated(p.category, p.id);
       } else {

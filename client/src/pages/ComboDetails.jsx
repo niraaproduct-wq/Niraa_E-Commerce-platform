@@ -38,7 +38,8 @@ const ComboDetails = () => {
         const data = docSnap.data();
         const p = { id: docSnap.id, _id: docSnap.id, ...data };
         setProduct(p);
-        setMainImage(img => img || p.images?.[0] || p.image);
+        setMainImage(p.images?.[0] || p.image);
+        setQty(1);
         
         // Fetch current prices for combo items if they exist
         if (p.comboItems && p.comboItems.length > 0) {
