@@ -40,6 +40,10 @@ const CARD_CSS = `
     transform: translateY(-10px);
     box-shadow: 0 28px 56px -12px rgba(42,125,114,0.2);
   }
+  .pc-card:active {
+    transform: scale(0.97) translateY(-2px);
+    box-shadow: 0 10px 24px -6px rgba(42,125,114,0.15);
+  }
   .pc-img {
     transition: transform 0.6s cubic-bezier(0.34,1.56,0.64,1);
   }
@@ -81,6 +85,7 @@ const CARD_CSS = `
       transition: transform 0.2s ease, box-shadow 0.2s ease !important;
     }
     .pc-mobile-cart:active { transform: scale(0.9) !important; }
+    .pc-mobile-cart.adding { animation: pcAddPulse 0.6s ease !important; }
     .pc-btn-text { display: none !important; }
   }
 `;
@@ -250,7 +255,7 @@ export default function ProductCard({ product, compact = false }) {
             </div>
 
             {/* Mobile icon-only */}
-            <button className="pc-mobile-cart" onClick={handleAddToCart} style={{ display: 'none' }}>
+            <button className={`pc-mobile-cart${adding ? ' adding' : ''}`} onClick={handleAddToCart} style={{ display: 'none' }}>
               <FiShoppingCart size={16} />
             </button>
 

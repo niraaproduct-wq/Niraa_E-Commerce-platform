@@ -1,10 +1,10 @@
 const Joi = require('joi');
 
-// ─── Shared Patterns ─────────────────────────────────────────────────────────
+// --- Shared Patterns ---------------------------------------------------------
 
 const indianPhone = Joi.string()
   .pattern(/^[+]?[\d\s\-()]{10,15}$/)
-  .messages({ 'string.pattern.base': 'Please provide a valid phone number (10–15 digits)' });
+  .messages({ 'string.pattern.base': 'Please provide a valid phone number (10-15 digits)' });
 
 const password = Joi.string().min(8).max(128)
   .messages({ 'string.min': 'Password must be at least 8 characters' });
@@ -14,9 +14,9 @@ const objectId = Joi.string().min(1).max(128); // Firestore doc IDs
 const safeString = Joi.string().max(500).trim();
 const longString = Joi.string().max(5000).trim();
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 // AUTH SCHEMAS
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 
 const checkPhone = Joi.object({
   phone: indianPhone.required()
@@ -97,9 +97,9 @@ const resetPasswordWithOtp = Joi.object({
   newPassword: password.required()
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 // ADMIN SCHEMAS
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 
 const adminCreateProduct = Joi.object({
   name: safeString.required(),
@@ -117,7 +117,7 @@ const adminCreateProduct = Joi.object({
   highlightBadge: safeString.allow('', null),
   salesCount: Joi.alternatives().try(Joi.number(), Joi.string()).allow('', null),
   rating: Joi.number().min(0).max(5),
-}).options({ allowUnknown: true }); // Allow product-type-specific fields
+});
 
 const adminUpdateProduct = Joi.object({
   name: safeString,
@@ -136,7 +136,7 @@ const adminUpdateProduct = Joi.object({
   highlightBadge: safeString.allow('', null),
   salesCount: Joi.alternatives().try(Joi.number(), Joi.string()).allow('', null),
   rating: Joi.number().min(0).max(5),
-}).options({ allowUnknown: true });
+});
 
 const adminUpdateOrderStatus = Joi.object({
   status: Joi.string().valid(
@@ -160,9 +160,9 @@ const adminBlockCustomer = Joi.object({
   isBlocked: Joi.boolean().required()
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 // ORDER SCHEMAS
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 
 const placeOrder = Joi.object({
   items: Joi.array().items(
@@ -174,7 +174,7 @@ const placeOrder = Joi.object({
       image: Joi.string().allow('', null),
       variantId: safeString.allow('', null),
       variantDesc: safeString.allow('', null),
-    }).options({ allowUnknown: true })
+    })
   ).min(1).required(),
   customerName: safeString.allow('', null),
   customerPhone: indianPhone.allow('', null),
@@ -198,7 +198,7 @@ const placeOrder = Joi.object({
   deliveryMode: Joi.string().allow('', null),
   deliveryStatus: Joi.string().allow('', null),
   notes: longString.allow('', null),
-}).options({ allowUnknown: true });
+});
 
 const orderUpdateStatus = Joi.object({
   status: Joi.string().valid(
@@ -209,16 +209,16 @@ const orderUpdateStatus = Joi.object({
   trackingNumber: safeString.allow('', null),
   notes: longString.allow('', null),
   adminNotes: longString.allow('', null)
-}).or('status', 'paymentStatus').options({ allowUnknown: true });
+}).or('status', 'paymentStatus');
 
 const cancelMyOrder = Joi.object({
   reasonKey: safeString.allow('', null),
   reasonText: longString.allow('', null)
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 // USER SCHEMAS
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 
 const updateUserProfile = Joi.object({
   name: safeString.allow('', null),
@@ -250,9 +250,9 @@ const updateUserAddress = Joi.object({
   type: Joi.string().valid('home', 'work', 'other')
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 // PAYMENT SCHEMAS
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 
 const createPaymentOrder = Joi.object({
   amount: Joi.number().min(1).required(),
@@ -275,9 +275,9 @@ const refundPayment = Joi.object({
   amount: Joi.number().min(0).allow(null)
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 // PRODUCT SCHEMAS (public routes)
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 
 const addReview = Joi.object({
   name: safeString.required(),
@@ -285,17 +285,17 @@ const addReview = Joi.object({
   comment: longString.allow('', null)
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 // SECTION SCHEMAS
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 
 const createSection = Joi.object({
   page: safeString.required(),
   type: safeString.required(),
   data: Joi.object().allow(null)
-}).options({ allowUnknown: true });
+});
 
-const updateSection = Joi.object({}).options({ allowUnknown: true }); // Very dynamic structure
+const updateSection = Joi.object({}); // Very dynamic structure
 
 const reorderSections = Joi.object({
   sectionIds: Joi.array().items(objectId).min(1).required()
@@ -305,9 +305,9 @@ const bulkSaveSections = Joi.object({
   sections: Joi.array().items(Joi.object()).min(1).required()
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 // LOCATION SCHEMAS
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 
 const detectLocation = Joi.object({
   latitude: Joi.number().min(-90).max(90).required(),
@@ -326,9 +326,9 @@ const validateAddress = Joi.object({
   zipCode: Joi.string().pattern(/^\d{6}$/).allow('', null)
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 // MARKETING SCHEMAS
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 
 const sendBroadcast = Joi.object({
   message: Joi.string().min(5).max(1000).required(),
@@ -340,18 +340,18 @@ const createBanner = Joi.object({
   subtitle: safeString.allow('', null),
   link: Joi.string().max(2000).allow('', null),
   order: Joi.number().integer().min(0).default(0)
-}).options({ allowUnknown: true }); // Allow file upload fields
+});
 
 const updateBanner = Joi.object({
   title: safeString,
   subtitle: safeString.allow('', null),
   link: Joi.string().max(2000).allow('', null),
   order: Joi.number().integer().min(0)
-}).options({ allowUnknown: true });
+});
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 // EXPORTS
-// ═══════════════════════════════════════════════════════════════════════════════
+// =============================================================================
 
 module.exports = {
   // Auth

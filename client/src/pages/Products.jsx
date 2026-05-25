@@ -13,7 +13,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL
   : '/api';
 
 /* ─── SCROLL REVEAL ─── */
-function useScrollReveal(threshold = 0.12) {
+function useScrollReveal(threshold = 0.01) {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -377,22 +377,6 @@ export default function Products() {
 }
 .np-empty__cta:hover { background: var(--teal-dark); transform: translateY(-2px); }
 
-/* ── FLOATING WA ── */
-.np-wa-float {
-  position: fixed; bottom: 28px; right: 28px; z-index: 1000;
-  width: 58px; height: 58px; border-radius: 50%;
-  background: #25D366; color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.5rem; text-decoration: none;
-  box-shadow: 0 8px 32px rgba(37,211,102,0.45);
-  animation: np-wa-glow 3s ease-in-out infinite;
-  transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
-}
-.np-wa-float:hover { transform: scale(1.12); }
-@keyframes np-wa-glow {
-  0%, 100% { box-shadow: 0 8px 32px rgba(37,211,102,0.45); }
-  50% { box-shadow: 0 8px 48px rgba(37,211,102,0.65); }
-}
 
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(20px); }
@@ -557,10 +541,6 @@ export default function Products() {
           )}
         </main>
 
-        {/* ── FLOATING WHATSAPP ── */}
-        <a href={waLink} target="_blank" rel="noreferrer" className="np-wa-float" title="Order on WhatsApp">
-          📱
-        </a>
       </div>
     </>
   );

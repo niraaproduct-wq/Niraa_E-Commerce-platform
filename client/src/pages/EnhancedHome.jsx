@@ -850,7 +850,7 @@ function useCounter(target, duration = 1800) {
         }, 16);
         observer.disconnect();
       }
-    }, { threshold: 0.3 });
+    }, { threshold: 0.01 });
     if (ref.current) observer.observe(ref.current);
     return () => observer.disconnect();
   }, [target, duration]);

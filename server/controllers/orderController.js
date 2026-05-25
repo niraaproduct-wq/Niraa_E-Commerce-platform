@@ -125,11 +125,59 @@ const placeOrder = async (req, res) => {
 const getAllOrders = async (req, res) => {
   try {
     const { db } = getFirebase();
-    const snapshot = await db.collection(ORDERS_COLLECTION).orderBy('createdAt', 'desc').get();
-    
-    const orders = snapshot.docs.map(toPlainOrder);
+    const { page, limit } = req.query;
+
+    // If page or limit is explicitly provided, return paginated object
+    if (page || limit) {
+      const pageNum = Number(page || 1);
+      const limitNum = Number(limit || 10);
+      const skip = (pageNum - 1) * limitNum;
+
+      let baseQuery = db.collection(ORDERS_COLLECTION);
+      let orders;
+      let total;
+
+      try {
+        const orderedQuery = baseQuery.orderBy('createdAt', 'desc');
+        const countSnapshot = await orderedQuery.count().get();
+        total = countSnapshot.data().count;
+
+        const snapshot = await orderedQuery.offset(skip).limit(limitNum).get();
+        orders = snapshot.docs.map(toPlainOrder);
+      } catch (indexError) {
+        logger.warn('[Orders] Server-side ordered query failed (likely missing composite index). Falling back to safe in-memory sorting.', { error: indexError.message });
+        const snapshot = await baseQuery.get();
+        let allOrders = snapshot.docs.map(toPlainOrder);
+        allOrders.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        total = allOrders.length;
+        orders = allOrders.slice(skip, skip + limitNum);
+      }
+
+      return res.json({
+        orders,
+        total,
+        page: pageNum,
+        pages: Math.ceil(total / limitNum)
+      });
+    }
+
+    // Default path (backwards compatible for Admin Dashboard/POS): return plain array of all orders
+    let orders;
+    try {
+      const snapshot = await db.collection(ORDERS_COLLECTION)
+        .orderBy('createdAt', 'desc')
+        .get();
+      orders = snapshot.docs.map(toPlainOrder);
+    } catch (indexError) {
+      logger.warn('[Orders] Server-side orderBy failed. Fetching raw list and sorting in memory.', { error: indexError.message });
+      const snapshot = await db.collection(ORDERS_COLLECTION).get();
+      orders = snapshot.docs.map(toPlainOrder);
+      orders.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    }
+
     res.json(orders);
   } catch (err) {
+    logger.error('Get All Orders Error:', err.message);
     res.status(500).json({ message: err.message });
   }
 };
@@ -291,35 +339,69 @@ const getMyOrders = async (req, res) => {
     
     logger.debug(`[Orders] Fetching orders for User: ${userId}, Phone: ${userPhone}`);
 
-    // Fetch all orders - searching by userId or normalized phone
-    // We fetch all to be safe about format variations, though where() is better for scale.
-    const fullSnapshot = await db.collection(ORDERS_COLLECTION).get();
+    // Build targeted index-based queries to search by userId, email, or phone
+    const queryPromises = [];
+    
+    if (userId) {
+      queryPromises.push(db.collection(ORDERS_COLLECTION).where('userId', '==', String(userId)).get());
+    }
+    
+    const userEmail = userData.email ? String(userData.email).toLowerCase().trim() : null;
+    if (userEmail) {
+      queryPromises.push(db.collection(ORDERS_COLLECTION).where('customerEmail', '==', userEmail).get());
+      if (userData.email !== userEmail) {
+        queryPromises.push(db.collection(ORDERS_COLLECTION).where('customerEmail', '==', userData.email).get());
+      }
+    }
+    
+    if (userData.phone) {
+      const rawPhone = String(userData.phone).trim();
+      queryPromises.push(db.collection(ORDERS_COLLECTION).where('customerPhone', '==', rawPhone).get());
+      
+      const tenDigit = rawPhone.replace(/\D/g, '').slice(-10);
+      if (tenDigit && tenDigit !== rawPhone) {
+        queryPromises.push(db.collection(ORDERS_COLLECTION).where('customerPhone', '==', tenDigit).get());
+        queryPromises.push(db.collection(ORDERS_COLLECTION).where('customerPhone', '==', `+91${tenDigit}`).get());
+      }
+    }
 
-    let orders = fullSnapshot.docs
-      .map(toPlainOrder)
-      .filter(o => {
-        if (!o) return false;
-        
-        // 1. Match by userId (best)
-        const orderUserId = o.userId || o.customerId || o.user || o.uid || null;
-        const currentUserId = userId ? String(userId) : null;
-        if (orderUserId && currentUserId && String(orderUserId) === currentUserId) return true;
-        
-        // 2. Match by email (very reliable)
-        const userEmail = userData.email ? String(userData.email).toLowerCase().trim() : null;
-        const orderEmail = o.customerEmail ? String(o.customerEmail).toLowerCase().trim() : null;
-        if (userEmail && orderEmail && userEmail === orderEmail) return true;
-        
-        // 3. Match by phone (backup for legacy/guest orders)
-        if (userPhone && o.customerPhone) {
-          const orderPhone = String(o.customerPhone).replace(/\D/g, '').slice(-10);
-          const match = orderPhone === userPhone;
-          if (match) logger.debug(`[Orders] Phone match found for order ${o.id}`);
-          return match;
+    // Execute queries in parallel
+    const snapshots = await Promise.all(queryPromises);
+    const ordersMap = new Map();
+    
+    for (const snap of snapshots) {
+      for (const doc of snap.docs) {
+        const plainOrder = toPlainOrder(doc);
+        if (plainOrder) {
+          ordersMap.set(doc.id, plainOrder);
         }
-        
-        return false;
-      });
+      }
+    }
+
+    let orders = Array.from(ordersMap.values());
+
+    // Triple-check validation to completely secure data against cross-user leakage
+    orders = orders.filter(o => {
+      if (!o) return false;
+      
+      // 1. Match by userId
+      const orderUserId = o.userId || o.customerId || o.user || o.uid || null;
+      if (orderUserId && userId && String(orderUserId) === String(userId)) return true;
+      
+      // 2. Match by email
+      const orderEmail = o.customerEmail ? String(o.customerEmail).toLowerCase().trim() : null;
+      if (userEmail && orderEmail && userEmail === orderEmail) return true;
+      
+      // 3. Match by phone
+      if (userPhone && o.customerPhone) {
+        const orderPhone = String(o.customerPhone).replace(/\D/g, '').slice(-10);
+        const match = orderPhone === userPhone;
+        if (match) logger.debug(`[Orders] Phone match found for order ${o.id}`);
+        return match;
+      }
+      
+      return false;
+    });
 
     logger.info(`[Orders] Found ${orders.length} orders for User: ${userId} (Phone: ${userPhone})`);
 
@@ -330,7 +412,7 @@ const getMyOrders = async (req, res) => {
     const paginated = orders.slice(skip, skip + limitNum);
     
     res.json({
-      orders,
+      orders: paginated,
       total,
       page: Number(page),
       pages: Math.ceil(total / limitNum)

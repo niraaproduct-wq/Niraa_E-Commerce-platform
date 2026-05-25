@@ -601,7 +601,7 @@ export default function AdminOrders() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed');
-      const list = data || [];
+      const list = Array.isArray(data) ? data : (data?.orders || []);
 
       // detect genuinely new orders
       if (quiet && prevOrderIds.current.size > 0) {

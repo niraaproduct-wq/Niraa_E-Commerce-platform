@@ -29,7 +29,7 @@ export default function Footer() {
           footer.style.transform = 'translateY(0)';
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.01 }
     );
     observer.observe(footer);
     return () => observer.disconnect();

@@ -6,7 +6,7 @@ import { CATEGORIES } from '../utils/categories.js';
 import { WHATSAPP_NUMBER } from '../utils/constants.js';
 
 // ─── Shared scroll-reveal hook ────────────────────────────────────────────────
-function useReveal(threshold = 0.12) {
+function useReveal(threshold = 0.01) {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {

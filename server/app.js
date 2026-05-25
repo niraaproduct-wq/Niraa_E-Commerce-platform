@@ -30,10 +30,16 @@ function createApp() {
     contentSecurityPolicy: {
       directives: {
         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-        "img-src": ["'self'", "data:", "https://res.cloudinary.com"],
+        "img-src": ["'self'", "data:", "https://res.cloudinary.com", "https://*.firebase.com", "https://*.googleapis.com"],
+        "connect-src": ["'self'", "https://*.firebaseio.com", "https://*.googleapis.com"],
+        "script-src": ["'self'", "'unsafe-inline'", "https://checkout.razorpay.com"],
+        "frame-src": ["'self'", "https://api.razorpay.com", "https://checkout.razorpay.com"],
       },
     },
     hsts: process.env.NODE_ENV === 'production', // Enable HSTS in production
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    crossOriginEmbedderPolicy: false, // Often needed for third-party images/scripts
+    crossOriginResourcePolicy: { policy: "cross-origin" },
   }));
 
   // 2. CORS Configuration

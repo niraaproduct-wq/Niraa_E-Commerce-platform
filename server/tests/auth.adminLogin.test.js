@@ -1,10 +1,13 @@
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 
+jest.mock('uuid', () => ({ v4: () => 'test-uuid-v4' }));
+
 jest.mock('../middleware/validate', () => () => (req, _res, next) => next());
 
 jest.mock('../utils/firebaseStorage', () => ({
   findUserByEmail: jest.fn(),
+  findAdminByEmail: jest.fn(),
   findUserById: jest.fn(),
 }));
 
@@ -35,7 +38,7 @@ describe('Admin login cookie auth', () => {
   });
 
   test('POST /api/auth/admin-login sets HttpOnly cookie', async () => {
-    firebaseStorage.findUserByEmail.mockResolvedValue({
+    firebaseStorage.findAdminByEmail.mockResolvedValue({
       id: 'admin_1',
       email: 'admin@example.com',
       role: 'admin',

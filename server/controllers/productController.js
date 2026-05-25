@@ -1,5 +1,6 @@
 const { getFirebase } = require('../config/firebase');
 const logger = require('../utils/logger');
+const cacheService = require('../services/cache');
 
 
 const PRODUCTS_COLLECTION = 'products';
@@ -28,6 +29,14 @@ const getProducts = async (req, res) => {
     const pageNum = Number(page);
     const skip = (pageNum - 1) * limitNum;
 
+    // Cache hit interception lookup
+    const cacheKey = `products:cat_${category || 'all'}:feat_${featured || 'all'}:search_${search || 'none'}:page_${page}:limit_${limit}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData) {
+      logger.info(`[Products] Cache HIT for key: ${cacheKey}`);
+      return res.json(cachedData);
+    }
+
     let query = db.collection(PRODUCTS_COLLECTION).where('isActive', '==', true);
     
     if (category) {
@@ -37,33 +46,65 @@ const getProducts = async (req, res) => {
       query = query.where('isFeatured', '==', true);
     }
 
-    // Single query — fetch all matching docs and handle sorting/pagination in memory.
-    // This avoids needing composite indexes and works across all firebase-admin versions.
-    const snapshot = await query.get();
-    let products = snapshot.docs.map(toPlainProduct).filter(Boolean);
+    // Try fetching with server-side ordering first
+    let total;
+    let products;
 
+    try {
+      const orderedQuery = query.orderBy('createdAt', 'desc');
 
-    // Sort by creation date (descending)
-    products.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      if (search) {
+        const snapshot = await orderedQuery.get();
+        let list = snapshot.docs.map(toPlainProduct).filter(Boolean);
+        const searchLower = search.toLowerCase();
+        list = list.filter(p => 
+          (p.name && p.name.toLowerCase().includes(searchLower)) ||
+          (p.description && p.description.toLowerCase().includes(searchLower))
+        );
+        total = list.length;
+        products = list.slice(skip, skip + limitNum);
+      } else {
+        const countSnapshot = await orderedQuery.count().get();
+        total = countSnapshot.data().count;
 
-    // Apply text search filter if needed
-    if (search) {
-      const searchLower = search.toLowerCase();
-      products = products.filter(p => 
-        (p.name && p.name.toLowerCase().includes(searchLower)) ||
-        (p.description && p.description.toLowerCase().includes(searchLower))
-      );
+        const snapshot = await orderedQuery.offset(skip).limit(limitNum).get();
+        products = snapshot.docs.map(toPlainProduct).filter(Boolean);
+      }
+    } catch (err) {
+      if (err.message && (err.message.includes('requires an index') || err.message.includes('FAILED_PRECONDITION'))) {
+        logger.warn('[Products] Server-side orderBy failed (likely missing composite index). Falling back to safe in-memory sorting.', { error: err.message });
+        
+        const snapshot = await query.get();
+        let list = snapshot.docs.map(toPlainProduct).filter(Boolean);
+        
+        if (search) {
+          const searchLower = search.toLowerCase();
+          list = list.filter(p => 
+            (p.name && p.name.toLowerCase().includes(searchLower)) ||
+            (p.description && p.description.toLowerCase().includes(searchLower))
+          );
+        }
+        
+        // Sort in memory
+        list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        
+        total = list.length;
+        products = list.slice(skip, skip + limitNum);
+      } else {
+        throw err;
+      }
     }
 
-    const total = products.length;
-    const paginatedProducts = products.slice(skip, skip + limitNum);
-
-    res.json({ 
-      products: paginatedProducts, 
+    const responsePayload = { 
+      products, 
       total, 
       page: pageNum, 
       pages: Math.ceil(total / limitNum) 
-    });
+    };
+
+    // Store in cache for 5 minutes (300 seconds)
+    await cacheService.set(cacheKey, responsePayload, 300);
+    res.json(responsePayload);
   } catch (err) {
     logger.error('Get Products Error:', err.message);
     res.status(500).json({ message: err.message });
@@ -141,6 +182,9 @@ const createProduct = async (req, res) => {
     
     const docRef = await db.collection(PRODUCTS_COLLECTION).add(productData);
     
+    // Invalidate product cache
+    await cacheService.invalidatePattern('products:*');
+    
     res.status(201).json({ id: docRef.id, ...productData });
   } catch (err) {
     res.status(400).json({ message: err.message });
@@ -173,6 +217,9 @@ const updateProduct = async (req, res) => {
     
     await docRef.update(updateData);
     
+    // Invalidate product cache
+    await cacheService.invalidatePattern('products:*');
+    
     const updated = await docRef.get();
     const product = toPlainProduct(updated);
     
@@ -194,6 +241,9 @@ const deleteProduct = async (req, res) => {
     const { db } = getFirebase();
     const docRef = db.collection(PRODUCTS_COLLECTION).doc(req.params.id);
     await docRef.update({ isActive: false, updatedAt: new Date().toISOString() });
+    
+    // Invalidate product cache
+    await cacheService.invalidatePattern('products:*');
     
     res.json({ message: 'Product removed' });
   } catch (err) {
@@ -227,6 +277,9 @@ const addReview = async (req, res) => {
     await docRef.update({
       reviews: FieldValue.arrayUnion(review)
     });
+    
+    // Invalidate product cache
+    await cacheService.invalidatePattern('products:*');
     
     res.status(201).json({ message: 'Review added' });
   } catch (err) {

@@ -43,7 +43,7 @@ function AnimatedCounter({ end, suffix = '' }) {
         }, 25);
         observer.disconnect();
       }
-    }, { threshold: 0.3 });
+    }, { threshold: 0.01 });
     if (ref.current) observer.observe(ref.current);
     return () => observer.disconnect();
   }, [end]);
@@ -51,7 +51,7 @@ function AnimatedCounter({ end, suffix = '' }) {
 }
 
 /* ─── SCROLL REVEAL HOOK ─── */
-function useScrollReveal(threshold = 0.15) {
+function useScrollReveal(threshold = 0.01) {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
@@ -453,9 +453,9 @@ export default function Home() {
 }
 @media (max-width: 899px) {
   .niraa-hero__image {
-    min-height: 300px;
-    order: -1;
+    min-height: 320px;
     border-radius: 24px;
+    margin-top: 12px;
   }
 }
 .niraa-hero__image:hover {
@@ -508,12 +508,12 @@ export default function Home() {
   width: fit-content;
 }
 .hero-combo-title {
-  font-family: var(--font-serif); font-size: clamp(2rem, 4vw, 2.8rem);
+  font-family: var(--font-serif); font-size: clamp(1.5rem, 3.5vw, 2rem);
   font-weight: 700; margin: 0 0 4px 0; line-height: 1.1;
   text-shadow: 0 2px 15px rgba(0,0,0,0.4);
 }
 .hero-combo-price {
-  font-size: clamp(1.8rem, 3vw, 2.2rem); font-weight: 800; color: #fff; margin-bottom: 20px;
+  font-size: clamp(1.4rem, 2.5vw, 1.8rem); font-weight: 800; color: #fff; margin-bottom: 16px;
   font-family: var(--font-sans);
   display: flex; align-items: center; gap: 8px;
 }
@@ -521,19 +521,19 @@ export default function Home() {
   content: '₹'; font-size: 0.7em; opacity: 0.9; font-weight: 400;
 }
 .hero-combo-actions {
-  display: flex; gap: 14px; margin-top: 4px;
+  display: flex; gap: 10px; margin-top: 4px;
 }
 .hero-combo-btn-outline {
-  padding: 12px 24px; border: 1.5px solid rgba(255,255,255,0.4);
+  padding: 10px 18px; border: 1.5px solid rgba(255,255,255,0.4);
   background: rgba(255,255,255,0.1); backdrop-filter: blur(12px);
-  color: #fff; border-radius: 12px; font-weight: 600; font-size: 0.88rem;
+  color: #fff; border-radius: 12px; font-weight: 600; font-size: 0.8rem;
   text-decoration: none; transition: all 0.3s var(--ease-smooth);
 }
 .hero-combo-btn-outline:hover { background: rgba(255,255,255,0.25); border-color: #fff; transform: translateY(-2px); }
 
 .hero-combo-btn-solid {
-  padding: 12px 24px; background: #22c55e; color: #fff;
-  border-radius: 12px; font-weight: 700; font-size: 0.88rem;
+  padding: 10px 18px; background: #22c55e; color: #fff;
+  border-radius: 12px; font-weight: 700; font-size: 0.8rem;
   text-decoration: none; box-shadow: 0 6px 20px rgba(34,197,94,0.35);
   transition: all 0.3s var(--ease-smooth);
   display: inline-flex; align-items: center; justify-content: center;
@@ -996,22 +996,6 @@ export default function Home() {
   border-radius: 18px; padding: 16px 20px; margin-bottom: 16px;
 }
 
-/* ── FLOATING WHATSAPP ── */
-.niraa-wa-float {
-  position: fixed; bottom: 28px; right: 28px; z-index: 1000;
-  width: 58px; height: 58px; border-radius: 50%;
-  background: #25D366; color: #fff;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.5rem; text-decoration: none;
-  box-shadow: 0 8px 32px rgba(37,211,102,0.45);
-  animation: wa-float 3s ease-in-out infinite;
-  transition: transform 0.3s var(--ease-bounce);
-}
-.niraa-wa-float:hover { transform: scale(1.12); }
-@keyframes wa-float {
-  0%, 100% { box-shadow: 0 8px 32px rgba(37,211,102,0.45); }
-  50%       { box-shadow: 0 8px 48px rgba(37,211,102,0.65); }
-}
         `}</style>
 
         {/* ══════════════════════════════════════
@@ -1311,10 +1295,6 @@ export default function Home() {
 
         </div>
 
-        {/* ── FLOATING WHATSAPP ── */}
-        <a href={waLink} target="_blank" rel="noreferrer" className="niraa-wa-float" title="Order on WhatsApp">
-          📱
-        </a>
 
       </div>
     </>

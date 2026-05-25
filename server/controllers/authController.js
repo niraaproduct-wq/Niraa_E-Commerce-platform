@@ -10,7 +10,7 @@ const { publishEvent } = require('../utils/realtimeHub');
 // Helper: Generate JWT Token
 const generateToken = (user) => {
   // Admin tokens expire sooner for tighter security
-  const expiry = user.role === 'admin' ? '1d' : '7d';
+  const expiry = user.role === 'admin' ? '4h' : '24h';
   return jwt.sign(
     { id: user.id, role: user.role || 'customer' },
     process.env.JWT_SECRET,
@@ -27,7 +27,7 @@ const setAuthCookie = (res, token, user) => {
   res.cookie('niraa_token', token, {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
+    sameSite: isProd ? 'lax' : 'lax', // Use Lax for better CSRF protection, ensuring Domain is handled if needed
     maxAge: maxAgeMs,
     path: '/',
   });
@@ -38,7 +38,7 @@ const clearAuthCookie = (res) => {
   res.clearCookie('niraa_token', {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? 'none' : 'lax',
+    sameSite: isProd ? 'lax' : 'lax',
     path: '/',
   });
 };
@@ -148,7 +148,6 @@ const sendEmailOtp = async (req, res) => {
 
     res.status(200).json({
       message: 'OTP sent to your email',
-      devOtp: result.devOtp,
       email: email
     });
   } catch (error) {
@@ -198,7 +197,6 @@ const sendOtp = async (req, res) => {
 
     res.status(200).json({
       message: 'OTP sent successfully',
-      devOtp: smsResult.devOtp,
       provider: smsResult.provider,
       phone: validatedPhone
     });

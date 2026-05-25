@@ -232,7 +232,8 @@ export default function AdminCustomers() {
 
       if (!ordersRes.ok || !registeredRes.ok) throw new Error('Failed to load data');
 
-      const orderList = (await ordersRes.json()) || [];
+      const ordersPayload = await ordersRes.json();
+      const orderList = Array.isArray(ordersPayload) ? ordersPayload : (ordersPayload?.orders || []);
       const registeredPayload = await registeredRes.json();
       const registeredCustomers = registeredPayload.customers || [];
 

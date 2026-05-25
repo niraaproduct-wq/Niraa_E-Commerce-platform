@@ -2,35 +2,46 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
+jest.mock('uuid', () => ({ v4: () => 'test-uuid-v4' }));
+
 jest.mock('../middleware/validate', () => () => (req, _res, next) => next());
 
 jest.mock('../utils/firebaseStorage', () => ({
   findUserById: jest.fn(),
+  findAdminById: jest.fn(),
 }));
 
-// Mock Firebase db for order existence + update
-const orderGet = jest.fn();
-const orderUpdate = jest.fn();
-const orderDoc = jest.fn(() => ({ get: orderGet, update: orderUpdate }));
-const collection = jest.fn(() => ({ doc: orderDoc }));
+// Mock Firebase db for order existence + update using globals for lazy evaluation (immune to resetMocks)
+global.mockOrderGet = jest.fn();
+global.mockOrderUpdate = jest.fn();
+
+// Plain function delegate completely immune to resetMocks
+global.mockCollection = (name) => ({
+  doc: (id) => ({
+    get: (...args) => global.mockOrderGet(...args),
+    update: (...args) => global.mockOrderUpdate(...args),
+  })
+});
 
 jest.mock('../config/firebase', () => ({
-  getFirebase: jest.fn(() => ({
-    db: { collection },
+  getFirebase: () => ({
+    db: { collection: (...args) => global.mockCollection(...args) },
     auth: {},
     storage: {},
     admin: {},
-  })),
+  }),
 }));
 
-// Mock Razorpay SDK
-const ordersCreate = jest.fn();
-const paymentsRefund = jest.fn();
+// Mock Razorpay SDK using globals for lazy evaluation (immune to resetMocks)
+global.mockOrdersCreate = jest.fn();
+global.mockPaymentsRefund = jest.fn();
 jest.mock('razorpay', () => {
-  return jest.fn().mockImplementation(() => ({
-    orders: { create: ordersCreate },
-    payments: { refund: paymentsRefund },
-  }));
+  return function() {
+    return {
+      orders: { create: (...args) => global.mockOrdersCreate(...args) },
+      payments: { refund: (...args) => global.mockPaymentsRefund(...args) },
+    };
+  };
 });
 
 const firebaseStorage = require('../utils/firebaseStorage');
@@ -43,13 +54,15 @@ describe('Payment routes', () => {
     process.env.RAZORPAY_KEY_ID = 'rzp_test_key';
     process.env.RAZORPAY_KEY_SECRET = 'rzp_test_secret';
 
-    firebaseStorage.findUserById.mockResolvedValue({
+    const mockUser = {
       id: 'admin_1',
       role: 'admin',
       isActive: true,
       phone: '9999999999',
       name: 'Admin',
-    });
+    };
+    firebaseStorage.findUserById.mockResolvedValue(mockUser);
+    firebaseStorage.findAdminById.mockResolvedValue(mockUser);
   });
 
   const authCookie = () => {
@@ -58,8 +71,8 @@ describe('Payment routes', () => {
   };
 
   test('POST /api/payments/create creates Razorpay order when Niraa order exists', async () => {
-    orderGet.mockResolvedValue({ exists: true, data: () => ({}) });
-    ordersCreate.mockResolvedValue({
+    global.mockOrderGet.mockResolvedValue({ exists: true, data: () => ({}) });
+    global.mockOrdersCreate.mockResolvedValue({
       id: 'order_rzp_1',
       amount: 12300,
       currency: 'INR',
@@ -72,7 +85,7 @@ describe('Payment routes', () => {
       .send({ amount: 123, currency: 'INR', orderId: 'niraa_order_1', description: 'Test' })
       .expect(201);
 
-    expect(ordersCreate).toHaveBeenCalled();
+    expect(global.mockOrdersCreate).toHaveBeenCalled();
     expect(res.body).toMatchObject({
       razorpayOrderId: 'order_rzp_1',
       currency: 'INR',
@@ -81,7 +94,7 @@ describe('Payment routes', () => {
   });
 
   test('POST /api/payments/verify verifies signature and updates order as paid', async () => {
-    orderGet.mockResolvedValue({ exists: true, data: () => ({}) });
+    global.mockOrderGet.mockResolvedValue({ exists: true, data: () => ({}) });
 
     const razorpayOrderId = 'order_rzp_1';
     const razorpayPaymentId = 'pay_rzp_1';
@@ -97,12 +110,12 @@ describe('Payment routes', () => {
       .send({ razorpayOrderId, razorpayPaymentId, razorpaySignature, orderId: 'niraa_order_1' })
       .expect(200);
 
-    expect(orderUpdate).toHaveBeenCalled();
+    expect(global.mockOrderUpdate).toHaveBeenCalled();
     expect(res.body).toMatchObject({ message: 'Payment verified successfully', razorpayPaymentId });
   });
 
   test('POST /api/payments/refund requires admin and calls Razorpay refund', async () => {
-    paymentsRefund.mockResolvedValue({
+    global.mockPaymentsRefund.mockResolvedValue({
       id: 'rfnd_1',
       status: 'processed',
       amount: 5000,
@@ -115,7 +128,7 @@ describe('Payment routes', () => {
       .send({ razorpayPaymentId: 'pay_rzp_1', amount: 50, reason: 'test' })
       .expect(201);
 
-    expect(paymentsRefund).toHaveBeenCalled();
+    expect(global.mockPaymentsRefund).toHaveBeenCalled();
     expect(res.body).toMatchObject({
       message: 'Refund initiated successfully',
       refundId: 'rfnd_1',
