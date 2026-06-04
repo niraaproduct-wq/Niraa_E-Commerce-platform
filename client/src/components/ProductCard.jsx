@@ -95,9 +95,18 @@ export default function ProductCard({ product, compact = false }) {
   const [adding, setAdding] = useState(false);
   const btnRef = useRef(null);
 
+  const isOutOfStock = product?.variants && product.variants.length > 0
+    ? product.variants.every(v => (v.stockQuantity || 0) === 0)
+    : (product?.stock || 0) === 0;
+
   const handleAddToCart = (e) => {
     e.preventDefault();
     e.stopPropagation();
+
+    if (isOutOfStock) {
+      toast.error('Sorry, this product is currently out of stock!');
+      return;
+    }
 
     setAdding(true);
     setTimeout(() => setAdding(false), 600);
@@ -180,6 +189,33 @@ export default function ProductCard({ product, compact = false }) {
               textTransform: 'uppercase', zIndex: 2,
             }}>Best Value</div>
           )}
+
+          {isOutOfStock && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(255, 255, 255, 0.72)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 3,
+            }}>
+              <span style={{
+                background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                color: '#fff',
+                fontWeight: 850,
+                fontSize: '0.78rem',
+                padding: '6px 14px',
+                borderRadius: '9px',
+                letterSpacing: '0.05em',
+                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.45)',
+                textTransform: 'uppercase',
+                fontFamily: 'var(--font-sans)',
+              }}>
+                Out of Stock
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Content */}
@@ -255,20 +291,53 @@ export default function ProductCard({ product, compact = false }) {
             </div>
 
             {/* Mobile icon-only */}
-            <button className={`pc-mobile-cart${adding ? ' adding' : ''}`} onClick={handleAddToCart} style={{ display: 'none' }}>
-              <FiShoppingCart size={16} />
-            </button>
+            {isOutOfStock ? (
+              <button
+                className="pc-mobile-cart"
+                disabled
+                style={{
+                  background: '#f1f5f9 !important',
+                  color: '#94a3b8 !important',
+                  cursor: 'not-allowed !important',
+                  boxShadow: 'none !important',
+                  marginLeft: 'auto !important',
+                  marginTop: '8px !important',
+                  display: 'flex !important',
+                  alignItems: 'center !important',
+                  justifyContent: 'center !important',
+                  width: '38px !important',
+                  height: '38px !important',
+                  minWidth: '38px !important',
+                  border: '1.5px solid #cbd5e1 !important',
+                  borderRadius: '50% !important',
+                }}
+              >
+                🚫
+              </button>
+            ) : (
+              <button className={`pc-mobile-cart${adding ? ' adding' : ''}`} onClick={handleAddToCart} style={{ display: 'none' }}>
+                <FiShoppingCart size={16} />
+              </button>
+            )}
 
             {/* Desktop full button */}
             <div className="pc-btn-wrapper">
               <button
                 ref={btnRef}
                 onClick={handleAddToCart}
+                disabled={isOutOfStock}
                 className={`pc-add-btn${adding ? ' adding' : ''}`}
+                style={isOutOfStock ? {
+                  background: '#f1f5f9',
+                  color: '#94a3b8',
+                  border: '1.5px solid #cbd5e1',
+                  cursor: 'not-allowed',
+                  boxShadow: 'none'
+                } : {}}
               >
-                <FiShoppingCart size={18} />
+                {!isOutOfStock && <FiShoppingCart size={18} />}
                 <span className="pc-btn-text">
-                  {adding ? 'Adding…' : 'Add to Cart'}
+                  {isOutOfStock ? 'Out of Stock' : adding ? 'Adding…' : 'Add to Cart'}
                 </span>
               </button>
             </div>

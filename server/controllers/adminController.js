@@ -79,8 +79,9 @@ const getAllProducts = async (req, res) => {
     // Sort in memory to avoid composite index requirements
     products.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
-    if (search) {
-      const q = search.toLowerCase();
+    const searchStr = typeof search === 'string' ? search : '';
+    if (searchStr) {
+      const q = searchStr.toLowerCase();
       products = products.filter(p =>
         (p.name || '').toLowerCase().includes(q) ||
         (p.description || '').toLowerCase().includes(q) ||
@@ -165,7 +166,7 @@ const createProduct = async (req, res) => {
     };
 
     // Synchronize with all variants if they are provided
-    if (productData.variants && productData.variants.length > 0) {
+    if (Array.isArray(productData.variants) && productData.variants.length > 0) {
       productData.variants.forEach(v => {
         v.price = productData.price;
         v.stockQuantity = productData.stock;
@@ -175,11 +176,12 @@ const createProduct = async (req, res) => {
       });
     }
 
-    productData.slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const nameStr = typeof name === 'string' ? name : 'product';
+    productData.slug = nameStr.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     productData.createdAt = new Date().toISOString();
     productData.updatedAt = new Date().toISOString();
 
-    if (productData.images && productData.images.length > 0 && !productData.image) {
+    if (Array.isArray(productData.images) && productData.images.length > 0 && !productData.image) {
       productData.image = productData.images[0];
     }
 
@@ -219,7 +221,7 @@ const updateProduct = async (req, res) => {
 
     // Generate slug if name is present or slug is missing
     if (updateData.name || !existing.data().slug) {
-      const nameForSlug = updateData.name || existing.data().name || 'product';
+      const nameForSlug = typeof updateData.name === 'string' ? updateData.name : (typeof existing.data().name === 'string' ? existing.data().name : 'product');
       updateData.slug = nameForSlug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     }
 

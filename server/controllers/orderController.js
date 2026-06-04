@@ -30,7 +30,7 @@ const placeOrder = async (req, res) => {
       }
     }
 
-    if (!items || items.length === 0) {
+    if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'No items in order' });
     }
 
@@ -114,9 +114,18 @@ const placeOrder = async (req, res) => {
     // Notify clients about potential stock changes
     publishEvent('products.changed', { type: 'batch_update' });
     
+    // Telemetry: Log business event
+    const businessLogger = require('../utils/businessLogger');
+    businessLogger.logOrderCreated(savedOrder._id, savedOrder.userId || 'guest', savedOrder.total || 0, savedOrder.items?.length || 0);
+    
     res.status(201).json(savedOrder);
   } catch (err) {
     logger.error('Place Order Error:', err.message);
+    
+    // Telemetry: Log failure event
+    const businessLogger = require('../utils/businessLogger');
+    businessLogger.logOrderFailed(req.body.id || 'draft', req.body.userId || 'guest', err.message);
+    
     res.status(400).json({ message: err.message });
   }
 };

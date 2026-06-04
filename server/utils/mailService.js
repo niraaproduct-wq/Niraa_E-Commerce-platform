@@ -108,14 +108,29 @@ const sendEmailOTP = async (email, otp, customerName = 'Customer') => {
 
     if (error) {
       logger.error(`Resend API Error: ${error.message}`, { error });
+      
+      // Telemetry: Log failure event
+      const businessLogger = require('./businessLogger');
+      businessLogger.logEmailFailed(email, 'OTP_VERIFICATION', error.message);
+      
       return { success: false, message: `Resend error: ${error.message}` };
     }
 
     logger.info(`Email sent successfully via Resend: ${data.id}`);
+    
+    // Telemetry: Log success event
+    const businessLogger = require('./businessLogger');
+    businessLogger.logEmailSent(email, 'OTP_VERIFICATION', data.id);
+    
     return { success: true };
 
   } catch (error) {
     logger.error(`Send Email Error (Resend): ${error.message}`, { error });
+    
+    // Telemetry: Log failure event
+    const businessLogger = require('./businessLogger');
+    businessLogger.logEmailFailed(email, 'OTP_VERIFICATION', error.message);
+    
     return { success: false, message: error.message };
   }
 };

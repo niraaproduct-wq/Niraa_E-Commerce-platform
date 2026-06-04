@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import ProductCard from '../components/ProductCard';
 import { WHATSAPP_NUMBER } from '../utils/constants.js';
 import { CATEGORIES } from '../utils/categories.js';
@@ -116,6 +117,10 @@ export default function Products() {
 
   return (
     <>
+      <Helmet>
+        <title>Our Products | NIRAA Wellness & Lifestyle</title>
+        <meta name="description" content="Browse Niraa Care's full range of eco-friendly home care products. From liquid detergents and floor cleaners to value combo packs, order online for local delivery." />
+      </Helmet>
       <SectionRenderer sections={dynamicSections} />
 
       <div className="np-root">
@@ -449,9 +454,75 @@ export default function Products() {
 
           {/* ── PRODUCTS ── */}
           {loading ? (
-            <div className="np-loading">
-              <div className="np-loading-ring" />
-              <span>Finding the best products for you…</span>
+            <div className="np-skeleton-grid">
+              <style>{`
+                .np-skeleton-grid {
+                  display: grid;
+                  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+                  gap: 20px;
+                  width: 100%;
+                  margin-top: 24px;
+                }
+                .np-skeleton-card {
+                  background: #fff;
+                  border-radius: 16px;
+                  border: 1px solid rgba(42,125,114,0.08);
+                  padding: 16px;
+                  display: flex;
+                  flex-direction: column;
+                  gap: 12px;
+                  position: relative;
+                  overflow: hidden;
+                }
+                .np-skeleton-shimmer {
+                  animation: shimmerSweep 1.5s infinite linear;
+                  background: linear-gradient(to right, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
+                  background-size: 800px 104px;
+                  position: relative;
+                }
+                @keyframes shimmerSweep {
+                  0% { background-position: -468px 0; }
+                  100% { background-position: 468px 0; }
+                }
+                .np-skeleton-img {
+                  height: 180px;
+                  border-radius: 12px;
+                  width: 100%;
+                }
+                .np-skeleton-badge {
+                  width: 60px;
+                  height: 16px;
+                  border-radius: 4px;
+                }
+                .np-skeleton-title {
+                  width: 85%;
+                  height: 20px;
+                  border-radius: 4px;
+                }
+                .np-skeleton-price {
+                  width: 45%;
+                  height: 24px;
+                  border-radius: 4px;
+                }
+                .np-skeleton-btn {
+                  width: 100%;
+                  height: 40px;
+                  border-radius: 8px;
+                  margin-top: 4px;
+                }
+              `}</style>
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="np-skeleton-card">
+                  <div className="np-skeleton-img np-skeleton-shimmer" />
+                  <div className="np-skeleton-badge np-skeleton-shimmer" />
+                  <div className="np-skeleton-title np-skeleton-shimmer" />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="np-skeleton-price np-skeleton-shimmer" />
+                    <div style={{ width: '30px', height: '20px', borderRadius: '4px' }} className="np-skeleton-shimmer" />
+                  </div>
+                  <div className="np-skeleton-btn np-skeleton-shimmer" />
+                </div>
+              ))}
             </div>
           ) : (
             <>

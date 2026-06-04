@@ -171,9 +171,9 @@ const getAddressSuggestions = async (req, res) => {
   try {
     const { input } = req.query;
     
-    if (!input || input.length < 2) {
+    if (typeof input !== 'string' || input.length < 2) {
       return res.status(400).json({ 
-        message: 'Input must be at least 2 characters' 
+        message: 'Input must be a string of at least 2 characters' 
       });
     }
     
@@ -218,9 +218,9 @@ const validateAddress = async (req, res) => {
   try {
     const { address, city, state, zipCode } = req.body;
     
-    if (!address || !city || !state) {
+    if (typeof address !== 'string' || typeof city !== 'string' || typeof state !== 'string') {
       return res.status(400).json({ 
-        message: 'Address, city, and state are required' 
+        message: 'Address, city, and state are required and must be strings' 
       });
     }
     
@@ -229,7 +229,7 @@ const validateAddress = async (req, res) => {
       address: address.length > 5,
       city: city.length > 2,
       state: state.length > 2,
-      zipCode: !zipCode || /^\d{6}$/.test(zipCode) // Indian zip codes are 6 digits
+      zipCode: !zipCode || (typeof zipCode === 'string' && /^\d{6}$/.test(zipCode)) // Indian zip codes are 6 digits
     };
     
     const allValid = Object.values(isValid).every(v => v);

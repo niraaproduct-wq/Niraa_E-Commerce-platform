@@ -8,12 +8,25 @@ export default function CartItem({ item }) {
   const [removing, setRemoving] = useState(false);
   const [qtyDir, setQtyDir] = useState(null); // 'up' | 'down'
 
+  const getAvailableStock = () => {
+    if (item.variantId) {
+      const variant = item.variants?.find(v => v.variantId === item.variantId);
+      return variant ? (variant.stockQuantity ?? 0) : 0;
+    }
+    return item.stock ?? 0;
+  };
+
+  const stock = getAvailableStock();
+
   const handleRemove = () => {
     setRemoving(true);
     setTimeout(() => removeFromCart(item.uid), 320);
   };
 
   const handleQty = (next) => {
+    if (next > item.qty && next > stock) {
+      return; // Prevent going above stock
+    }
     setQtyDir(next > item.qty ? 'up' : 'down');
     setTimeout(() => setQtyDir(null), 250);
     if (next < 1) { handleRemove(); return; }
@@ -37,6 +50,7 @@ export default function CartItem({ item }) {
         }
         .ci-qty-ctrl:hover { transform: scale(1.15); box-shadow: 0 4px 10px rgba(0,0,0,0.12); }
         .ci-qty-ctrl:active { transform: scale(0.92); }
+        .ci-qty-ctrl:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
         .ci-remove {
           background: none; border: none; color: var(--red);
           cursor: pointer; padding: 6px; border-radius: 6px;
@@ -85,6 +99,15 @@ export default function CartItem({ item }) {
           <div style={{ fontWeight: 700, color: 'var(--teal-dark)', marginTop: 4 }}>
             {formatPrice(item.price)}
           </div>
+          {stock === 0 ? (
+            <div style={{ color: '#dc2626', fontSize: '0.78rem', fontWeight: 750, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              ❌ Out of stock (cannot buy)
+            </div>
+          ) : item.qty > stock ? (
+            <div style={{ color: '#d97706', fontSize: '0.78rem', fontWeight: 750, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              ⚠️ Only {stock} available (please reduce qty)
+            </div>
+          ) : null}
         </div>
 
         {/* Qty */}
@@ -101,6 +124,7 @@ export default function CartItem({ item }) {
             fontWeight: 700, minWidth: 20, textAlign: 'center',
             display: 'inline-block', overflow: 'hidden',
             animation: qtyDir === 'up' ? 'ciQtyUp 0.2s ease' : qtyDir === 'down' ? 'ciQtyDown 0.2s ease' : 'none',
+            color: item.qty > stock ? '#d97706' : 'inherit'
           }}>
             {item.qty}
           </span>
@@ -109,6 +133,7 @@ export default function CartItem({ item }) {
             className="ci-qty-ctrl"
             style={{ background: 'var(--teal)', color: '#fff' }}
             onClick={() => handleQty(item.qty + 1)}
+            disabled={item.qty >= stock}
           >
             <FiPlus size={13} />
           </button>

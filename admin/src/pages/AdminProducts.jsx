@@ -55,6 +55,15 @@ const getCat = (val, allProducts = []) => {
   return { label: val?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), color: T.gray600, bg: T.gray100 };
 };
 
+const sanitizeImgUrl = (url) => {
+  if (!url) return '';
+  const str = String(url);
+  if (/^(https?:\/\/|\/|data:image\/)/.test(str)) {
+    return str;
+  }
+  return '';
+};
+
 /* ─── Shared Field styles ────────────────────────────────────── */
 const field = {
   display: 'flex', flexDirection: 'column', gap: 6,
@@ -546,7 +555,7 @@ const AdminProducts = () => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div style={{ width: 44, height: 44, borderRadius: 10, overflow: 'hidden', border: `1.5px solid ${T.gray200}`, flexShrink: 0, background: T.gray100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {product.images?.[0] || product.image
-                            ? <img src={product.images?.[0] || product.image} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ? <img src={sanitizeImgUrl(product.images?.[0] || product.image)} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             : <FaImage style={{ color: T.gray300, fontSize: 14 }} />
                           }
                         </div>
@@ -937,7 +946,7 @@ const AdminProducts = () => {
                 </div>
                 {formData.images[0] && (
                   <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <img src={formData.images[0]} alt="Preview" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 8, border: `1.5px solid ${T.gray200}` }} />
+                    <img src={sanitizeImgUrl(formData.images[0])} alt="Preview" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 8, border: `1.5px solid ${T.gray200}` }} />
                     <span style={{ fontSize: 12, color: T.gray400 }}>Preview</span>
                   </div>
                 )}

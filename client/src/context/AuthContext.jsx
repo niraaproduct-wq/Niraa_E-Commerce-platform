@@ -20,19 +20,26 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }, []);
 
-  const login = (userData) => {
+  const login = (userData, token) => {
     setUser(userData);
     localStorage.setItem('niraa_user', JSON.stringify(userData));
+    if (token) {
+      localStorage.setItem('niraa_token', token);
+    }
   };
 
   const logout = () => {
     setUser(null);
     localStorage.removeItem('niraa_user');
+    localStorage.removeItem('niraa_token');
   };
 
-  const updateProfile = (updatedUserData) => {
+  const updateProfile = (updatedUserData, token) => {
     setUser(updatedUserData);
     localStorage.setItem('niraa_user', JSON.stringify(updatedUserData));
+    if (token) {
+      localStorage.setItem('niraa_token', token);
+    }
   };
 
   return (

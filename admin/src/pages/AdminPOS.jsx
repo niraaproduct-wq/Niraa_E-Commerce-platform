@@ -44,6 +44,14 @@ const getCashier = () => {
   try { return JSON.parse(localStorage.getItem('niraa_user') || '{}'); } catch { return {}; }
 };
 const genOrderId = () => 'POS-' + Date.now().toString(36).toUpperCase();
+const sanitizeImgUrl = (url) => {
+  if (!url) return '';
+  const str = String(url);
+  if (/^(https?:\/\/|\/|data:image\/)/.test(str)) {
+    return str;
+  }
+  return '';
+};
 
 /* ─── Component ─────────────────────────────────────────────── */
 const AdminPOS = () => {
@@ -132,9 +140,17 @@ const AdminPOS = () => {
   /*  CART OPERATIONS                                            */
   /* ─────────────────────────────────────────────────────────── */
   const addToCart = useCallback((product) => {
+    if (product.stock !== undefined && product.stock <= 0) {
+      toast.error(`${product.name} is out of stock!`);
+      return;
+    }
     setCart(prev => {
       const existing = prev.find(item => item._id === product._id && item.variantId === product.variantId);
       if (existing) {
+        if (product.stock !== undefined && existing.quantity >= product.stock) {
+          toast.error(`Cannot add more. Only ${product.stock} items in stock.`);
+          return prev;
+        }
         return prev.map(item =>
           item._id === product._id && item.variantId === product.variantId
             ? { ...item, quantity: item.quantity + 1 }
@@ -153,6 +169,10 @@ const AdminPOS = () => {
     setCart(prev => prev.map(item => {
       if (item._id === id && item.variantId === variantId) {
         const newQty = Math.max(1, item.quantity + delta);
+        if (item.stock !== undefined && newQty > item.stock) {
+          toast.error(`Only ${item.stock} items available in stock.`);
+          return item;
+        }
         return { ...item, quantity: newQty };
       }
       return item;
@@ -161,9 +181,16 @@ const AdminPOS = () => {
 
   const setQtyDirect = (id, variantId, val) => {
     const qty = Math.max(1, parseInt(val) || 1);
-    setCart(prev => prev.map(item =>
-      item._id === id && item.variantId === variantId ? { ...item, quantity: qty } : item
-    ));
+    setCart(prev => prev.map(item => {
+      if (item._id === id && item.variantId === variantId) {
+        if (item.stock !== undefined && qty > item.stock) {
+          toast.error(`Only ${item.stock} items available in stock.`);
+          return { ...item, quantity: item.stock };
+        }
+        return { ...item, quantity: qty };
+      }
+      return item;
+    }));
   };
 
   const removeItem = (id, variantId) => {
@@ -205,7 +232,9 @@ const AdminPOS = () => {
       taxRate,
       createdAt: new Date().toISOString(),
     });
-    localStorage.setItem('pos_holds', JSON.stringify(holds.slice(-10)));
+    const updatedHolds = holds.slice(-10);
+    localStorage.setItem('pos_holds', JSON.stringify(updatedHolds));
+    setHeldCarts(updatedHolds);
     clearCart();
     toast.success('Cart held successfully');
   };
@@ -218,6 +247,8 @@ const AdminPOS = () => {
     setTaxRate(hold.taxRate || 0);
     const holds = JSON.parse(localStorage.getItem('pos_holds') || '[]').filter(h => h.id !== hold.id);
     localStorage.setItem('pos_holds', JSON.stringify(holds));
+    setHeldCarts(holds);
+    document.getElementById('hold-menu')?.classList.remove('show');
     toast.success('Cart resumed');
   };
 
@@ -430,16 +461,25 @@ const AdminPOS = () => {
       {/* ═══ SEARCH RESULTS DROPDOWN ═══ */}
       {showResults && searchResults.length > 0 && (
         <div style={{ position: 'absolute', top: 58, left: 20, right: 20, background: T.white, borderRadius: T.radius, boxShadow: T.shadow, border: `1px solid ${T.gray200}`, zIndex: 40, maxHeight: 320, overflowY: 'auto', padding: '8px 0' }}>
-          {searchResults.map(p => (
-            <div key={p._id} onClick={() => addToCart(p)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', cursor: 'pointer', borderBottom: `1px solid ${T.gray100}` }} onMouseEnter={e => e.currentTarget.style.background = T.gray50} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-              <img src={p.images?.[0] || '/placeholder.png'} alt="" style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 6, background: T.gray50 }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: T.gray800 }}>{p.name}</div>
-                <div style={{ fontSize: 11, color: T.gray400 }}>{p.category} · Stock: {p.stock ?? 'N/A'}</div>
+          {searchResults.map(p => {
+            const isOutOfStock = p.stock !== undefined && p.stock <= 0;
+            return (
+              <div key={p._id} onClick={() => addToCart(p)} style={{
+                display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
+                cursor: isOutOfStock ? 'not-allowed' : 'pointer', borderBottom: `1px solid ${T.gray100}`,
+                opacity: isOutOfStock ? 0.65 : 1
+              }} onMouseEnter={e => { if (!isOutOfStock) e.currentTarget.style.background = T.gray50; }} onMouseLeave={e => { if (!isOutOfStock) e.currentTarget.style.background = 'transparent'; }}>
+                <img src={sanitizeImgUrl(p.images?.[0] || '/placeholder.png')} alt="" style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 6, background: T.gray50 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: T.gray800 }}>{p.name}</div>
+                  <div style={{ fontSize: 11, color: isOutOfStock ? T.red : T.gray400, fontWeight: isOutOfStock ? 600 : 'normal' }}>
+                    {p.category} · {isOutOfStock ? '❌ Out of Stock' : `Stock: ${p.stock ?? 'N/A'}`}
+                  </div>
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: T.teal }}>₹{p.price}</div>
               </div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: T.teal }}>₹{p.price}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -453,26 +493,50 @@ const AdminPOS = () => {
             <span style={{ fontSize: 12, color: T.gray400 }}>{allProducts.length} items in catalog</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 14 }}>
-            {products.map(p => (
-              <div key={p._id} onClick={() => addToCart(p)} style={{
-                background: T.white, borderRadius: T.radius, border: `1px solid ${T.gray200}`,
-                padding: 14, textAlign: 'center', cursor: 'pointer', transition: 'all 0.12s',
-              }} onMouseEnter={e => { e.currentTarget.style.borderColor = T.teal; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = T.gray200; e.currentTarget.style.transform = 'none'; }}>
-                <div style={{ height: 70, background: T.gray50, borderRadius: 8, marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {p.images?.[0] ? <img src={p.images[0]} style={{ height: '100%', objectFit: 'contain' }} alt="" /> : <FaBarcode color={T.gray300} />}
+            {products.map(p => {
+              const isOutOfStock = p.stock !== undefined && p.stock <= 0;
+              return (
+                <div key={p._id} onClick={() => addToCart(p)} style={{
+                  background: T.white, borderRadius: T.radius, border: `1px solid ${T.gray200}`,
+                  padding: 14, textAlign: 'center', cursor: isOutOfStock ? 'not-allowed' : 'pointer', transition: 'all 0.12s',
+                  position: 'relative',
+                  opacity: isOutOfStock ? 0.6 : 1,
+                }} onMouseEnter={e => {
+                  if (!isOutOfStock) {
+                    e.currentTarget.style.borderColor = T.teal;
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }
+                }}
+                  onMouseLeave={e => {
+                    if (!isOutOfStock) {
+                      e.currentTarget.style.borderColor = T.gray200;
+                      e.currentTarget.style.transform = 'none';
+                    }
+                  }}>
+                  <div style={{ height: 70, background: T.gray50, borderRadius: 8, marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
+                    {p.images?.[0] ? <img src={sanitizeImgUrl(p.images[0])} style={{ height: '100%', objectFit: 'contain' }} alt="" /> : <FaBarcode color={T.gray300} />}
+                    {isOutOfStock && (
+                      <div style={{
+                        position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.75)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 10, fontWeight: 800, color: T.red, textTransform: 'uppercase'
+                      }}>
+                        Out of Stock
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: T.gray800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 4 }}>
+                    {p.size && <span style={{ fontSize: 9, fontWeight: 700, color: T.teal, background: T.tealLight, padding: '1px 5px', borderRadius: 3 }}>{p.size}</span>}
+                    {p.productType === 'combo' && <span style={{ fontSize: 9, fontWeight: 700, color: '#533AB7', background: '#EEEDFE', padding: '1px 5px', borderRadius: 3 }}>🎁</span>}
+                  </div>
+                  <div style={{ fontSize: 13, color: T.teal, fontWeight: 700, marginTop: 6 }}>₹{p.price}</div>
+                  <div style={{ fontSize: 10, color: isOutOfStock ? T.red : ((p.stock || 0) < 5 ? T.red : T.gray400), marginTop: 2, fontWeight: isOutOfStock ? 700 : 'normal' }}>
+                    {isOutOfStock ? `❌ Out of Stock` : ((p.stock || 0) < 5 ? `Only ${p.stock} left` : `Stock: ${p.stock}`)}
+                  </div>
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: T.gray800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 4 }}>
-                  {p.size && <span style={{ fontSize: 9, fontWeight: 700, color: T.teal, background: T.tealLight, padding: '1px 5px', borderRadius: 3 }}>{p.size}</span>}
-                  {p.productType === 'combo' && <span style={{ fontSize: 9, fontWeight: 700, color: '#533AB7', background: '#EEEDFE', padding: '1px 5px', borderRadius: 3 }}>🎁</span>}
-                </div>
-                <div style={{ fontSize: 13, color: T.teal, fontWeight: 700, marginTop: 6 }}>₹{p.price}</div>
-                <div style={{ fontSize: 10, color: (p.stock || 0) < 5 ? T.red : T.gray400, marginTop: 2 }}>
-                  {(p.stock || 0) < 5 ? `Only ${p.stock} left` : `Stock: ${p.stock}`}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -845,7 +909,20 @@ const AdminPOS = () => {
               ].map(s => (
                 <div key={s.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${T.gray100}` }}>
                   <span style={{ fontSize: 13, color: T.gray700 }}>{s.desc}</span>
-                  <kbd style={{ background: T.gray100, padding: '3px 10px', borderRadius: 4, fontSize: 12, fontFamily: T.mono, fontWeight: 700, border: `1px solid ${T.gray200}` }}>{s.key}</kbd>
+                  <kbd style={{
+                    background: 'linear-gradient(to bottom, #ffffff, #f3f4f6)',
+                    color: T.gray800,
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontFamily: T.mono,
+                    fontWeight: 800,
+                    border: '1px solid #cbd5e1',
+                    boxShadow: '0 2px 0 #94a3b8',
+                    display: 'inline-block',
+                    minWidth: '28px',
+                    textAlign: 'center'
+                  }}>{s.key}</kbd>
                 </div>
               ))}
             </div>

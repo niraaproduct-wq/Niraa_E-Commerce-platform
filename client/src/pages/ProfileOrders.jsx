@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useRealtime } from '../context/RealtimeContext.jsx';
 import { API_BASE_URL } from '../utils/constants.js';
 import Loader from '../components/Loader.jsx';
 import { FiPackage, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 
 /* ─── Design Tokens ─────────────────────────────────── */
 const T = {
@@ -916,12 +918,29 @@ function OrderCard({ order, onCancel, animDelay }) {
 /* ─── Main Page ──────────────────────────────────────── */
 const ProfileOrders = () => {
   const { user, logout } = useAuth();
+  const { lastEvent } = useRealtime();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [selectedOrderForCancel, setSelectedOrderForCancel] = useState(null);
 
   useEffect(() => { fetchOrders(); }, [user]);
+
+  useEffect(() => {
+    if (lastEvent && lastEvent.event === 'orders.changed') {
+      const { type, orderId, status } = lastEvent.payload || {};
+      if (type === 'status_updated' || type === 'cancelled') {
+        setOrders(prev => prev.map(o => {
+          if (o.id === orderId || o._id === orderId) {
+            return { ...o, status: status || o.status };
+          }
+          return o;
+        }));
+      } else {
+        fetchOrders();
+      }
+    }
+  }, [lastEvent]);
 
   const fetchOrders = async () => {
     try {
@@ -954,12 +973,15 @@ const ProfileOrders = () => {
         body: JSON.stringify({ reasonKey, reasonText })
       });
       if (res.ok) {
+        toast.success('Cancellation request updated successfully.');
         await fetchOrders();
       } else {
-        const d = await res.json();
-        alert(d.message || 'Failed to cancel order');
+        const d = await res.json().catch(() => ({}));
+        toast.error(d.message || 'Failed to cancel order');
       }
-    } catch { alert('Error connecting to server'); }
+    } catch {
+      toast.error('Error connecting to server. Please try again.');
+    }
   };
 
   const safeOrders = Array.isArray(orders) ? orders : [];

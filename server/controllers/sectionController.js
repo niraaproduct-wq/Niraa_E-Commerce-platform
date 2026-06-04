@@ -183,6 +183,10 @@ const reorderSections = async (req, res) => {
     const { page } = req.params;
     const { sectionIds } = req.body;
 
+    if (!Array.isArray(sectionIds)) {
+      return res.status(400).json({ success: false, message: 'sectionIds must be an array' });
+    }
+
     const batch = db.batch();
     for (let i = 0; i < sectionIds.length; i++) {
       const docRef = db.collection(SECTIONS_COLLECTION).doc(sectionIds[i]);

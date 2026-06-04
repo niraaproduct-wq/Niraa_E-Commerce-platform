@@ -49,10 +49,10 @@ const { createApp } = require('../app');
 
 describe('Payment routes', () => {
   beforeEach(() => {
-    process.env.JWT_SECRET = 'test_jwt_secret';
+    process.env.JWT_SECRET = require('crypto').randomBytes(32).toString('hex');
     process.env.NODE_ENV = 'test';
     process.env.RAZORPAY_KEY_ID = 'rzp_test_key';
-    process.env.RAZORPAY_KEY_SECRET = 'rzp_test_secret';
+    process.env.RAZORPAY_KEY_SECRET = require('crypto').randomBytes(32).toString('hex');
 
     const mockUser = {
       id: 'admin_1',

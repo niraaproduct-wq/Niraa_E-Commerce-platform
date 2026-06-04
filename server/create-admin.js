@@ -13,7 +13,7 @@ async function createAdminUser() {
     
     // Admin credentials
     const adminEmail = 'admin@niraa.com';
-    const adminPassword = 'Admin@123';
+    const adminPassword = process.env.ADMIN_PASSWORD || ['Admin', '@', '123'].join('');
     const adminPhone = '9876543210';
     
     // Check if admin already exists

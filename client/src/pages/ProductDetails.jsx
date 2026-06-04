@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { formatPrice } from '../utils/formatPrice';
 import toast from 'react-hot-toast';
 import { useCart } from '../context/CartContext';
@@ -93,10 +94,101 @@ const ProductDetails = () => {
     ];
   }, [product]);
 
+  // Sync qty when selected variant or product stock changes
+  useEffect(() => {
+    if (product) {
+      const stock = selectedVariant ? selectedVariant.stockQuantity : (product.stock || 0);
+      if (stock <= 0) {
+        setQty(0);
+      } else {
+        setQty(1);
+      }
+    }
+  }, [selectedVariant, product]);
+
   if (loading) return (
-    <main className="container page">
-      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 700, color: 'var(--teal)' }}>
-        Loading product details...
+    <main className="container page" style={{ paddingTop: 12 }}>
+      <div className="pd-layout">
+        <style>{`
+          .pd-layout { display: grid; grid-template-columns: 1fr; gap: 32px; margin-top: 20px; }
+          @media (min-width: 900px) { .pd-layout { grid-template-columns: 1fr 1.1fr; } }
+          
+          .pdd-shimmer {
+            animation: pddSweep 1.6s infinite linear;
+            background: linear-gradient(to right, #f6f7f8 8%, #edeef1 18%, #f6f7f8 33%);
+            background-size: 1000px 104px;
+            position: relative;
+            overflow: hidden;
+          }
+          @keyframes pddSweep {
+            0% { background-position: -468px 0; }
+            100% { background-position: 468px 0; }
+          }
+          .skeleton-breadcrumb {
+            height: 16px; width: 220px; border-radius: 4px; margin-bottom: 20px;
+          }
+          .skeleton-img-box {
+            height: 380px; border-radius: 22px; width: 100%; margin-bottom: 14px;
+          }
+          .skeleton-thumbs {
+            display: flex; gap: 12px;
+          }
+          .skeleton-thumb {
+            width: 66px; height: 66px; border-radius: 12px;
+          }
+          .skeleton-badge {
+            width: 90px; height: 22px; border-radius: 999px; margin-bottom: 12px;
+          }
+          .skeleton-title {
+            width: 75%; height: 36px; border-radius: 6px; margin-bottom: 12px;
+          }
+          .skeleton-stars {
+            width: 140px; height: 16px; border-radius: 4px; margin-bottom: 20px;
+          }
+          .skeleton-price-card {
+            height: 120px; border-radius: 18px; width: 100%; margin-bottom: 24px;
+          }
+          .skeleton-variants {
+            height: 50px; border-radius: 12px; width: 100%; margin-bottom: 24px;
+          }
+          .skeleton-qty {
+            width: 140px; height: 40px; border-radius: 14px; margin-bottom: 28px;
+          }
+          .skeleton-btn-row {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;
+          }
+          .skeleton-btn-large {
+            height: 50px; border-radius: 14px;
+          }
+          .skeleton-btn-wide {
+            height: 50px; border-radius: 14px; width: 100%;
+          }
+        `}</style>
+        
+        <div>
+          <div className="skeleton-breadcrumb pdd-shimmer" />
+          <div className="skeleton-img-box pdd-shimmer" />
+          <div className="skeleton-thumbs">
+            <div className="skeleton-thumb pdd-shimmer" />
+            <div className="skeleton-thumb pdd-shimmer" />
+            <div className="skeleton-thumb pdd-shimmer" />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: '36px' }}>
+          <div className="skeleton-badge pdd-shimmer" />
+          <div className="skeleton-title pdd-shimmer" />
+          <div className="skeleton-stars pdd-shimmer" />
+          <div className="skeleton-price-card pdd-shimmer" />
+          <div style={{ width: '120px', height: '16px', borderRadius: '4px', marginBottom: '12px' }} className="pdd-shimmer" />
+          <div className="skeleton-variants pdd-shimmer" />
+          <div className="skeleton-qty pdd-shimmer" />
+          <div className="skeleton-btn-row">
+            <div className="skeleton-btn-large pdd-shimmer" />
+            <div className="skeleton-btn-large pdd-shimmer" />
+          </div>
+          <div className="skeleton-btn-wide pdd-shimmer" />
+        </div>
       </div>
     </main>
   );
@@ -131,31 +223,57 @@ const ProductDetails = () => {
   const discountPct = currentOriginalPrice ? Math.round((1 - currentPrice / currentOriginalPrice) * 100) : (product.discount || 0);
   const savings = currentOriginalPrice ? currentOriginalPrice - currentPrice : 0;
 
-  const addSelectedToCart = () => {
+  const addSelectedToCart = (silent = false) => {
+    if (currentStock <= 0) {
+      toast.error('Sorry, this product/variant is out of stock!');
+      return false;
+    }
+
     const pToAdd = selectedVariant
       ? { ...product, price: currentPrice, originalPrice: currentOriginalPrice, variantId: selectedVariant.variantId, variantDesc: `${selectedVariant.size} - ${selectedVariant.type}` }
       : product;
     const uid = pToAdd.variantId ? `${pToAdd._id}-${pToAdd.variantId}` : pToAdd._id;
     const existing = items.find(i => i.uid === uid);
-    const safeQty = Math.max(1, Math.min(10, Number(qty) || 1));
-    if (existing) {
-      updateQty(uid, existing.qty + safeQty);
-    } else {
-      for (let i = 0; i < safeQty; i++) addToCart(pToAdd);
+    
+    // Ensure we don't exceed current stock
+    const cartQty = existing ? existing.qty : 0;
+    const requestedQty = Math.max(1, Math.min(10, Number(qty) || 1));
+    
+    if (cartQty + requestedQty > currentStock) {
+      toast.error(`Cannot add more. You already have ${cartQty} in cart, and only ${currentStock} are available.`);
+      return false;
     }
-    toast.success(`${product.name} added to cart!`);
+
+    if (existing) {
+      updateQty(uid, cartQty + requestedQty);
+    } else {
+      for (let i = 0; i < requestedQty; i++) addToCart(pToAdd);
+    }
+    
+    if (!silent) {
+      toast.success(`${product.name} added to cart!`);
+    }
+    return true;
   };
 
   const handleBuyNow = () => {
-    addSelectedToCart();
-    navigate('/checkout');
+    const success = addSelectedToCart(true);
+    if (success) {
+      navigate('/checkout');
+    }
   };
 
-  const waText = `Hello NIRAA! I want to order:\n*${product.name}*${selectedVariant ? ` (${selectedVariant.size} - ${selectedVariant.type})` : ''}\nQty: ${qty}\nPrice: ${formatPrice(currentPrice)} each\n\nPlease confirm availability and delivery.`;
+  const waText = currentStock <= 0
+    ? `Hello NIRAA! I wanted to inquire about the availability of:\n*${product.name}*${selectedVariant ? ` (${selectedVariant.size} - ${selectedVariant.type})` : ''}\nIt is currently showing as out of stock. When will it be back in stock?`
+    : `Hello NIRAA! I want to order:\n*${product.name}*${selectedVariant ? ` (${selectedVariant.size} - ${selectedVariant.type})` : ''}\nQty: ${qty}\nPrice: ${formatPrice(currentPrice)} each\n\nPlease confirm availability and delivery.`;
   const waLink = `https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}?text=${encodeURIComponent(waText)}`;
 
   return (
     <main className="container page" style={{ paddingTop: 12 }}>
+      <Helmet>
+        <title>{`${product.name} | Niraa Care`}</title>
+        <meta name="description" content={product.description ? (product.description.length > 155 ? `${product.description.substring(0, 152)}...` : product.description) : `Buy ${product.name} online from Niraa Care. Eco-friendly cleaning products with fast delivery in Dharmapuri.`} />
+      </Helmet>
       <style>{`
         .pd-layout { display: grid; grid-template-columns: 1fr; gap: 32px; }
         @media (min-width: 900px) { .pd-layout { grid-template-columns: 1fr 1.1fr; } }
@@ -500,9 +618,35 @@ const ProductDetails = () => {
             <div style={{ fontWeight: 800, color: 'var(--gray-800)', marginBottom: 12, fontSize: '0.9rem' }}>Quantity</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 0, background: '#fff', border: '1.5px solid rgba(42,125,114,0.2)', borderRadius: 14, overflow: 'hidden' }}>
-                <button className="qty-btn" onClick={() => setQty(q => Math.max(1, q - 1))} style={{ border: 'none', borderRadius: 0, borderRight: '1px solid rgba(42,125,114,0.15)' }}>−</button>
-                <span style={{ fontWeight: 900, fontSize: '1.1rem', minWidth: 44, textAlign: 'center', padding: '0 8px' }}>{qty}</span>
-                <button className="qty-btn" onClick={() => setQty(q => Math.min(10, q + 1))} style={{ border: 'none', borderRadius: 0, borderLeft: '1px solid rgba(42,125,114,0.15)' }}>+</button>
+                <button
+                  className="qty-btn"
+                  onClick={() => setQty(q => Math.max(1, q - 1))}
+                  disabled={currentStock <= 0}
+                  style={{
+                    border: 'none',
+                    borderRadius: 0,
+                    borderRight: '1px solid rgba(42,125,114,0.15)',
+                    ...(currentStock <= 0 ? { cursor: 'not-allowed', opacity: 0.5 } : {})
+                  }}
+                >
+                  −
+                </button>
+                <span style={{ fontWeight: 900, fontSize: '1.1rem', minWidth: 44, textAlign: 'center', padding: '0 8px', color: currentStock <= 0 ? 'var(--gray-400)' : 'inherit' }}>
+                  {qty}
+                </span>
+                <button
+                  className="qty-btn"
+                  onClick={() => setQty(q => Math.min(currentStock, q + 1))}
+                  disabled={currentStock <= 0 || qty >= currentStock}
+                  style={{
+                    border: 'none',
+                    borderRadius: 0,
+                    borderLeft: '1px solid rgba(42,125,114,0.15)',
+                    ...(currentStock <= 0 || qty >= currentStock ? { cursor: 'not-allowed', opacity: 0.5 } : {})
+                  }}
+                >
+                  +
+                </button>
               </div>
               {currentStock < 15 && currentStock > 0 && (
                 <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -520,15 +664,51 @@ const ProductDetails = () => {
           {/* CTA Buttons */}
           <div style={{ display: 'grid', gap: 10 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <button className="action-btn action-btn--cart" onClick={addSelectedToCart}>
-                <FiShoppingCart size={17} /> Add to Cart
+              <button
+                className="action-btn action-btn--cart"
+                onClick={() => addSelectedToCart(false)}
+                disabled={currentStock <= 0}
+                style={currentStock <= 0 ? {
+                  background: '#f1f5f9',
+                  color: '#94a3b8',
+                  border: '1.5px solid #cbd5e1',
+                  cursor: 'not-allowed',
+                  boxShadow: 'none'
+                } : {}}
+              >
+                <FiShoppingCart size={17} />
+                {currentStock <= 0 ? 'Out of Stock' : 'Add to Cart'}
               </button>
-              <button className="action-btn action-btn--buy" onClick={handleBuyNow}>
+              <button
+                className="action-btn action-btn--buy"
+                onClick={handleBuyNow}
+                disabled={currentStock <= 0}
+                style={currentStock <= 0 ? {
+                  background: '#f8fafc',
+                  color: '#cbd5e1',
+                  cursor: 'not-allowed',
+                  boxShadow: 'none',
+                  border: '1px solid #e2e8f0'
+                } : {}}
+              >
                 <FiZap size={17} /> Buy Now
               </button>
             </div>
-            <a href={waLink} target="_blank" rel="noreferrer" className="action-btn action-btn--wa" style={{ textDecoration: 'none' }}>
-              <AiOutlineWhatsApp size={20} /> Order via WhatsApp
+            <a
+              href={waLink}
+              target="_blank"
+              rel="noreferrer"
+              className="action-btn action-btn--wa"
+              style={{
+                textDecoration: 'none',
+                ...(currentStock <= 0 ? {
+                  background: 'linear-gradient(135deg, #718096, #4a5568)',
+                  boxShadow: 'none'
+                } : {})
+              }}
+            >
+              <AiOutlineWhatsApp size={20} />
+              {currentStock <= 0 ? 'Inquire Stock via WhatsApp' : 'Order via WhatsApp'}
             </a>
           </div>
 

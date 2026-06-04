@@ -91,7 +91,7 @@ exports.sendBroadcast = async (req, res) => {
     try {
         const { message, channel = 'sms' } = req.body;
 
-        if (!message || message.trim().length < 5) {
+        if (typeof message !== 'string' || message.trim().length < 5) {
             return res.status(400).json({ success: false, message: 'Message is too short (min 5 chars).' });
         }
 

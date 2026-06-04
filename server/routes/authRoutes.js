@@ -20,6 +20,13 @@ const { protect } = require('../middleware/authMiddleware');
 const { authLimiter, otpLimiter } = require('../middleware/security');
 const validate = require('../middleware/validate');
 const schemas = require('../validators/schemas');
+const { generateToken } = require('../middleware/csrfMiddleware');
+
+// CSRF Token Route
+router.get('/csrf-token', (req, res) => {
+  const token = generateToken(req, res);
+  res.json({ csrfToken: token });
+});
 
 // Public routes
 router.post('/check-phone',      validate(schemas.auth.checkPhone),      checkPhone);

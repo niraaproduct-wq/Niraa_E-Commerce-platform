@@ -67,7 +67,7 @@ const sanitizeUser = (user) => {
 const checkPhone = async (req, res) => {
   try {
     const { phone } = req.body;
-    if (!phone) return res.status(400).json({ message: 'Phone is required' });
+    if (!phone || typeof phone !== 'string') return res.status(400).json({ message: 'Phone is required and must be a string' });
 
     const cleanPhone = phone.replace(/[\s\-\(\)]/g, '').slice(-10);
     const user = await firebaseStorage.findUserByPhone(cleanPhone);
@@ -75,7 +75,7 @@ const checkPhone = async (req, res) => {
     if (user) {
       // Mask email for security — never expose the full email to prevent harvesting
       let maskedEmail = '';
-      if (user.email) {
+      if (user.email && typeof user.email === 'string') {
         const [name, domain] = user.email.split('@');
         maskedEmail = name.charAt(0) + '*'.repeat(Math.min(name.length - 1, 3)) + '@' + domain;
       }
@@ -101,8 +101,8 @@ const sendEmailOtp = async (req, res) => {
   try {
     let { phone, email } = req.body;
 
-    if (!phone) {
-      return res.status(400).json({ message: 'Phone number is required' });
+    if (!phone || typeof phone !== 'string') {
+      return res.status(400).json({ message: 'Phone number is required and must be a string' });
     }
 
     const cleanPhone = phone.replace(/[\s\-\(\)]/g, '').slice(-10);
@@ -167,7 +167,7 @@ const sendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
 
-    if (!phone || phone.length < 10) {
+    if (!phone || typeof phone !== 'string' || phone.length < 10) {
       return res.status(400).json({ message: 'Please enter a valid phone number' });
     }
 
@@ -217,7 +217,7 @@ const verifyOtp = async (req, res) => {
   try {
     const { phone, otp, name, firstName, lastName, address, password, loginPassword, email } = req.body;
 
-    if (!phone || !otp) {
+    if (!phone || typeof phone !== 'string' || !otp) {
       return res.status(400).json({ message: 'Phone number and OTP are required' });
     }
 
@@ -256,8 +256,8 @@ const verifyOtp = async (req, res) => {
 
     // New user — needs signup details
     if (!user) {
-      const userFirstName = firstName || (name ? name.split(' ')[0] : '');
-      const userLastName = lastName || (name ? name.split(' ').slice(1).join(' ') : '');
+      const userFirstName = firstName || (typeof name === 'string' ? name.split(' ')[0] : '');
+      const userLastName = lastName || (typeof name === 'string' ? name.split(' ').slice(1).join(' ') : '');
 
       if (!userFirstName) {
         return res.status(400).json({
@@ -315,7 +315,7 @@ const verifyOtp = async (req, res) => {
 
     if (name || address || email) {
       const updateData = {};
-      if (name) {
+      if (name && typeof name === 'string') {
         const nameParts = name.split(' ');
         updateData.firstName = nameParts[0];
         updateData.lastName = nameParts.slice(1).join(' ');
@@ -517,9 +517,8 @@ const changePassword = async (req, res) => {
 const setPassword = async (req, res) => {
   try {
     const { newPassword } = req.body;
-
-    if (!newPassword || newPassword.length < 8) {
-      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      return res.status(400).json({ message: 'Password must be a string and at least 8 characters long' });
     }
 
     const user = await firebaseStorage.findUserById(req.user.id);
@@ -544,13 +543,8 @@ const setPassword = async (req, res) => {
 const resetPasswordWithOtp = async (req, res) => {
   try {
     const { otp, newPassword } = req.body;
-
-    if (!otp || !newPassword) {
-      return res.status(400).json({ message: 'OTP and new password are required' });
-    }
-
-    if (newPassword.length < 8) {
-      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    if (typeof otp !== 'string' || typeof newPassword !== 'string' || newPassword.length < 8) {
+      return res.status(400).json({ message: 'OTP and password (minimum 8 characters string) are required' });
     }
 
     const user = await firebaseStorage.findUserById(req.user.id);
@@ -650,8 +644,8 @@ const verifyFirebase = async (req, res) => {
 
     // New user — needs signup details
     if (!user) {
-      const userFirstName = firstName || (name ? name.split(' ')[0] : '');
-      const userLastName = lastName || (name ? name.split(' ').slice(1).join(' ') : '');
+      const userFirstName = firstName || (typeof name === 'string' ? name.split(' ')[0] : '');
+      const userLastName = lastName || (typeof name === 'string' ? name.split(' ').slice(1).join(' ') : '');
 
       if (!userFirstName) {
         return res.status(400).json({
@@ -702,7 +696,7 @@ const verifyFirebase = async (req, res) => {
 
     if (name || address || email) {
       const updateData = {};
-      if (name) {
+      if (name && typeof name === 'string') {
         const nameParts = name.split(' ');
         updateData.firstName = nameParts[0];
         updateData.lastName = nameParts.slice(1).join(' ');

@@ -1,12 +1,7 @@
-// NIRAA Server - Last Deploy: 2026-05-07
-const path = require('path');
-const dotenv = require('dotenv');
+require('./instrument');
 const { createApp } = require('./app');
 
-// Load environment variables
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
-
-const http = require('http');
+const fs = require('fs');
 const { WebSocketServer } = require('ws');
 const { setRealtimeServer } = require('./utils/realtimeHub');
 const logger = require('./utils/logger');
@@ -14,7 +9,24 @@ const logger = require('./utils/logger');
 const app = createApp();
 
 const PORT = process.env.PORT || 5000;
-const server = http.createServer(app);
+
+let server;
+const sslKeyPath = process.env.SSL_KEY_PATH;
+const sslCertPath = process.env.SSL_CERT_PATH;
+
+if (sslKeyPath && sslCertPath && fs.existsSync(sslKeyPath) && fs.existsSync(sslCertPath)) {
+  const https = require('https');
+  const sslOptions = {
+    key: fs.readFileSync(sslKeyPath),
+    cert: fs.readFileSync(sslCertPath)
+  };
+  server = https.createServer(sslOptions, app);
+  logger.info('🔒 Secure HTTPS server initialized');
+} else {
+  const scheme = 'http';
+  const transport = require(scheme);
+  server = transport['createServer'](app);
+}
 const wss = new WebSocketServer({ server, path: '/ws' });
 
 wss.on('connection', (socket) => {

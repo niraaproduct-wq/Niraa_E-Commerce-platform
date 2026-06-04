@@ -94,6 +94,18 @@ function createApp() {
   }));
   app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
+  // CSRF Protection (bypassed for webhooks)
+  const { doubleCsrfProtection } = require('./middleware/csrfMiddleware');
+  app.use((req, res, next) => {
+    if (process.env.NODE_ENV === 'test') {
+      return next();
+    }
+    if (req.originalUrl && req.originalUrl.includes('/webhook')) {
+      return next();
+    }
+    doubleCsrfProtection(req, res, next);
+  });
+
   // 6. Request logging
   app.use((req, res, next) => {
     const start = Date.now();
@@ -111,12 +123,43 @@ function createApp() {
   });
 
   // 7. Health check
-  app.get('/healthz', (req, res) => {
-    res.status(200).json({
+  app.get('/health', async (req, res) => {
+    const { getFirebase } = require('./config/firebase');
+    const healthInfo = {
       status: 'ok',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
-    });
+      services: {
+        database: 'unknown',
+      },
+      env: {
+        nodeEnv: process.env.NODE_ENV || 'development',
+        cloudinary: !!process.env.CLOUDINARY_CLOUD_NAME,
+        razorpay: !!process.env.RAZORPAY_KEY_ID,
+        resend: !!process.env.RESEND_API_KEY,
+        firebase: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+      }
+    };
+
+    try {
+      // Validate Firestore connection with a quick fetch
+      const { db } = getFirebase();
+      await db.collection('_health_check').limit(1).get();
+      healthInfo.services.database = 'ok';
+    } catch (dbError) {
+      logger.error('Database health check failed:', dbError);
+      healthInfo.status = 'error';
+      healthInfo.services.database = 'error';
+      healthInfo.services.databaseDetails = dbError.message;
+    }
+
+    const statusCode = healthInfo.status === 'ok' ? 200 : 503;
+    res.status(statusCode).json(healthInfo);
+  });
+
+  // Alias /healthz to /health for compatibility
+  app.get('/healthz', (req, res) => {
+    res.redirect(301, '/health');
   });
 
   // Routes
@@ -139,9 +182,25 @@ function createApp() {
     res.json({ message: 'NIRAA API is running 🌿', status: 'ok' });
   });
 
+  // Sentry Error Handler (must be registered after routes, but before our custom error handlers)
+  if (process.env.SENTRY_DSN) {
+    const Sentry = require("@sentry/node");
+    Sentry.setupExpressErrorHandler(app);
+  }
+
   // Error handler — never expose stack traces or internal details in production
   app.use((err, req, res, next) => {
     const isProd = process.env.NODE_ENV === 'production';
+
+    // Handle CSRF validation errors
+    const { invalidCsrfTokenError } = require('./middleware/csrfMiddleware');
+    if (err === invalidCsrfTokenError || err.code === 'EBADCSRFTOKEN' || (err.status === 403 && err.message?.toLowerCase().includes('csrf'))) {
+      logger.warn(`CSRF validation failed for request: ${req.method} ${req.originalUrl}`);
+      return res.status(403).json({
+        message: 'Invalid or missing CSRF token. Please refresh the page.'
+      });
+    }
+
     logger.error(err.message, {
       requestId: req.id,
       stack: isProd ? undefined : err.stack,

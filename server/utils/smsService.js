@@ -270,7 +270,7 @@ const sendViaTextLocal = async (phone, message, otp) => {
   const url = `https://api.textlocal.in/send/?apikey=${encodeURIComponent(apiKey)}&numbers=${formattedPhone}&message=${encodeURIComponent(message)}&sender=NIRAA`;
 
   return new Promise((resolve, reject) => {
-    http.get(url, (res) => {
+    https.get(url, (res) => {
       let data = '';
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {

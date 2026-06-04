@@ -107,6 +107,10 @@ const verifyPayment = async (req, res) => {
           updatedAt: new Date().toISOString(),
         });
         logger.info(`Order ${orderId} marked as paid via Razorpay payment ${razorpayPaymentId}`);
+        
+        // Telemetry: Log business event
+        const businessLogger = require('../utils/businessLogger');
+        businessLogger.logPaymentSucceeded(orderId, razorpayPaymentId, orderDoc.data()?.total || 0);
       }
     }
 
@@ -117,6 +121,11 @@ const verifyPayment = async (req, res) => {
 
   } catch (error) {
     logger.error('Verify Payment Error:', error);
+    
+    // Telemetry: Log business failure event
+    const businessLogger = require('../utils/businessLogger');
+    businessLogger.logPaymentFailed(req.body.orderId || 'unknown', error.message);
+    
     res.status(500).json({ message: 'Payment verification failed', error: error.message });
   }
 };

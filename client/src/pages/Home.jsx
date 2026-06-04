@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import ProductCard from '../components/ProductCard';
 import { WHATSAPP_NUMBER } from '../utils/constants.js';
 import bannerImage from '../assets/images/banner.jpeg';
@@ -104,6 +105,23 @@ export default function Home() {
   const [heroLoaded, setHeroLoaded] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const heroRef = useRef(null);
+  const [loadingPhraseIdx, setLoadingPhraseIdx] = useState(0);
+
+  const loadingPhrases = useMemo(() => [
+    "Sourcing research-backed ingredients...",
+    "Formulating family-safe cleaning care...",
+    "Perfecting natural botanical extracts...",
+    "Calibrating pH-balanced solutions...",
+    "Preparing your NIRAA experience..."
+  ], []);
+
+  useEffect(() => {
+    if (!loading) return;
+    const interval = setInterval(() => {
+      setLoadingPhraseIdx((idx) => (idx + 1) % loadingPhrases.length);
+    }, 1500);
+    return () => clearInterval(interval);
+  }, [loading, loadingPhrases]);
 
   const { products: liveProducts, loading: liveLoading } = useFirestoreProducts();
   const { lastEvent } = useRealtime();
@@ -176,14 +194,118 @@ export default function Home() {
   }).filter(Boolean), [categoryMetadata, individuals]);
 
   if (loading) return (
-    <div className="niraa-loading">
-      <div className="niraa-loading-ring" />
-      <span>Preparing your NIRAA experience…</span>
-    </div>
+    <main className="container page" style={{ minHeight: '80vh', padding: '40px 16px' }}>
+      <style>{`
+        .home-skeleton-shimmer {
+          animation: homeShimmerSweep 1.6s infinite linear;
+          background: linear-gradient(to right, #f6f7f8 8%, #edeef1 18%, #f6f7f8 33%);
+          background-size: 1000px 104px;
+          position: relative;
+          overflow: hidden;
+        }
+        @keyframes homeShimmerSweep {
+          0% { background-position: -468px 0; }
+          100% { background-position: 468px 0; }
+        }
+        
+        .skeleton-hero {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 32px;
+          margin-bottom: 56px;
+        }
+        @media (min-width: 768px) {
+          .skeleton-hero { grid-template-columns: 1.2fr 0.8fr; }
+        }
+        
+        .skeleton-hero-left {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          justify-content: center;
+        }
+        
+        .sk-hero-eyebrow { width: 120px; height: 16px; border-radius: 4px; }
+        .sk-hero-title { width: 90%; height: 48px; border-radius: 8px; }
+        .sk-hero-desc { width: 75%; height: 20px; border-radius: 4px; }
+        .sk-hero-desc-short { width: 60%; height: 20px; border-radius: 4px; }
+        .sk-hero-btn { width: 160px; height: 48px; border-radius: 12px; margin-top: 12px; }
+        
+        .skeleton-hero-right {
+          height: 380px;
+          border-radius: 24px;
+          width: 100%;
+        }
+        
+        .skeleton-trusts {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 16px;
+          margin-bottom: 56px;
+        }
+        @media (min-width: 900px) {
+          .skeleton-trusts { grid-template-columns: repeat(4, 1fr); }
+        }
+        .sk-trust-card {
+          height: 100px; border-radius: 16px;
+        }
+        
+        .skeleton-section-title {
+          width: 200px; height: 28px; border-radius: 6px; margin-bottom: 24px;
+        }
+        
+        .skeleton-products-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 16px;
+        }
+        @media (min-width: 900px) {
+          .skeleton-products-grid { grid-template-columns: repeat(4, 1fr); }
+        }
+        .sk-product-card {
+          height: 310px; border-radius: 16px;
+        }
+      `}</style>
+      
+      {/* Hero Section */}
+      <div className="skeleton-hero">
+        <div className="skeleton-hero-left">
+          <div className="sk-hero-eyebrow home-skeleton-shimmer" />
+          <div className="sk-hero-title home-skeleton-shimmer" />
+          <div className="sk-hero-desc home-skeleton-shimmer" />
+          <div className="sk-hero-desc-short home-skeleton-shimmer" />
+          <div className="sk-hero-btn home-skeleton-shimmer" />
+        </div>
+        <div className="skeleton-hero-right home-skeleton-shimmer" />
+      </div>
+      
+      {/* Trusts Grid */}
+      <div className="skeleton-trusts">
+        <div className="sk-trust-card home-skeleton-shimmer" />
+        <div className="sk-trust-card home-skeleton-shimmer" />
+        <div className="sk-trust-card home-skeleton-shimmer" />
+        <div className="sk-trust-card home-skeleton-shimmer" />
+      </div>
+      
+      {/* Featured Section */}
+      <div>
+        <div className="skeleton-section-title home-skeleton-shimmer" />
+        <div className="skeleton-products-grid">
+          <div className="sk-product-card home-skeleton-shimmer" />
+          <div className="sk-product-card home-skeleton-shimmer" />
+          <div className="sk-product-card home-skeleton-shimmer" />
+          <div className="sk-product-card home-skeleton-shimmer" />
+        </div>
+      </div>
+    </main>
   );
 
   return (
     <>
+      <Helmet>
+        <title>NIRAA Wellness & Lifestyle</title>
+        <meta name="description" content="Discover Niraa Care's scientifically formulated, research-backed cleaning solutions. 99.9% germ kill, eco-friendly, and safe for families. Fast delivery in Dharmapuri." />
+      </Helmet>
       <SectionRenderer sections={dynamicSections} />
       <div className="niraa-home">
         <style>{`

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { FiShield, FiDroplet, FiHeart, FiTruck, FiAward, FiStar, FiUsers, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import bannerImage from '../assets/images/banner.jpeg';
 import SectionRenderer from '../components/SectionRenderer';
@@ -147,6 +148,7 @@ function AnimatedNumber({ value, suffix }) {
 export default function About() {
   const [testimonialIdx, setTestimonialIdx] = useState(0);
   const [dynamicSections, setDynamicSections] = useState([]);
+  const [loading, setLoading] = useState(true);
   const perPage = 3;
   const maxIdx = Math.ceil(TESTIMONIALS.length / perPage) - 1;
 
@@ -154,14 +156,77 @@ export default function About() {
   useEffect(() => {
     fetch(`${API_BASE}/sections/about`)
       .then(r => r.ok ? r.json() : { sections: [] })
-      .then(data => setDynamicSections(data.sections || []))
-      .catch(() => { });
+      .then(data => {
+        setDynamicSections(data.sections || []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
   }, []);
+
+  if (loading) return (
+    <main className="container page" style={{ minHeight: '80vh', padding: '40px 16px' }}>
+      <style>{`
+        .about-skeleton-shimmer {
+          animation: aboutShimmerSweep 1.6s infinite linear;
+          background: linear-gradient(to right, #f6f7f8 8%, #edeef1 18%, #f6f7f8 33%);
+          background-size: 1000px 104px;
+          position: relative;
+          overflow: hidden;
+        }
+        @keyframes aboutShimmerSweep {
+          0% { background-position: -468px 0; }
+          100% { background-position: 468px 0; }
+        }
+        .sk-about-hero {
+          height: 320px; border-radius: 28px; width: 100%; margin-bottom: 44px;
+        }
+        .sk-about-title {
+          width: 250px; height: 32px; border-radius: 6px; margin-bottom: 24px;
+        }
+        .sk-about-line {
+          width: 100%; height: 18px; border-radius: 4px; margin-bottom: 12px;
+        }
+        .sk-about-line-short {
+          width: 85%; height: 18px; border-radius: 4px; margin-bottom: 32px;
+        }
+        .sk-about-grid {
+          display: grid; grid-template-columns: 1fr; gap: 20px; margin-top: 40px;
+        }
+        @media (min-width: 768px) {
+          .sk-about-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        .sk-about-card {
+          height: 180px; border-radius: 20px;
+        }
+      `}</style>
+      
+      <div className="sk-about-hero about-skeleton-shimmer" />
+      
+      <div className="sk-about-title about-skeleton-shimmer" />
+      <div className="sk-about-line about-skeleton-shimmer" />
+      <div className="sk-about-line about-skeleton-shimmer" />
+      <div className="sk-about-line-short about-skeleton-shimmer" />
+      
+      <div className="sk-about-title about-skeleton-shimmer" style={{ width: '180px' }} />
+      <div className="sk-about-grid">
+        <div className="sk-about-card about-skeleton-shimmer" />
+        <div className="sk-about-card about-skeleton-shimmer" />
+        <div className="sk-about-card about-skeleton-shimmer" />
+      </div>
+    </main>
+  );
 
   const visibleTestimonials = TESTIMONIALS.slice(testimonialIdx * perPage, testimonialIdx * perPage + perPage);
 
   return (
     <>
+      <Helmet>
+        <title>About Us | NIRAA Wellness & Lifestyle</title>
+        <meta name="description" content="Learn about Niraa Care, our founder Tamil Selvan J (IIT Madras MS), and our mission to provide research-backed, family-safe, and eco-friendly cleaning products in Dharmapuri." />
+      </Helmet>
+
       {/* Render any CMS-managed sections at the top */}
       <SectionRenderer sections={dynamicSections} />
 

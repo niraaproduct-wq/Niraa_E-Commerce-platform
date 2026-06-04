@@ -294,6 +294,7 @@ const Checkout = () => {
     pincode: user?.address?.pincode || '',
   });
 
+  // Sync user details to form
   useEffect(() => {
     if (user) setForm(p => ({
       ...p,
@@ -304,6 +305,21 @@ const Checkout = () => {
       pincode: user.address?.pincode || p.pincode,
     }));
   }, [user]);
+
+  const hasInsufficientStockItems = items.some(item => {
+    const stock = item.variantId
+      ? (item.variants?.find(v => v.variantId === item.variantId)?.stockQuantity ?? 0)
+      : (item.stock ?? 0);
+    return item.qty > stock || stock <= 0;
+  });
+
+  // Prevent checking out when cart contains out of stock items
+  useEffect(() => {
+    if (items.length > 0 && hasInsufficientStockItems) {
+      toast.error('Some items in your cart have insufficient stock. Please adjust quantities.');
+      navigate('/cart');
+    }
+  }, [items, hasInsufficientStockItems, navigate]);
 
   // Track step progress
   useEffect(() => {
@@ -319,16 +335,52 @@ const Checkout = () => {
     if (items.length === 0) { toast.error('Your cart is empty!'); return; }
     setLoading(true);
     try {
+      // Map cart items to the server's Joi schema shape:
+      //   cart uses  { _id, qty, ... }
+      //   server needs { product, quantity, name, price, ... }
+      const mappedItems = items.map(item => ({
+        product: item._id,
+        name: item.name,
+        price: item.price,
+        quantity: item.qty,                          // qty → quantity
+        image: item.image || item.images?.[0] || null,
+        variantId: item.variantId || null,
+        variantDesc: item.variantDesc || null,
+      }));
+
+      const orderPayload = {
+        customerName: form.name,                    // name → customerName
+        customerPhone: form.phone,                  // phone → customerPhone
+        address: {                                  // flat fields → address object
+          street: form.street,
+          city: form.city,
+          pincode: form.pincode,
+        },
+        paymentMethod,
+        total: subtotal,
+        subtotal,
+        items: mappedItems,
+      };
+
+      const token = localStorage.getItem('niraa_token');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const res = await fetch(`${API_BASE_URL}/orders`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, paymentMethod, items, subtotal }),
+        headers,
+        credentials: 'include',                     // send HttpOnly auth cookie
+        body: JSON.stringify(orderPayload),
       });
       if (res.ok) {
         toast.success('🎉 Order placed successfully!');
         if (!whatsAppOverrideRef.current) { clearCart(); navigate('/'); }
       } else {
-        toast.error('Something went wrong. Try WhatsApp!');
+        const errData = await res.json().catch(() => ({}));
+        const errMsg = errData?.errors?.[0]?.message || errData?.message || 'Something went wrong. Try WhatsApp!';
+        toast.error(errMsg);
       }
     } catch {
       toast.error('Network error. Please try WhatsApp ordering.');

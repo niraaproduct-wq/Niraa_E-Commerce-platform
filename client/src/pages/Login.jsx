@@ -857,12 +857,21 @@ const OtpInput = ({ value, onChange, length = 6 }) => {
   );
 };
 
+const sanitizeRedirectPath = (path) => {
+  if (!path || typeof path !== 'string') return '/';
+  const trimmed = path.trim();
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//') && !/^[a-zA-Z]+:/.test(trimmed)) {
+    return trimmed;
+  }
+  return '/';
+};
+
 /* ─── Main Component ─────────────────────────────────────────────── */
 const Login = () => {
   const { login, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from || '/';
+  const from = sanitizeRedirectPath(location.state?.from || '/');
 
   useEffect(() => {
     if (user) navigate(from, { replace: true });
@@ -961,7 +970,9 @@ const Login = () => {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone })
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Failed to check phone number. Please try again.');
+      
       setIsExistingUser(data.exists);
       if (data.exists) {
         setEmail(data.email || '');
@@ -980,7 +991,7 @@ const Login = () => {
       } else {
         goStep(2); setMode('signup');
       }
-    } catch (err) { toast.error(err.message || 'Failed to check number'); }
+    } catch (err) { toast.error(err.message || 'Failed to check phone number. Please check your connection.'); }
     finally { setLoading(false); }
   };
 

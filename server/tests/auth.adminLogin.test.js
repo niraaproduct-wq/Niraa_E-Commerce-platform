@@ -33,16 +33,20 @@ const { createApp } = require('../app');
 
 describe('Admin login cookie auth', () => {
   beforeEach(() => {
-    process.env.JWT_SECRET = 'test_jwt_secret';
+    process.env.JWT_SECRET = require('crypto').randomBytes(32).toString('hex');
     process.env.NODE_ENV = 'test';
   });
 
   test('POST /api/auth/admin-login sets HttpOnly cookie', async () => {
+    const dynamicPasswordHash = require('crypto').randomBytes(16).toString('hex');
+    const testEmail = `admin-${require('crypto').randomBytes(4).toString('hex')}@example.com`;
+    const testPassword = `pass-${require('crypto').randomBytes(4).toString('hex')}`;
+
     firebaseStorage.findAdminByEmail.mockResolvedValue({
       id: 'admin_1',
-      email: 'admin@example.com',
+      email: testEmail,
       role: 'admin',
-      password: 'hashed_pw',
+      password: dynamicPasswordHash,
       isActive: true,
     });
     bcrypt.compare.mockResolvedValue(true);
@@ -50,11 +54,11 @@ describe('Admin login cookie auth', () => {
     const app = createApp();
     const res = await request(app)
       .post('/api/auth/admin-login')
-      .send({ email: 'admin@example.com', password: 'pw' })
+      .send({ email: testEmail, password: testPassword })
       .expect(200);
 
     expect(res.body).toHaveProperty('user');
-    expect(res.body.user).toMatchObject({ id: 'admin_1', role: 'admin', email: 'admin@example.com' });
+    expect(res.body.user).toMatchObject({ id: 'admin_1', role: 'admin', email: testEmail });
 
     const setCookie = res.headers['set-cookie'] || [];
     expect(setCookie.join(';')).toContain('niraa_token=');

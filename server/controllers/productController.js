@@ -53,7 +53,7 @@ const getProducts = async (req, res) => {
     try {
       const orderedQuery = query.orderBy('createdAt', 'desc');
 
-      if (search) {
+      if (search && typeof search === 'string') {
         const snapshot = await orderedQuery.get();
         let list = snapshot.docs.map(toPlainProduct).filter(Boolean);
         const searchLower = search.toLowerCase();
@@ -77,7 +77,7 @@ const getProducts = async (req, res) => {
         const snapshot = await query.get();
         let list = snapshot.docs.map(toPlainProduct).filter(Boolean);
         
-        if (search) {
+        if (search && typeof search === 'string') {
           const searchLower = search.toLowerCase();
           list = list.filter(p => 
             (p.name && p.name.toLowerCase().includes(searchLower)) ||
