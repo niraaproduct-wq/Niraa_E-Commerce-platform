@@ -109,14 +109,14 @@ export default function Footer() {
               </div>
               <div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 700, letterSpacing: '0.06em', color: '#fff' }}>NIRAA</div>
-                <div style={{ fontSize: '0.75rem', color: '#a8d5d0', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: -2 }}>Wellness & essentials</div>
+                <div style={{ fontSize: '0.75rem', color: '#a8d5d0', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: -2 }}>Wellness & Essentials</div>
               </div>
             </div>
             <div style={{ marginBottom: 14 }} />
             <p style={{ fontSize: '0.88rem', color: '#c5e8e5', lineHeight: 1.7 }}>
-              Making homes cleaner, safer, and healthier with eco-friendly cleaning products.
+              Making homes cleaner, safer, and healthier with eco-friendly home cleaning products. We provide floor cleaners, toilet cleaners, dish wash liquids, detergents, and household cleaning solutions in Dharmapuri and surrounding areas.
             </p>
-            <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noreferrer" className="footer-wa-btn">
+            <a href={`https://wa.me/${WHATSAPP_NUMBER.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" className="footer-wa-btn">
               <FaWhatsapp size={18} /> WhatsApp Us
             </a>
           </div>
@@ -131,33 +131,64 @@ export default function Footer() {
 
           {/* Products */}
           <div className="footer-col">
-            <h4 className="footer-heading">Products</h4>
-            {['Floor Cleaner', 'Toilet Cleaner', 'Dish Wash', 'Detergent', 'Tiles Cleaner', 'Combo Pack'].map(p => (
+            <h4 className="footer-heading">Our Products</h4>
+            {['Floor Cleaner', 'Toilet Cleaner', 'Dish Wash Liquid', 'Detergent Powder', 'Combo Pack'].map(p => (
               <FooterLink key={p} to="/products">{p}</FooterLink>
             ))}
           </div>
 
           {/* Contact */}
-          <div className="footer-col">
-            <h4 className="footer-heading">Contact</h4>
+          <div className="footer-col" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <h4 className="footer-heading">Contact Us</h4>
+
             <a
               href="https://maps.app.goo.gl/xRtJMzmbtsAPsztr5"
               target="_blank" rel="noreferrer"
               className="footer-contact-link"
-              style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 14, color: '#c5e8e5', fontSize: '0.88rem', textDecoration: 'none', transition: 'color 0.2s ease' }}
+              style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 14, color: '#c5e8e5', fontSize: '0.88rem', textDecoration: 'none', transition: 'color 0.2s ease', lineHeight: 1.5 }}
               onMouseEnter={e => e.currentTarget.style.color = '#fff'}
               onMouseLeave={e => e.currentTarget.style.color = '#c5e8e5'}
             >
-              <FiMapPin size={16} style={{ marginTop: 2, flexShrink: 0 }} />
-              <span>Near Old Bus Stand, Dharmapuri, TN</span>
+              <FiMapPin size={16} style={{ marginTop: 3, flexShrink: 0, color: 'var(--gold-light)' }} />
+              <div>
+                <strong style={{ color: '#fff', display: 'block', marginBottom: 2 }}>NIRAA Wellness & Essentials</strong>
+                Near Old Bus Stand,<br />
+                Dharmapuri, Tamil Nadu 636701
+              </div>
             </a>
+
             <a
-              href={`tel:${PHONE_1}`}
+              href={`tel:${PHONE_1.replace(/\s+/g, '')}`}
+              className="footer-contact-link"
               style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, color: '#c5e8e5', fontSize: '0.88rem', textDecoration: 'none', transition: 'color 0.2s ease' }}
               onMouseEnter={e => e.currentTarget.style.color = '#fff'}
               onMouseLeave={e => e.currentTarget.style.color = '#c5e8e5'}
             >
-              <FiPhone size={16} /> {PHONE_1}
+              <FiPhone size={16} style={{ color: 'var(--gold-light)' }} />
+              <span><strong>Phone:</strong> {PHONE_1}</span>
+            </a>
+
+            <a
+              href={`https://wa.me/${WHATSAPP_NUMBER.replace(/[^0-9]/g, '')}`}
+              target="_blank" rel="noreferrer"
+              className="footer-contact-link"
+              style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, color: '#c5e8e5', fontSize: '0.88rem', textDecoration: 'none', transition: 'color 0.2s ease' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+              onMouseLeave={e => e.currentTarget.style.color = '#c5e8e5'}
+            >
+              <FaWhatsapp size={16} style={{ color: '#25D366' }} />
+              <span><strong>WhatsApp:</strong> {WHATSAPP_NUMBER}</span>
+            </a>
+
+            <a
+              href="mailto:support@niraacare.com"
+              className="footer-contact-link"
+              style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, color: '#c5e8e5', fontSize: '0.88rem', textDecoration: 'none', transition: 'color 0.2s ease' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+              onMouseLeave={e => e.currentTarget.style.color = '#c5e8e5'}
+            >
+              <FiMail size={16} style={{ color: 'var(--gold-light)' }} />
+              <span><strong>Email:</strong> support@niraacare.com</span>
             </a>
           </div>
         </div>
@@ -167,7 +198,7 @@ export default function Footer() {
           padding: '18px 20px', textAlign: 'center',
           fontSize: '0.8rem', color: '#a8d5d0',
         }}>
-          © {new Date().getFullYear()} NIRAA Wellness & Lifestyle. All rights reserved. | Made with 💚 in Dharmapuri
+          © 2026 NIRAA Wellness & Essentials. All Rights Reserved.
         </div>
       </footer>
     </>

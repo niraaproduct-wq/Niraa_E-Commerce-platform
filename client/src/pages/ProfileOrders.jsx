@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useRealtime } from '../context/RealtimeContext.jsx';
 import { API_BASE_URL } from '../utils/constants.js';
 import Loader from '../components/Loader.jsx';
-import { FiPackage, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { FiPackage, FiChevronDown, FiChevronUp, FiStar } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 /* ─── Design Tokens ─────────────────────────────────── */
@@ -672,6 +672,69 @@ const GLOBAL_CSS = `
     .order-footer { padding: 10px 16px; }
     .cancel-zone { padding: 10px 16px 14px; }
   }
+
+  /* ── Review Zone ── */
+  .review-zone {
+    padding: 16px 22px;
+    border-top: 1.5px solid ${T.border};
+    background: #f8faf9;
+  }
+  .review-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .review-stars {
+    font-size: 1.15rem;
+    color: #eab308;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .review-content {
+    flex: 1;
+    min-width: 220px;
+  }
+  .review-title {
+    font-family: ${T.font};
+    font-size: 13.5px;
+    font-weight: 800;
+    color: ${T.emeraldDark};
+    margin-bottom: 2px;
+  }
+  .review-text {
+    font-size: 12px;
+    color: ${T.textMuted};
+    line-height: 1.5;
+  }
+  .review-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 20px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, ${T.emerald}, ${T.emeraldMid});
+    color: #fff !important;
+    font-size: 12px;
+    font-weight: 800;
+    text-decoration: none;
+    box-shadow: 0 4px 12px ${T.emeraldGlow};
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .review-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(5,150,105,0.25);
+    filter: brightness(1.05);
+  }
+  
+  @media (max-width: 600px) {
+    .review-zone { padding: 12px 16px 14px; }
+    .review-card { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .review-btn { width: 100%; justify-content: center; }
+  }
 `;
 
 /* ─── Cancellation Modal ─────────────────────────────── */
@@ -909,6 +972,35 @@ function OrderCard({ order, onCancel, animDelay }) {
               </div>
             </div>
           ) : null}
+        </div>
+      )}
+
+      {/* Review/Rate Us Zone (Only for Delivered orders) */}
+      {order.status === 'delivered' && (
+        <div className="review-zone">
+          <div className="review-card">
+            <div className="review-content">
+              <div className="review-stars">
+                <FiStar size={14} fill="#eab308" color="#eab308" />
+                <FiStar size={14} fill="#eab308" color="#eab308" />
+                <FiStar size={14} fill="#eab308" color="#eab308" />
+                <FiStar size={14} fill="#eab308" color="#eab308" />
+                <FiStar size={14} fill="#eab308" color="#eab308" />
+              </div>
+              <div className="review-title">Share Your Experience!</div>
+              <p className="review-text" style={{ marginTop: 4 }}>
+                Niraacare would love your feedback. Post a review to our profile: <a href="https://g.page/r/CbTA0XrXjAJCEAI/review" target="_blank" rel="noreferrer" style={{ color: T.emerald, fontWeight: '700', textDecoration: 'underline' }}>https://g.page/r/CbTA0XrXjAJCEAI/review</a>
+              </p>
+            </div>
+            <a
+              href="https://g.page/r/CbTA0XrXjAJCEAI/review"
+              target="_blank"
+              rel="noreferrer"
+              className="review-btn"
+            >
+              Rate Us
+            </a>
+          </div>
         </div>
       )}
     </div>
