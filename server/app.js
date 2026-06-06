@@ -69,9 +69,18 @@ function createApp() {
       return callback(null, true);
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'X-CSRF-Token',    // Required: our CSRF middleware sends this header on every mutating request
+      'X-Request-ID',    // Required: correlation ID middleware
+    ],
+    exposedHeaders: [
+      'X-CSRF-Token',    // Allow frontend JS to read the CSRF token from response headers
+    ],
     credentials: true,
-    maxAge: 86400 // 24 hours
+    maxAge: 86400 // 24 hours — cache preflight for 24h to reduce OPTIONS round-trips
   }));
 
   // 3. Request ID
