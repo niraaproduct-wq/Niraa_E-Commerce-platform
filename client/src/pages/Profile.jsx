@@ -583,7 +583,7 @@ const pwdStrength = pwd => {
 };
 
 const Profile = () => {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, logout } = useAuth();
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
@@ -631,6 +631,9 @@ const Profile = () => {
         updateProfile(data.user);
         toast.success('Profile saved successfully');
         setIsEditing(false);
+      } else if (res.status === 401) {
+        toast.error('Session expired. Please login again.');
+        logout();
       } else {
         const err = await res.json().catch(() => ({}));
         toast.error(err.message || 'Failed to save');

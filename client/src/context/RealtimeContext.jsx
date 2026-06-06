@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { API_BASE_URL } from '../utils/constants';
 
 const RealtimeContext = createContext();
 
@@ -11,20 +12,26 @@ export const RealtimeProvider = ({ children }) => {
 
   const connect = () => {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // In development, the backend usually runs on port 5000
-    // Vite proxies /api, but WebSockets might need direct connection or proxy support
-    // We'll try to guess the WS URL
     let wsUrl;
+    
     if (import.meta.env.DEV) {
       wsUrl = `${protocol}//${window.location.hostname}:5000/ws`;
     } else {
-      // In production, derive WS URL from the backend API URL
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || window.location.origin;
-      const wsProtocol = apiUrl.startsWith('https') ? 'wss:' : 'ws:';
-      const host = apiUrl.replace(/^https?:\/\//, '').split('/')[0];
-      wsUrl = `${wsProtocol}//${host}/ws`;
+      // In production, derive WS URL from the backend API URL (API_BASE_URL)
+      const apiUrl = API_BASE_URL || '';
+      
+      if (apiUrl.startsWith('http')) {
+        // Absolute URL: extract protocol and host
+        const wsProtocol = apiUrl.startsWith('https') ? 'wss:' : 'ws:';
+        const host = apiUrl.replace(/^https?:\/\//, '').split('/')[0];
+        wsUrl = `${wsProtocol}//${host}/ws`;
+      } else {
+        // Relative URL or empty: use current host
+        wsUrl = `${protocol}//${window.location.host}/ws`;
+      }
     }
 
+    console.log('📡 Attempting Realtime connection to:', wsUrl);
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
