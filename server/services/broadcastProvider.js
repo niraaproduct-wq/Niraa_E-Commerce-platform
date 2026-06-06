@@ -7,6 +7,7 @@
  */
 
 const https = require('https');
+const logger = require('../utils/logger');
 
 const PROVIDER = process.env.SMS_PROVIDER || 'development';
 const FAST2SMS_KEY = process.env.FAST2SMS_API_KEY || '';
@@ -79,9 +80,9 @@ const sendViaFast2SMS = async (phones, message) => {
 // ── Development stub ──────────────────────────────────────────────────────────
 
 const sendViaDevelopment = async (phones, message) => {
-  console.log(`\n📣 [Broadcast DEV] Sending to ${phones.length} numbers`);
-  console.log(`   Message: ${message}`);
-  console.log(`   Numbers: ${phones.slice(0, 5).join(', ')}${phones.length > 5 ? ` …+${phones.length - 5} more` : ''}\n`);
+  logger.info(`\n📣 [Broadcast DEV] Sending to ${phones.length} numbers`);
+  logger.info(`   Message: ${message}`);
+  logger.info(`   Numbers: ${phones.slice(0, 5).join(', ')}${phones.length > 5 ? ` …+${phones.length - 5} more` : ''}\n`);
   return { successCount: phones.length, failureCount: 0, raw: { dev: true } };
 };
 
@@ -95,7 +96,7 @@ const send = async (phones, message) => {
   switch (PROVIDER) {
     case 'fast2sms':
       if (!FAST2SMS_KEY) {
-        console.warn('[BroadcastProvider] FAST2SMS_API_KEY not set — falling back to dev mode');
+        logger.warn('[BroadcastProvider] FAST2SMS_API_KEY not set — falling back to dev mode');
         return sendViaDevelopment(phones, message);
       }
       return sendViaFast2SMS(phones, message);

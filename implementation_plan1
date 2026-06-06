@@ -1,55 +1,38 @@
-# Multi-Page Admin Site Builder Enhancement
+This is a comprehensive audit of the Niraa E-Commerce Platform. After a deep dive into your codebase, I have identified several critical vulnerabilities and architectural flaws that must be addressed before this project can safely transition to a real-world production environment.
 
-The goal is to upgrade the Admin Site Builder to manage multiple pages (Home, About, Contact, Products) instead of just the homepage. This will allow admins to switch between pages, see the current live layout, and make changes that reflect on those specific pages.
+I have organized my findings into Security, Scalability/Performance, and Architectural Improvements.
 
-## User Review Required
+1. 🚨 Critical Security Vulnerabilities
+Vulnerability	Impact	Risk Level	Recommendation
+Exposed Firebase Admin Key	Full access to your Firebase database, storage, and authentication.	CRITICAL	Remove niraa-4144f-firebase-adminsdk-fbsvc-5bf04678ac.json from the repository immediately and use Environment Variables instead.
+Secrets in .env	Although gitignored, having raw secrets like JWT_SECRET, CLOUDINARY_API_SECRET, and RAZORPAY_KEY_SECRET in a file is risky.	HIGH	Use a proper Secret Management service (like AWS Secrets Manager, Vercel/Render Secrets) in production.
+In-Memory OTP Storage	OTPs are stored in a JavaScript Map. If the server restarts or scales (multi-instance), users will fail to verify their OTPs.	HIGH	Move OTP storage to Redis. This ensures persistence and cross-instance availability.
+Broad CORS Policy	Your allowedOrigins list includes localhost and several development URLs.	MEDIUM	For production, restrict this strictly to your production domains.
+Missing Request Validation	While Joi is used, ensure it is applied to every input point to prevent injection or malicious data.	MEDIUM	Audit all routes in orderRoutes and marketingRoutes to ensure schemas are 100% covered.
+2. 🏗️ Scalability & Architectural Flaws
+These are the "bottlenecks" that will cause the site to crash or become extremely slow once you have real traffic.
 
-> [!IMPORTANT]
-> This change will transition static pages (About, Contact) to dynamic pages powered by the Site Builder. Initial content will need to be "seeded" or manually recreated in the builder to match the current designs.
+"Download-All" Query Pattern (Critical Performance Flaw):
+In productController.js and adminController.js, you are fetching all products or users and then filtering them in JavaScript (e.g., snapshot.docs.map(...) then .filter(...)).
+The Problem: If you have 5,000 products, your server downloads 5,000 documents from Firestore for every search request. This is expensive (Firestore costs) and slow (latency).
+Fix: Use Firestore queries (where, limit, orderBy) and implement a search indexer like Algolia or ElasticSearch for text searching.
+Websocket Limitations:
+realtimeHub.js uses an in-memory wsServer. This works on a single server, but if you deploy to a platform that scales horizontally (like Render or Vercel), users on Server A won't see events from Server B.
+Fix: Use Redis Pub/Sub to synchronize WebSocket events across multiple server instances.
+No Database Indexing Strategy:
+Firestore requires composite indexes for complex queries (multiple where or where + orderBy). Your code (e.g., getMyOrders) sorts client-side because of this.
+Fix: Explicitly define and deploy Firestore indexes.json.
+3. 🛠️ Required Production Improvements
+To make this a "Real-Time, Real-World" project, the following features are missing:
 
-## Proposed Changes
+Production Image Handling: While you use Cloudinary, you should implement Responsive Image sets (Srcset) and Lazy Loading on the frontend to improve Core Web Vitals (SEO).
+Global Error Tracking: You use Winston for logging, but in production, you need a service like Sentry or LogRocket to alert you the moment a user hits a 500 error.
+Payment Webhooks: Your payment verification currently happens in the request-response cycle. If the user's browser closes before the verification call completes, the order remains "Pending" even if they paid.
+Fix: Implement a Razorpay Webhook to listen for payment.captured events directly from the gateway.
+Infrastructure Security:
+Add Rate Limiting to the /api/test and /api/products routes (not just auth).
+Implement SSL/TLS Enforcement (HSTS) in Helmet.
+4. 📈 Next Steps
+I recommend prioritizing the Security Fixes (Firebase keys and Redis for OTPs) and the Query Optimization (fixing the "Download-All" pattern) as your very first tasks.
 
-### Admin App
-
-#### [MODIFY] [AdminBuilder.jsx](file:///c:/Users/rvasa/Desktop/Niraa%20Project/niraa-website/admin/src/pages/AdminBuilder.jsx)
-- Add `activePage` state (defaulting to 'home').
-- Implement a Page Selector UI in the top bar or sidebar.
-- Update `fetchSections` to call `GET /api/sections/admin/${activePage}`.
-- Update `saveSections` and `publishSections` to handle page-specific context.
-- Fix the API path from `${API_BASE_URL}/admin/sections` to `${API_BASE_URL}/sections/admin/${activePage}` (to match `sectionRoutes.js`).
-- Ensure new sections created via `addSection` include the `page` field.
-
-### Client App
-
-#### [MODIFY] [Home.jsx](file:///c:/Users/rvasa/Desktop/Niraa%20Project/niraa-website/client/src/pages/Home.jsx) or [EnhancedHome.jsx](file:///c:/Users/rvasa/Desktop/Niraa%20Project/niraa-website/client/src/pages/EnhancedHome.jsx)
-- Ensure it fetches and renders sections from `/api/sections/home`.
-
-#### [MODIFY] [About.jsx](file:///c:/Users/rvasa/Desktop/Niraa%20Project/niraa-website/client/src/pages/About.jsx)
-- Modify to fetch sections from `/api/sections/about`.
-- Render dynamic sections using a `SectionRenderer` component (shared across pages).
-
-#### [MODIFY] [Contact.jsx](file:///c:/Users/rvasa/Desktop/Niraa%20Project/niraa-website/client/src/pages/Contact.jsx)
-- Modify to fetch sections from `/api/sections/contact`.
-
-#### [NEW] [SectionRenderer.jsx](file:///c:/Users/rvasa/Desktop/Niraa%20Project/niraa-website/client/src/components/SectionRenderer.jsx)
-- A component to map section types (HERO, GRID, etc.) to their respective visual components.
-
-### Server (Backend)
-
-#### [MODIFY] [sectionRoutes.js](file:///c:/Users/rvasa/Desktop/Niraa%20Project/niraa-website/server/routes/sectionRoutes.js)
-- Ensure the bulk `PUT /` endpoint (or a new one) correctly handles adding new sections to a specific page.
-- Current bulk update only updates existing docs by ID.
-
-## Verification Plan
-
-### Automated Tests
-- Use the browser tool to:
-    1. Navigate to Admin Builder.
-    2. Switch to 'About' page.
-    3. Add a Hero section.
-    4. Save and Publish.
-    5. Navigate to the public '/about' page and verify the new Hero section appears.
-
-### Manual Verification
-- Verify that switching pages in the builder correctly loads the respective sections.
-- Verify that 'Save Draft' and 'Publish' only affect the active page.
+Would you like me to start by fixing the Firestore Query bottlenecks or the Security/OTP issues first?

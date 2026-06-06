@@ -1,4 +1,6 @@
 const { getFirebase } = require('../config/firebase');
+const logger = require('../utils/logger');
+const cacheService = require('../services/cache');
 
 const SECTIONS_COLLECTION = 'pageSections';
 
@@ -19,6 +21,13 @@ const getPublicSections = async (req, res) => {
     const { db } = getFirebase();
     const { page } = req.params;
 
+    const cacheKey = `sections:page_${page}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData) {
+      logger.info(`[Sections] Cache HIT for page: ${page}`);
+      return res.json(cachedData);
+    }
+
     const snapshot = await db.collection(SECTIONS_COLLECTION)
       .where('page', '==', page)
       .get();
@@ -29,9 +38,14 @@ const getPublicSections = async (req, res) => {
       .filter(s => s.status === 'published' && s.isActive === true)
       .sort((a, b) => (a.order || 0) - (b.order || 0));
 
-    res.json({ success: true, sections, page });
+    const responsePayload = { success: true, sections, page };
+    
+    // Cache for 1 hour (3600 seconds)
+    await cacheService.set(cacheKey, responsePayload, 3600);
+
+    res.json(responsePayload);
   } catch (error) {
-    console.error('Error fetching public sections:', error);
+    logger.error('Error fetching public sections:', error);
     res.status(500).json({ success: false, message: 'Failed to load page content' });
   }
 };
@@ -59,7 +73,7 @@ const getAdminSections = async (req, res) => {
 
     res.json({ success: true, sections, page });
   } catch (error) {
-    console.error('Error fetching admin sections:', error);
+    logger.error('Error fetching admin sections:', error);
     res.status(500).json({ success: false, message: 'Failed to load sections' });
   }
 };
@@ -95,13 +109,16 @@ const createSection = async (req, res) => {
 
     const docRef = await db.collection(SECTIONS_COLLECTION).add(sectionData);
 
+    // Invalidate section cache for this page
+    await cacheService.del(`sections:page_${page}`);
+
     res.status(201).json({
       success: true,
       message: 'Section created',
       section: { id: docRef.id, _id: docRef.id, ...sectionData }
     });
   } catch (error) {
-    console.error('Error creating section:', error);
+    logger.error('Error creating section:', error);
     res.status(500).json({ success: false, message: 'Failed to create section' });
   }
 };
@@ -135,9 +152,14 @@ const updateSection = async (req, res) => {
     await docRef.update(payload);
     const updated = await docRef.get();
 
+    // Invalidate section cache
+    if (existing.data()?.page) {
+      await cacheService.del(`sections:page_${existing.data().page}`);
+    }
+
     res.json({ success: true, message: 'Section saved as draft', section: toPlainSection(updated) });
   } catch (error) {
-    console.error('Error updating section:', error);
+    logger.error('Error updating section:', error);
     res.status(500).json({ success: false, message: 'Failed to update section' });
   }
 };
@@ -166,9 +188,15 @@ const deleteSection = async (req, res) => {
     }
 
     await docRef.delete();
+
+    // Invalidate section cache
+    if (sectionData.page) {
+      await cacheService.del(`sections:page_${sectionData.page}`);
+    }
+
     res.json({ success: true, message: 'Section deleted' });
   } catch (error) {
-    console.error('Error deleting section:', error);
+    logger.error('Error deleting section:', error);
     res.status(500).json({ success: false, message: 'Failed to delete section' });
   }
 };
@@ -182,12 +210,19 @@ const reorderSections = async (req, res) => {
     const { page } = req.params;
     const { sectionIds } = req.body;
 
+    if (!Array.isArray(sectionIds)) {
+      return res.status(400).json({ success: false, message: 'sectionIds must be an array' });
+    }
+
     const batch = db.batch();
     for (let i = 0; i < sectionIds.length; i++) {
       const docRef = db.collection(SECTIONS_COLLECTION).doc(sectionIds[i]);
       batch.update(docRef, { order: i, lastEditedBy: req.user.id, updatedAt: new Date().toISOString() });
     }
     await batch.commit();
+
+    // Invalidate section cache
+    await cacheService.del(`sections:page_${page}`);
 
     const snapshot = await db.collection(SECTIONS_COLLECTION)
       .where('page', '==', page)
@@ -198,7 +233,7 @@ const reorderSections = async (req, res) => {
 
     res.json({ success: true, message: 'Sections reordered', sections });
   } catch (error) {
-    console.error('Error reordering sections:', error);
+    logger.error('Error reordering sections:', error);
     res.status(500).json({ success: false, message: 'Failed to reorder sections' });
   }
 };
@@ -231,6 +266,9 @@ const publishPage = async (req, res) => {
 
     await batch.commit();
 
+    // Invalidate section cache
+    await cacheService.del(`sections:page_${page}`);
+
     res.json({
       success: true,
       message: `Published ${publishedCount} section${publishedCount !== 1 ? 's' : ''} successfully`,
@@ -238,7 +276,7 @@ const publishPage = async (req, res) => {
       publishedAt
     });
   } catch (error) {
-    console.error('Error publishing page:', error);
+    logger.error('Error publishing page:', error);
     res.status(500).json({ success: false, message: 'Failed to publish changes' });
   }
 };
@@ -265,9 +303,14 @@ const revertSection = async (req, res) => {
     await docRef.update({ status: 'published', updatedAt: new Date().toISOString() });
     const updated = await docRef.get();
 
+    // Invalidate section cache
+    if (doc.data()?.page) {
+      await cacheService.del(`sections:page_${doc.data().page}`);
+    }
+
     res.json({ success: true, message: 'Reverted to published version', section: toPlainSection(updated) });
   } catch (error) {
-    console.error('Error reverting section:', error);
+    logger.error('Error reverting section:', error);
     res.status(500).json({ success: false, message: 'Failed to revert section' });
   }
 };
@@ -308,13 +351,16 @@ const duplicateSection = async (req, res) => {
 
     const newDocRef = await db.collection(SECTIONS_COLLECTION).add(duplicateData);
 
+    // Invalidate section cache
+    await cacheService.del(`sections:page_${original.page}`);
+
     res.status(201).json({
       success: true,
       message: 'Section duplicated',
       section: { id: newDocRef.id, _id: newDocRef.id, ...duplicateData }
     });
   } catch (error) {
-    console.error('Error duplicating section:', error);
+    logger.error('Error duplicating section:', error);
     res.status(500).json({ success: false, message: 'Failed to duplicate section' });
   }
 };

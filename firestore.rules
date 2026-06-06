@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  /**
+   * --------------------------------------------------------------
+   * 1️⃣ Publicly readable data – product catalog, categories, etc.
+   * --------------------------------------------------------------
+   * These collections are safe to expose read‑only to anyone.
+   */
+  match /databases/{database}/documents {
+    // Public product listings
+    match /products/{productId} {
+      allow read: if true;                     // Anyone can browse products
+      // Writes are restricted to admins (see admin rules below)
+    }
+
+    // Public categories / static pages
+    match /categories/{catId} {
+      allow read: if true;
+    }
+
+    // ------------------------------------------------------------
+    // 2️⃣ Authenticated user data – carts, orders, profiles, etc.
+    // ------------------------------------------------------------
+    match /users/{userId} {
+      // Users can read/write ONLY their own document
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // Sub‑collections under a user (e.g., cart, orders)
+      match /{subCollection}/{docId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // ------------------------------------------------------------
+    // 3️⃣ Order collection – write limited, read allowed for owner & admin
+    // ------------------------------------------------------------
+    match /orders/{orderId} {
+      // Owner can read their own order
+      allow read: if request.auth != null &&
+                  (resource.data.ownerUid == request.auth.uid ||
+                   request.auth.token.admin == true);
+
+      // Creation of a new order – only authenticated user, and the payload
+      // must include the correct ownerUid matching the caller.
+      allow create: if request.auth != null &&
+                    request.resource.data.ownerUid == request.auth.uid &&
+                    // basic field validation (example)
+                    request.resource.data.totalPrice is number &&
+                    request.resource.data.items is list &&
+                    request.resource.data.createdAt == request.time;
+
+      // Updates (e.g., status change) – only admin can modify status,
+      // or the owner can update cancellable fields.
+      allow update: if request.auth != null &&
+                    (request.auth.token.admin == true ||
+                     (resource.data.ownerUid == request.auth.uid &&
+                      // owners may only cancel while status is 'pending'
+                      request.resource.data.status == 'cancelled' &&
+                      resource.data.status == 'pending'));
+    }
+
+    // ------------------------------------------------------------
+    // 4️⃣ Admin‑only collections (settings, promo codes, etc.)
+    // ------------------------------------------------------------
+    match /admin/{docId} {
+      // Only users with a custom claim `admin:true` can read/write
+      allow read, write: if request.auth != null && request.auth.token.admin == true;
+    }
+
+    // ------------------------------------------------------------
+    // 5️⃣ OTP / verification collection – short‑lived, write‑only
+    // ------------------------------------------------------------
+    match /otps/{otpId} {
+      // Anyone can create an OTP (rate‑limited on the client side)
+      allow create: if request.resource.data.expiresAt > request.time &&
+                    request.resource.data.expiresAt < request.time + duration.value(15, 'm');
+
+      // Only the user who owns the OTP can read it (if you ever need to)
+      allow read: if request.auth != null &&
+                  request.auth.uid == resource.data.uid;
+
+      // No updates or deletes from the client – let Cloud Functions clean up
+      allow update, delete: if false;
+    }
+
+    // ------------------------------------------------------------
+    // 6️⃣ Fallback – deny everything else
+    // ------------------------------------------------------------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

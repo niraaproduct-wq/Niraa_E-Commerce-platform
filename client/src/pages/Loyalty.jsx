@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import toast from 'react-hot-toast';
 
 const T = {
@@ -130,6 +131,10 @@ const Loyalty = () => {
 
   return (
     <main className="loyalty-page" style={{ background: T.gray50, minHeight: '100vh', fontFamily: T.font }}>
+      <Helmet>
+        <title>Loyalty & Rewards | Niraa Care - Refer & Earn</title>
+        <meta name="description" content="Join the Niraa Care rewards program. Earn points on every purchase, refer friends to get ₹50 off, and unlock exclusive discounts and perks!" />
+      </Helmet>
       <style>{css}</style>
       <div className="container" style={{ padding: '32px 16px 80px', maxWidth: 1100, margin: '0 auto' }}>
 

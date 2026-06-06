@@ -1,5 +1,6 @@
 const { getFirebase } = require('../config/firebase');
 const firebaseStorage = require('../utils/firebaseStorage');
+const logger = require('../utils/logger');
 
 // ==================== DASHBOARD STATS ====================
 
@@ -41,7 +42,7 @@ const getDashboardStats = async (req, res) => {
       lowStockProducts: []
     });
   } catch (error) {
-    console.error('Dashboard Stats Error:', error);
+    logger.error('Dashboard Stats Error:', error);
     res.status(500).json({ message: 'Failed to get dashboard stats', error: error.message });
   }
 };
@@ -55,10 +56,15 @@ const getAllProducts = async (req, res) => {
   try {
     const { db } = getFirebase();
     const { search = '', category = '', page = 1, limit = 20 } = req.query;
+    const limitNum = Number(limit);
+    const pageNum = Number(page);
+    const skip = (pageNum - 1) * limitNum;
 
     let query = db.collection('products');
     if (category) query = query.where('category', '==', category);
 
+    // For Admin search, we fetch a larger set (e.g. 1000) and filter in JS
+    // as Firestore doesn't support substring/regex natively.
     const snapshot = await query.get();
     let products = snapshot.docs.map(d => {
       const data = d.data();
@@ -68,10 +74,14 @@ const getAllProducts = async (req, res) => {
         ...data,
         stock: data.stock !== undefined ? data.stock : (data.countInStock || 0)
       };
-    });
+    }).filter(Boolean);
 
-    if (search) {
-      const q = search.toLowerCase();
+    // Sort in memory to avoid composite index requirements
+    products.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+    const searchStr = typeof search === 'string' ? search : '';
+    if (searchStr) {
+      const q = searchStr.toLowerCase();
       products = products.filter(p =>
         (p.name || '').toLowerCase().includes(q) ||
         (p.description || '').toLowerCase().includes(q) ||
@@ -79,20 +89,17 @@ const getAllProducts = async (req, res) => {
       );
     }
 
-    products.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-
     const total = products.length;
-    const skip = (Number(page) - 1) * Number(limit);
-    const paginated = products.slice(skip, skip + Number(limit));
+    const paginated = products.slice(skip, skip + limitNum);
 
     res.json({
       products: paginated,
-      totalPages: Math.ceil(total / Number(limit)),
-      currentPage: Number(page),
+      totalPages: Math.ceil(total / limitNum),
+      currentPage: pageNum,
       totalProducts: total
     });
   } catch (error) {
-    console.error('Get Products Error:', error);
+    logger.error('Get Products Admin Error:', error);
     res.status(500).json({ message: 'Failed to get products', error: error.message });
   }
 };
@@ -111,7 +118,7 @@ const getProduct = async (req, res) => {
 
     res.json({ id: doc.id, _id: doc.id, ...doc.data() });
   } catch (error) {
-    console.error('Get Product Error:', error);
+    logger.error('Get Product Error:', error);
     res.status(500).json({ message: 'Failed to get product', error: error.message });
   }
 };
@@ -126,7 +133,7 @@ const uploadProductImage = async (req, res) => {
     }
     res.json({ url: req.file.path });
   } catch (error) {
-    console.error('Upload Image Error:', error);
+    logger.error('Upload Image Error:', error);
     res.status(500).json({ message: 'Failed to upload image', error: error.message });
   }
 };
@@ -137,7 +144,7 @@ const uploadProductImage = async (req, res) => {
 const createProduct = async (req, res) => {
   try {
     const { db } = getFirebase();
-    console.log('Admin Create Product Body:', req.body);
+    logger.info('Admin Create Product:', { name: req.body.name, category: req.body.category });
     const { name, description, price, comparePrice, category, images, stock, variants, tags, isActive, isFeatured, shortBenefit, highlightBadge, salesCount, rating } = req.body;
 
     const productData = {
@@ -159,7 +166,7 @@ const createProduct = async (req, res) => {
     };
 
     // Synchronize with all variants if they are provided
-    if (productData.variants && productData.variants.length > 0) {
+    if (Array.isArray(productData.variants) && productData.variants.length > 0) {
       productData.variants.forEach(v => {
         v.price = productData.price;
         v.stockQuantity = productData.stock;
@@ -169,11 +176,12 @@ const createProduct = async (req, res) => {
       });
     }
 
-    productData.slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const nameStr = typeof name === 'string' ? name : 'product';
+    productData.slug = nameStr.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     productData.createdAt = new Date().toISOString();
     productData.updatedAt = new Date().toISOString();
 
-    if (productData.images && productData.images.length > 0 && !productData.image) {
+    if (Array.isArray(productData.images) && productData.images.length > 0 && !productData.image) {
       productData.image = productData.images[0];
     }
 
@@ -186,7 +194,7 @@ const createProduct = async (req, res) => {
 
     res.status(201).json({ message: 'Product created successfully', product });
   } catch (error) {
-    console.error('Create Product Error:', error);
+    logger.error('Create Product Error:', error);
     res.status(500).json({ message: 'Failed to create product', error: error.message });
   }
 };
@@ -197,7 +205,7 @@ const createProduct = async (req, res) => {
 const updateProduct = async (req, res) => {
   try {
     const { db } = getFirebase();
-    console.log('Admin Update Product Body:', req.params.id, req.body);
+    logger.info('Admin Update Product:', { id: req.params.id, name: req.body.name });
     const docRef = db.collection('products').doc(req.params.id);
     const existing = await docRef.get();
 
@@ -213,7 +221,7 @@ const updateProduct = async (req, res) => {
 
     // Generate slug if name is present or slug is missing
     if (updateData.name || !existing.data().slug) {
-      const nameForSlug = updateData.name || existing.data().name || 'product';
+      const nameForSlug = typeof updateData.name === 'string' ? updateData.name : (typeof existing.data().name === 'string' ? existing.data().name : 'product');
       updateData.slug = nameForSlug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
     }
 
@@ -283,12 +291,12 @@ const updateProduct = async (req, res) => {
       const { publishEvent } = require('../utils/realtimeHub');
       publishEvent('products.changed', { type: 'updated', productId: product._id, product });
     } catch (e) {
-      console.warn('Realtime notify failed:', e.message);
+      logger.warn('Realtime notify failed:', e.message);
     }
 
     res.json({ message: 'Product updated successfully', product });
   } catch (error) {
-    console.error('Update Product Error:', error);
+    logger.error('Update Product Error:', error);
     res.status(500).json({ message: 'Failed to update product', error: error.message });
   }
 };
@@ -309,7 +317,7 @@ const deleteProduct = async (req, res) => {
     await docRef.update({ isActive: false, updatedAt: new Date().toISOString() });
     res.json({ message: 'Product deleted successfully' });
   } catch (error) {
-    console.error('Delete Product Error:', error);
+    logger.error('Delete Product Error:', error);
     res.status(500).json({ message: 'Failed to delete product', error: error.message });
   }
 };
@@ -346,7 +354,7 @@ const updateProductStock = async (req, res) => {
 
     res.json({ message: 'Stock updated successfully', product });
   } catch (error) {
-    console.error('Update Stock Error:', error);
+    logger.error('Update Stock Error:', error);
     res.status(500).json({ message: 'Failed to update stock', error: error.message });
   }
 };
@@ -360,27 +368,33 @@ const getAllOrders = async (req, res) => {
   try {
     const { db } = getFirebase();
     const { status = '', page = 1, limit = 20 } = req.query;
+    const limitNum = Number(limit);
+    const pageNum = Number(page);
+    const skip = (pageNum - 1) * limitNum;
 
-    let query = db.collection('orders').orderBy('createdAt', 'desc');
-    const snapshot = await query.get();
-    let orders = snapshot.docs.map(d => ({ id: d.id, _id: d.id, ...d.data() }));
-
+    let query = db.collection('orders');
+    
     if (status) {
-      orders = orders.filter(o => o.status === status);
+      query = query.where('status', '==', status);
     }
 
+    const snapshot = await query.get();
+    let orders = snapshot.docs.map(d => ({ id: d.id, _id: d.id, ...d.data() })).filter(Boolean);
+
+    // Sort in memory to avoid needing composite indexes
+    orders.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
     const total = orders.length;
-    const skip = (Number(page) - 1) * Number(limit);
-    const paginated = orders.slice(skip, skip + Number(limit));
+    const paginated = orders.slice(skip, skip + limitNum);
 
     res.json({
       orders: paginated,
-      totalPages: Math.ceil(total / Number(limit)),
-      currentPage: Number(page),
+      totalPages: Math.ceil(total / limitNum),
+      currentPage: pageNum,
       totalOrders: total
     });
   } catch (error) {
-    console.error('Get Orders Error:', error);
+    logger.error('Get Orders Admin Error:', error);
     res.status(500).json({ message: 'Failed to get orders', error: error.message });
   }
 };
@@ -399,7 +413,7 @@ const getOrder = async (req, res) => {
 
     res.json({ id: doc.id, _id: doc.id, ...doc.data() });
   } catch (error) {
-    console.error('Get Order Error:', error);
+    logger.error('Get Order Error:', error);
     res.status(500).json({ message: 'Failed to get order', error: error.message });
   }
 };
@@ -410,7 +424,7 @@ const getOrder = async (req, res) => {
 const updateOrderStatus = async (req, res) => {
   try {
     const { status, trackingNumber, notes } = req.body;
-    const { db, admin } = getFirebase();
+    const { db, FieldValue } = getFirebase();
 
     const docRef = db.collection('orders').doc(req.params.id);
     
@@ -467,7 +481,7 @@ const updateOrderStatus = async (req, res) => {
       if (trackingNumber) updateData.trackingNumber = trackingNumber;
       if (notes) {
         updateData.adminNotes = notes;
-        updateData.statusHistory = admin.firestore.FieldValue.arrayUnion({
+        updateData.statusHistory = FieldValue.arrayUnion({
           status,
           note: notes,
           date: new Date().toISOString()
@@ -491,7 +505,7 @@ const updateOrderStatus = async (req, res) => {
 
     res.json({ message: 'Order status updated successfully', order: updatedOrder });
   } catch (error) {
-    console.error('Update Order Status Error:', error);
+    logger.error('Update Order Status Error:', error);
     res.status(500).json({ message: 'Failed to update order status', error: error.message });
   }
 };
@@ -504,37 +518,25 @@ const updateOrderStatus = async (req, res) => {
 const getAllCustomers = async (req, res) => {
   try {
     const { page = 1, limit = 20, search = '', isActive } = req.query;
+    const limitNum = Number(limit);
+    const skip = (Number(page) - 1) * limitNum;
 
-    let customers = (await firebaseStorage.getAllUsers()).filter(u => (u.role || 'customer') === 'customer');
-
-    if (search) {
-      const q = String(search).toLowerCase();
-      customers = customers.filter(u =>
-        String(u.name || '').toLowerCase().includes(q) ||
-        String(u.phone || '').toLowerCase().includes(q) ||
-        String(u.email || '').toLowerCase().includes(q)
-      );
-    }
-
-    if (isActive !== undefined) {
-      const active = isActive === 'true';
-      customers = customers.filter(u => (u.isActive !== false) === active);
-    }
-
-    customers.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-
-    const total = customers.length;
-    const skip = (Number(page) - 1) * Number(limit);
-    const paginated = customers.slice(skip, skip + Number(limit));
+    const { users: customers, total } = await firebaseStorage.getUsers({
+      role: 'customer',
+      isActive: isActive === 'true' ? true : (isActive === 'false' ? false : undefined),
+      search,
+      limit: limitNum,
+      skip
+    });
 
     res.json({
-      customers: paginated,
-      totalPages: Math.max(1, Math.ceil(total / Number(limit))),
+      customers,
+      totalPages: Math.max(1, Math.ceil(total / limitNum)),
       currentPage: Number(page),
       totalCustomers: total
     });
   } catch (error) {
-    console.error('Get Customers Error:', error);
+    logger.error('Get Customers Error:', error);
     res.status(500).json({ message: 'Failed to get customers', error: error.message });
   }
 };
@@ -550,7 +552,7 @@ const getCustomer = async (req, res) => {
     }
     res.json(customer);
   } catch (error) {
-    console.error('Get Customer Error:', error);
+    logger.error('Get Customer Error:', error);
     res.status(500).json({ message: 'Failed to get customer', error: error.message });
   }
 };
@@ -569,7 +571,7 @@ const updateCustomer = async (req, res) => {
 
     res.json({ message: 'Customer updated successfully', customer });
   } catch (error) {
-    console.error('Update Customer Error:', error);
+    logger.error('Update Customer Error:', error);
     res.status(500).json({ message: 'Failed to update customer', error: error.message });
   }
 };
@@ -591,7 +593,7 @@ const blockCustomer = async (req, res) => {
       customer
     });
   } catch (error) {
-    console.error('Block Customer Error:', error);
+    logger.error('Block Customer Error:', error);
     res.status(500).json({ message: 'Failed to update customer', error: error.message });
   }
 };
@@ -638,7 +640,7 @@ const getSalesAnalytics = async (req, res) => {
 
     res.json({ totalSales, totalOrders, avgOrderValue, statusBreakdown, dailySales, period });
   } catch (error) {
-    console.error('Sales Analytics Error:', error);
+    logger.error('Sales Analytics Error:', error);
     res.status(500).json({ message: 'Failed to get sales analytics', error: error.message });
   }
 };
@@ -649,22 +651,22 @@ const getSalesAnalytics = async (req, res) => {
 const uploadImage = async (req, res) => {
   try {
     if (!req.file || !req.file.buffer) {
-      console.error('Upload Error: No file buffer in request');
+      logger.error('Upload Error: No file buffer in request');
       return res.status(400).json({ message: 'No image uploaded' });
     }
     
     const { uploadBuffer } = require('../config/cloudinary');
     
-    console.log('Uploading to Cloudinary from buffer...');
+    logger.info('Uploading to Cloudinary from buffer...');
     const result = await uploadBuffer(req.file.buffer, {
       folder: 'products',
       resource_type: 'auto'
     });
     
-    console.log('Upload Success:', result.secure_url);
+    logger.info('Upload Success:', result.secure_url);
     res.json({ url: result.secure_url, public_id: result.public_id });
   } catch (error) {
-    console.error('Detailed Upload Error:', error);
+    logger.error('Detailed Upload Error:', error);
     res.status(500).json({ message: 'Failed to upload image', error: error.message });
   }
 };

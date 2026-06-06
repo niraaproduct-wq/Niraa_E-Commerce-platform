@@ -13,6 +13,7 @@ const {
 } = require('../controllers/sectionController');
 const { protect, adminOnly } = require('../middleware/authMiddleware');
 const { getFirebase } = require('../config/firebase');
+const logger = require('../utils/logger');
 
 // ==============================================
 // PUBLIC ROUTES
@@ -58,7 +59,7 @@ router.put('/bulk/:page', async (req, res) => {
     await batch.commit();
     res.json({ success: true, message: 'Sections saved successfully!' });
   } catch (error) {
-    console.error('Bulk save error:', error);
+    logger.error('Bulk save error:', error);
     res.status(500).json({ success: false, message: 'Failed to save sections' });
   }
 });

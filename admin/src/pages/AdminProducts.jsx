@@ -55,6 +55,15 @@ const getCat = (val, allProducts = []) => {
   return { label: val?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), color: T.gray600, bg: T.gray100 };
 };
 
+const sanitizeImgUrl = (url) => {
+  if (!url) return '';
+  const str = String(url);
+  if (/^(https?:\/\/|\/|data:image\/)/.test(str)) {
+    return str;
+  }
+  return '';
+};
+
 /* ─── Shared Field styles ────────────────────────────────────── */
 const field = {
   display: 'flex', flexDirection: 'column', gap: 6,
@@ -109,15 +118,8 @@ const AdminProducts = () => {
 
   const fetchProducts = async () => {
     try {
-      const token = localStorage.getItem('niraa_token');
-      if (!token) {
-        toast.error('Session expired. Please login again.');
-        setReadOnlyMode(true);
-        return;
-      }
-
       const res = await fetch(`${API_BASE_URL}/admin/products`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
       });
 
       if (res.ok) {
@@ -166,8 +168,8 @@ const AdminProducts = () => {
       const cleanName = (formData.name || 'PRD').toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/(\d+(ML|LT|L|KG|G))/g, '');
       const prdCode = cleanName.slice(0, 4).padEnd(3, 'X');
       const itemCount = formData.comboItems?.length || 0;
-      const sizeCode = formData.productType === 'combo'
-        ? `${itemCount}P`
+      const sizeCode = formData.productType === 'combo' 
+        ? `${itemCount}P` 
         : (formData.size || 'NA').toUpperCase().replace(/\s/g, '').replace('LT', 'L');
       const typeCode = formData.productType === 'combo' ? 'C' : 'S';
       const newSKU = `${brand}-${catCode}-${prdCode}-${sizeCode}-${typeCode}`;
@@ -209,10 +211,9 @@ const AdminProducts = () => {
       const compressedFile = await compressImage(file);
       const uploadData = new FormData();
       uploadData.append('image', compressedFile);
-      const token = localStorage.getItem('niraa_token');
       const res = await fetch(`${API_BASE_URL}/admin/upload`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
         body: uploadData,
       });
       if (res.ok) {
@@ -241,13 +242,13 @@ const AdminProducts = () => {
     e.preventDefault();
     if (readOnlyMode) { toast.error('Editing disabled in read-only mode'); return; }
     try {
-      const token = localStorage.getItem('niraa_token');
       const url = editingProduct
         ? `${API_BASE_URL}/admin/products/${editingProduct._id}`
         : `${API_BASE_URL}/admin/products`;
       const res = await fetch(url, {
         method: editingProduct ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
       if (res.ok) {
@@ -285,10 +286,9 @@ const AdminProducts = () => {
   const handleDelete = async (id) => {
     if (readOnlyMode) { toast.error('Deletion disabled in read-only mode'); return; }
     try {
-      const token = localStorage.getItem('niraa_token');
       const res = await fetch(`${API_BASE_URL}/admin/products/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
       });
       if (res.ok) { toast.success('Product deleted'); fetchProducts(); }
       else { toast.error('Delete failed'); }
@@ -386,7 +386,7 @@ const AdminProducts = () => {
 
   /* ══════════════ RENDER ══════════════ */
   return (
-    <div className="admin-page-container" style={{ fontFamily: T.font, color: T.gray800, minHeight: '100vh', background: T.gray50, padding: '32px 32px 64px' }}>
+    <div style={{ fontFamily: T.font, color: T.gray800, minHeight: '100vh', background: T.gray50, padding: '32px 32px 64px', width: '100%', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
 
       {/* ─ Not Admin Banner ─ */}
       {!isAdmin && (
@@ -404,7 +404,7 @@ const AdminProducts = () => {
       )}
 
       {/* ─── Page Header ─── */}
-      <div className="admin-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 32, flexWrap: 'wrap', gap: 16 }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.tealMid, marginBottom: 6 }}>
             Niraa Admin
@@ -438,7 +438,7 @@ const AdminProducts = () => {
       </div>
 
       {/* ─── Stat Cards ─── */}
-      <div className="admin-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 28 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 28 }}>
         {[
           { label: 'Total Products', value: products.length, color: T.teal, bg: T.tealLight },
           { label: 'Low Stock', value: lowStockCount, color: '#854F0B', bg: T.amberLight },
@@ -451,52 +451,45 @@ const AdminProducts = () => {
         ))}
       </div>
 
-      <div className="mobile-col" style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 24 }}>
-        {/* Expanded Search Bar */}
-        <div style={{ position: 'relative', flex: 1 }}>
-          <FaSearch style={{ position: 'absolute', left: 16, top: '50%', transform: 'translateY(-50%)', color: T.gray400, fontSize: 14, pointerEvents: 'none' }} />
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: '1 1 250px' }}>
+          <FaSearch style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: T.gray400, fontSize: 13, pointerEvents: 'none' }} />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search products by name, category or description..."
+            placeholder="Search products by name or description…"
             style={{
               ...input, width: '100%', boxSizing: 'border-box',
-              paddingLeft: 44, paddingRight: 16, height: 48, fontSize: 15,
-              border: `2px solid ${T.gray200}`,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+              paddingLeft: 40, fontSize: 14,
+              border: `1.5px solid ${T.gray200}`,
+              boxShadow: T.shadow,
               borderRadius: T.radiusLg,
-              transition: 'all 0.2s ease',
             }}
-            onFocus={e => { e.target.style.borderColor = T.tealMid; e.target.style.boxShadow = '0 4px 20px rgba(15,110,86,0.08)'; }}
-            onBlur={e => { e.target.style.borderColor = T.gray200; e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'; }}
           />
         </div>
 
-        {/* Small Status Toggle on Right */}
         <button
           onClick={() => setShowInactive(!showInactive)}
           style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            padding: '8px 14px', borderRadius: T.radius,
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '10px 16px', borderRadius: T.radiusLg,
             border: `1.5px solid ${showInactive ? T.teal : T.gray200}`,
             background: showInactive ? T.tealLight : T.white,
             color: showInactive ? T.tealDark : T.gray600,
-            fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            fontSize: 13, fontWeight: 600, cursor: 'pointer',
             transition: 'all 0.2s',
             whiteSpace: 'nowrap',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-            height: 48,
+            boxShadow: T.shadow,
           }}
         >
-          <span className="hide-mobile">{showInactive ? 'Showing All' : 'Active Only'}</span>
-          <span className="show-mobile-only">{showInactive ? 'All' : 'Active'}</span>
+          {showInactive ? 'Showing All' : 'Showing Active'}
           <div style={{
-            width: 28, height: 16, borderRadius: 99,
+            width: 32, height: 18, borderRadius: 99,
             background: showInactive ? T.teal : T.gray300,
             position: 'relative', transition: 'background 0.2s'
           }}>
             <div style={{
-              position: 'absolute', top: 2, left: showInactive ? 14 : 2,
+              position: 'absolute', top: 3, left: showInactive ? 16 : 3,
               width: 12, height: 12, borderRadius: '50%', background: '#fff',
               transition: 'left 0.2s'
             }} />
@@ -505,17 +498,28 @@ const AdminProducts = () => {
       </div>
 
       {/* ─── Table ─── */}
-      <div className="admin-table-wrapper" style={{ 
-        background: T.white, 
-        border: `1.5px solid ${T.gray200}`, 
-        borderRadius: T.radiusLg, 
-        boxShadow: T.shadow, 
-        overflowX: 'auto',
-        width: '100%',
-        display: 'block',
-        position: 'relative',
-        WebkitOverflowScrolling: 'touch' // Smooth scroll for iOS
-      }}>
+      <div className="niraa-table-wrap" style={{ background: T.white, border: `1.5px solid ${T.gray200}`, borderRadius: T.radiusLg, boxShadow: T.shadow, overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+        <style>{`.niraa-table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; width: 100%; max-width: 100%; }
+        .niraa-table-wrap table { min-width: 900px !important; }
+        .niraa-table-wrap th:last-child,
+        .niraa-table-wrap td:last-child {
+          position: sticky;
+          right: 0;
+          z-index: 2;
+          background: ${T.white};
+          box-shadow: -4px 0 12px rgba(0,0,0,0.05);
+        }
+        .niraa-table-wrap th:last-child {
+          background: ${T.gray50};
+          z-index: 3;
+        }
+        .niraa-table-wrap tr:hover td:last-child {
+          background: ${T.gray50};
+        }
+        .niraa-table-wrap::-webkit-scrollbar { height: 8px; }
+        .niraa-table-wrap::-webkit-scrollbar-track { background: ${T.gray50}; border-radius: 4px; }
+        .niraa-table-wrap::-webkit-scrollbar-thumb { background: ${T.gray300}; border-radius: 4px; }
+        .niraa-table-wrap::-webkit-scrollbar-thumb:hover { background: ${T.gray400}; }`}</style>
         {loading ? (
           <div style={{ padding: '60px 24px', textAlign: 'center', color: T.gray400, fontSize: 14 }}>
             Loading products…
@@ -526,10 +530,10 @@ const AdminProducts = () => {
             <p style={{ margin: 0, color: T.gray400, fontSize: 14 }}>No products found</p>
           </div>
         ) : (
-          <table style={{ width: '100%', minWidth: '1000px', borderCollapse: 'collapse', tableLayout: 'auto' }}>
+          <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: T.gray50, borderBottom: `1.5px solid ${T.gray200}` }}>
-                {['Product', 'Category', 'Offer Price', 'Stock', 'Status', 'Barcode', ''].map(h => (
+                {['Product', 'Category', 'Price', 'Stock', 'Status', 'Barcode', ''].map(h => (
                   <th key={h} style={{ padding: '12px 20px', textAlign: h === 'Barcode' ? 'center' : 'left', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: T.gray400, whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -551,7 +555,7 @@ const AdminProducts = () => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <div style={{ width: 44, height: 44, borderRadius: 10, overflow: 'hidden', border: `1.5px solid ${T.gray200}`, flexShrink: 0, background: T.gray100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {product.images?.[0] || product.image
-                            ? <img src={product.images?.[0] || product.image} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ? <img src={sanitizeImgUrl(product.images?.[0] || product.image)} alt={product.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                             : <FaImage style={{ color: T.gray300, fontSize: 14 }} />
                           }
                         </div>
@@ -578,9 +582,18 @@ const AdminProducts = () => {
                     </td>
                     {/* Price */}
                     <td style={{ padding: '14px 20px', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.tealMid, marginBottom: 2 }}>Offer Price</div>
                       <div style={{ fontWeight: 700, fontSize: 15, color: T.gray900, letterSpacing: '-0.01em' }}>₹{product.price}</div>
                       {product.comparePrice && (
-                        <div style={{ fontSize: 12, color: T.gray400, textDecoration: 'line-through', marginTop: 1 }}>₹{product.comparePrice}</div>
+                        <div style={{ fontSize: 11, color: T.gray400, marginTop: 3 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>MRP: </span>
+                          <span style={{ textDecoration: 'line-through' }}>₹{product.comparePrice}</span>
+                          {product.price && product.comparePrice > product.price && (
+                            <span style={{ marginLeft: 6, background: '#FCE8E8', color: T.red, fontWeight: 800, fontSize: 10, padding: '1px 6px', borderRadius: 6 }}>
+                              {Math.round(((product.comparePrice - product.price) / product.comparePrice) * 100)}% OFF
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
                     {/* Stock */}
@@ -691,7 +704,7 @@ const AdminProducts = () => {
             <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20, maxHeight: 'calc(90vh - 160px)', overflowY: 'auto' }}>
 
               {/* Name + Category */}
-              <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <Field label="Product Name *" focusedField={focusedField} id="name">
                   <input type="text" name="name" value={formData.name} onChange={handleInput} onFocus={() => setFocusedField('name')} onBlur={() => setFocusedField(null)} required placeholder="e.g. Niraa Floor Magic" style={{ ...input, border: `1.5px solid ${focusedField === 'name' ? T.tealMid : T.gray200}` }} />
                 </Field>
@@ -749,7 +762,7 @@ const AdminProducts = () => {
               </div>
 
               {/* Size + Product Type */}
-              <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <Field label="Size / Volume" focusedField={focusedField} id="size">
                   <select
                     name="size"
@@ -783,8 +796,8 @@ const AdminProducts = () => {
                       <button
                         key={t.value}
                         type="button"
-                        onClick={() => setFormData(p => ({
-                          ...p,
+                        onClick={() => setFormData(p => ({ 
+                          ...p, 
                           productType: t.value,
                           category: t.value === 'combo' ? 'combo' : p.category,
                           size: t.value === 'combo' ? 'NA' : p.size
@@ -820,13 +833,13 @@ const AdminProducts = () => {
                           if (!selectedProd) return;
                           setFormData(prev => {
                             const items = [...prev.comboItems];
-                            items[idx] = {
-                              productId: selectedProd._id,
-                              name: selectedProd.name,
-                              sku: selectedProd.sku || '',
+                            items[idx] = { 
+                              productId: selectedProd._id, 
+                              name: selectedProd.name, 
+                              sku: selectedProd.sku || '', 
                               price: selectedProd.price || 0,
                               image: selectedProd.images?.[0] || selectedProd.image || '',
-                              qty: item.qty || 1
+                              qty: item.qty || 1 
                             };
                             return { ...prev, comboItems: items };
                           });
@@ -896,10 +909,10 @@ const AdminProducts = () => {
 
               {/* Price + Compare + Stock */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-                <Field label="Offer Price (₹) *" focusedField={focusedField} id="price">
+                <Field label="Price (₹) *" focusedField={focusedField} id="price">
                   <input type="number" name="price" value={formData.price} onChange={handleInput} onFocus={() => setFocusedField('price')} onBlur={() => setFocusedField(null)} required placeholder="0.00" min="0" step="0.01" style={{ ...input, border: `1.5px solid ${focusedField === 'price' ? T.tealMid : T.gray200}` }} />
                 </Field>
-                <Field label="MRP (₹)" focusedField={focusedField} id="comparePrice">
+                <Field label="Compare Price" focusedField={focusedField} id="comparePrice">
                   <input type="number" name="comparePrice" value={formData.comparePrice} onChange={handleInput} onFocus={() => setFocusedField('comparePrice')} onBlur={() => setFocusedField(null)} placeholder="0.00" min="0" step="0.01" style={{ ...input, border: `1.5px solid ${focusedField === 'comparePrice' ? T.tealMid : T.gray200}` }} />
                 </Field>
                 <Field label="Stock Qty *" focusedField={focusedField} id="stock">
@@ -933,7 +946,7 @@ const AdminProducts = () => {
                 </div>
                 {formData.images[0] && (
                   <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <img src={formData.images[0]} alt="Preview" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 8, border: `1.5px solid ${T.gray200}` }} />
+                    <img src={sanitizeImgUrl(formData.images[0])} alt="Preview" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 8, border: `1.5px solid ${T.gray200}` }} />
                     <span style={{ fontSize: 12, color: T.gray400 }}>Preview</span>
                   </div>
                 )}

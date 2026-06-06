@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate, useNavigate, Link, useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '../utils/constants';
+import AdminLoginPage from './AdminLogin.jsx';
 import AdminBuilder from './AdminBuilder';
 import AdminCustomers from './AdminCustomers';
 import AdminProducts from './AdminProducts';
@@ -184,43 +185,6 @@ const GLOBAL_CSS = `
     inset: -2px; border-radius: 50%; background: var(--green);
     animation: pulse-ring 1.4s ease-out infinite;
   }
-
-  @media (max-width: 768px) {
-    .admin-main-content {
-      padding: 16px 12px !important;
-    }
-    .stat-card-grid {
-      grid-template-columns: 1fr !important;
-    }
-    .recent-orders-table-wrapper {
-      max-width: 100vw;
-      overflow-x: auto;
-    }
-    .recent-orders-table-wrapper table {
-      width: max-content !important;
-      min-width: 100%;
-    }
-    
-    /* MOBILE SIDEBAR: Always icons, no labels */
-    .admin-sidebar {
-      width: var(--sidebar-collapsed-w) !important;
-    }
-    .admin-sidebar .section-label,
-    .admin-sidebar .nav-link span,
-    .admin-sidebar .sidebar-logo-text,
-    .admin-sidebar .sidebar-footer-text,
-    .admin-sidebar .hide-mobile {
-      display: none !important;
-    }
-    .admin-sidebar .nav-link {
-      justify-content: center !important;
-      padding: 12px 0 !important;
-    }
-    .admin-sidebar .sidebar-logo-container {
-      padding: 18px 0 !important;
-      justify-content: center !important;
-    }
-  }
 `;
 
 // ─── Light theme token overrides ─────────────────────────────────────────────
@@ -292,6 +256,8 @@ const P = {
   chevronL: 'M15 18l-6-6 6-6',
   ellipsis: 'M12 5v.01M12 12v.01M12 19v.01',
   plus: 'M12 5v14M5 12h14',
+  menu: 'M3 12h18M3 6h18M3 18h18',
+  x: 'M18 6L6 18M6 6l12 12',
 };
 
 // ─── Status config ─────────────────────────────────────────────────────────────
@@ -306,9 +272,14 @@ const STATUS = {
 };
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
-const Sidebar = ({ collapsed, setCollapsed }) => {
+const Sidebar = ({ collapsed, setCollapsed, mobileOpen, setMobileOpen }) => {
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    // Close mobile menu on route change
+    setMobileOpen(false);
+  }, [location.pathname, setMobileOpen]);
 
   const isActive = (to) =>
     to === '/dashboard'
@@ -316,10 +287,14 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       : location.pathname.startsWith(to);
 
   const handleLogout = () => {
-    localStorage.removeItem('niraa_token');
-    localStorage.removeItem('niraa_user');
-    localStorage.removeItem('niraa_admin_auth');
-    navigate('/login');
+    (async () => {
+      try {
+        await fetch(`${API_BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' });
+      } catch { /* ignore */ }
+      localStorage.removeItem('niraa_user');
+      localStorage.removeItem('niraa_admin_auth');
+      navigate('/login');
+    })();
   };
 
   const NAV = [
@@ -335,16 +310,30 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
   ];
 
   return (
-    <aside className="admin-sidebar" style={{
+    <aside style={{
       width: collapsed ? 'var(--sidebar-collapsed-w)' : 'var(--sidebar-w)',
       minHeight: '100vh',
       background: 'var(--bg)',
       display: 'flex', flexDirection: 'column', flexShrink: 0,
-      transition: 'width 0.25s cubic-bezier(.4,0,.2,1)',
-      overflow: 'hidden',
+      transition: 'width 0.25s cubic-bezier(.4,0,.2,1), transform 0.3s',
       borderRight: '1px solid var(--border)',
       position: 'relative',
-    }}>
+      zIndex: 10,
+    }} className={`admin-sidebar ${mobileOpen ? 'open' : ''}`}>
+      {/* Mobile close button */}
+      <button 
+        onClick={() => setMobileOpen(false)}
+        className="mobile-only"
+        style={{
+          position: 'absolute', top: 12, right: 12,
+          width: 32, height: 32, borderRadius: 8,
+          background: 'var(--surface-3)', border: '1px solid var(--border)',
+          display: 'none', alignItems: 'center', justifyContent: 'center',
+          color: 'var(--text-primary)', cursor: 'pointer', zIndex: 20
+        }}
+      >
+        <Ic d={P.x} size={18} />
+      </button>
       {/* Subtle gradient shimmer at top */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: 180,
@@ -353,30 +342,31 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       }} />
 
       {/* Logo */}
-      <div className="sidebar-logo-container" style={{
+      <div style={{
         padding: collapsed ? '18px 0' : '18px 14px',
         borderBottom: '1px solid var(--border)',
         marginBottom: 6,
         flexShrink: 0,
-        display: 'flex', alignItems: 'center', gap: 10
       }}>
-        <div style={{
-          width: 34, height: 34,
-          borderRadius: 10,
-          background: 'linear-gradient(135deg, var(--accent) 0%, #1a8a72 100%)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-          margin: collapsed ? '0 auto' : 0,
-          boxShadow: '0 2px 10px var(--accent-glow)',
-        }}>
-          <span style={{ color: '#021a14', fontWeight: 900, fontSize: 15, fontFamily: 'var(--display)' }}>N</span>
-        </div>
-        {!collapsed && (
-          <div className="sidebar-logo-text" style={{ overflow: 'hidden' }}>
-            <div style={{ fontFamily: 'var(--display)', color: 'var(--text-primary)', fontWeight: 800, fontSize: 16, letterSpacing: '-0.01em', lineHeight: 1 }}>NIRAA</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 2 }}>Admin Console</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 34, height: 34,
+            borderRadius: 10,
+            background: 'linear-gradient(135deg, var(--accent) 0%, #1a8a72 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+            margin: collapsed ? '0 auto' : 0,
+            boxShadow: '0 2px 10px var(--accent-glow)',
+          }}>
+            <span style={{ color: '#021a14', fontWeight: 900, fontSize: 15, fontFamily: 'var(--display)' }}>N</span>
           </div>
-        )}
+          {!collapsed && (
+            <div style={{ overflow: 'hidden' }}>
+              <div style={{ fontFamily: 'var(--display)', color: 'var(--text-primary)', fontWeight: 800, fontSize: 16, letterSpacing: '-0.01em', lineHeight: 1 }}>NIRAA</div>
+              <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 2 }}>Admin Console</div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Nav */}
@@ -401,14 +391,14 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
             {NAV.map(item => (
               <Link key={item.to} to={item.to} className={`nav-link${isActive(item.to) ? ' active' : ''}`}>
                 <Ic d={item.icon} size={15} />
-                {!collapsed && <span>{item.label}</span>}
+                {item.label}
               </Link>
             ))}
             <div className="section-label" style={{ marginTop: 8 }}>Store</div>
             {STORE_NAV.map(item => (
               <Link key={item.to} to={item.to} className={`nav-link${isActive(item.to) ? ' active' : ''}`}>
                 <Ic d={item.icon} size={15} />
-                {!collapsed && <span>{item.label}</span>}
+                {item.label}
               </Link>
             ))}
           </>
@@ -418,21 +408,21 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
       {/* Bottom actions */}
       <div style={{ padding: collapsed ? '10px 6px' : '10px 10px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
         {!collapsed && (
-          <a href="https://niraa-customer.vercel.app" target="_blank" rel="noreferrer"
+          <a href="https://niraacare.com" target="_blank" rel="noreferrer"
             className="nav-link"
             style={{ marginBottom: 2, display: 'flex' }}>
             <Ic d={P.eye} size={15} />
-            <span className="sidebar-footer-text">View Store</span>
-            <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }} className="hide-mobile">↗</span>
+            View Store
+            <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>↗</span>
           </a>
         )}
         <div className="nav-link" onClick={handleLogout} style={{ cursor: 'pointer', color: 'var(--text-secondary)' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}>
           <Ic d={P.logout} size={15} />
-          {!collapsed && <span className="sidebar-footer-text">Sign Out</span>}
+          {!collapsed && 'Sign Out'}
         </div>
-        <button className="hide-mobile" onClick={() => setCollapsed(c => !c)} style={{
+        <button onClick={() => setCollapsed(c => !c)} style={{
           marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
           width: '100%', gap: 6, padding: '7px', borderRadius: 'var(--radius)',
           background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)',
@@ -452,7 +442,7 @@ const Sidebar = ({ collapsed, setCollapsed }) => {
 };
 
 // ─── Top Bar ──────────────────────────────────────────────────────────────────
-const TopBar = ({ title, subtitle, theme, toggleTheme }) => {
+const TopBar = ({ title, subtitle, theme, toggleTheme, setMobileOpen }) => {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -463,18 +453,35 @@ const TopBar = ({ title, subtitle, theme, toggleTheme }) => {
 
   return (
     <div className="admin-topbar" style={{
-      height: 'var(--topbar-h)',
+      minHeight: 'var(--topbar-h)',
       background: 'var(--surface)',
       borderBottom: '1px solid var(--border)',
-      display: 'flex', alignItems: 'center', padding: '0 22px', gap: 12, flexShrink: 0,
+      display: 'flex', alignItems: 'center', padding: '10px 22px', gap: 16, flexShrink: 0,
       backdropFilter: 'blur(12px)',
+      flexWrap: 'wrap',
     }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: 'var(--display)', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</div>
-        {subtitle && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, fontFamily: 'var(--sans)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{subtitle}</div>}
+      {/* Mobile Menu Toggle */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="mobile-only menu-toggle"
+        style={{
+          display: 'none',
+          width: 38, height: 38, borderRadius: 'var(--radius)',
+          background: 'var(--surface-3)', border: '1px solid var(--border)',
+          alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', color: 'var(--text-primary)',
+          marginRight: 8
+        }}
+      >
+        <Ic d={P.menu} size={20} />
+      </button>
+
+      <div style={{ flex: 1 }}>
+        <div style={{ fontFamily: 'var(--display)', fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1, letterSpacing: '-0.01em' }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3, fontFamily: 'var(--sans)' }}>{subtitle}</div>}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         {/* Live indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--green-dim)', border: '1px solid rgba(74,222,128,0.15)', borderRadius: 99, fontSize: 11, fontWeight: 600, color: 'var(--green)', fontFamily: 'var(--sans)' }}>
           <div className="live-dot" />
@@ -538,6 +545,7 @@ const PAGE_META = {
 
 const AdminLayout = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('niraa_theme') || 'dark');
   const location = useLocation();
   const meta = PAGE_META[location.pathname] || { title: 'Admin', subtitle: '' };
@@ -551,12 +559,27 @@ const AdminLayout = ({ children }) => {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--surface-2)', fontFamily: 'var(--sans)', width: '100vw', overflowX: 'hidden' }}>
-      <style>{GLOBAL_CSS}{theme === 'light' ? LIGHT_TOKENS : ''}</style>
-      <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--surface-2)', fontFamily: 'var(--sans)', width: '100%', maxWidth: '100vw', overflowX: 'hidden' }}>
+      <style>{GLOBAL_CSS}{theme === 'light' ? LIGHT_TOKENS : ''}
+        {`
+          @media (max-width: 670px) {
+            .admin-sidebar { 
+              position: fixed !important; 
+              left: 0; top: 0; bottom: 0; 
+              transform: translateX(-100%); 
+              width: 260px !important;
+            }
+            .admin-sidebar.open { transform: translateX(0); box-shadow: 0 0 50px rgba(0,0,0,0.5); }
+            .admin-topbar { padding: 10px 14px !important; }
+            .mobile-only { display: flex !important; }
+            main { padding: 16px !important; }
+          }
+        `}
+      </style>
+      <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <TopBar title={meta.title} subtitle={meta.subtitle} theme={theme} toggleTheme={toggleTheme} />
-        <main className="admin-main-content" style={{ flex: 1, padding: '22px 24px', overflowY: 'auto' }}>
+        <TopBar title={meta.title} subtitle={meta.subtitle} theme={theme} toggleTheme={toggleTheme} setMobileOpen={setMobileOpen} />
+        <main style={{ flex: 1, padding: '22px 24px', overflowY: 'auto', overflowX: 'auto', minHeight: 0, minWidth: 0 }}>
           {children}
         </main>
       </div>
@@ -608,12 +631,15 @@ const AdminDashboard = () => {
   useEffect(() => {
     (async () => {
       try {
-        const token = localStorage.getItem('niraa_token');
-        const res = await fetch(`${API_BASE_URL}/admin/dashboard`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(`${API_BASE_URL}/admin/dashboard`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           setStats(data.stats);
           setRecentOrders(data.recentOrders || []);
+        } else if (res.status === 401 || res.status === 403) {
+          // Invalid session or lost admin rights
+          localStorage.removeItem('niraa_admin_auth');
+          window.location.href = '/login';
         }
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
@@ -655,7 +681,7 @@ const AdminDashboard = () => {
       </div>
 
       {/* Stats grid */}
-      <div className="stat-card-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
         {STAT_CARDS.map((s, i) => <StatCard key={i} index={i} {...s} loading={loading} />)}
       </div>
 
@@ -688,7 +714,7 @@ const AdminDashboard = () => {
             <div style={{ fontSize: 13, marginTop: 4 }}>Orders will appear here once they come in.</div>
           </div>
         ) : (
-          <div className="recent-orders-table-wrapper" style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--surface-2)' }}>
@@ -771,140 +797,28 @@ const AdminInventory = () => (
 );
 
 // ─── Login ────────────────────────────────────────────────────────────────────
-const AdminLogin = ({ setAuth }) => {
-  const [pin, setPin] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const navigate = useNavigate();
-  const inputRef = useRef(null);
-
-  useEffect(() => { inputRef.current?.focus(); }, []);
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setError(''); setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/admin-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        localStorage.setItem('niraa_token', data.token);
-        localStorage.setItem('niraa_user', JSON.stringify(data.user));
-        localStorage.setItem('niraa_admin_auth', 'true');
-        setAuth(true);
-        navigate('/dashboard');
-      } else {
-        setError(data.message || 'Invalid PIN');
-        setPin('');
-      }
-    } catch {
-      setError('Connection error. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'var(--bg)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'var(--sans)',
-      position: 'relative', overflow: 'hidden',
-    }}>
-      <style>{GLOBAL_CSS}</style>
-
-      {/* Radial glow */}
-      <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(46,184,154,0.07) 0%, transparent 70%)',
-      }} />
-      {/* Grid pattern */}
-      <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none', opacity: 0.04,
-        backgroundImage: 'linear-gradient(var(--text-primary) 1px, transparent 1px), linear-gradient(90deg, var(--text-primary) 1px, transparent 1px)',
-        backgroundSize: '40px 40px',
-      }} />
-
-      <form onSubmit={handleLogin} className="animate-in" style={{
-        background: 'var(--surface)',
-        border: '1px solid var(--border-active)',
-        borderRadius: 20, padding: '40px 36px',
-        width: '100%', maxWidth: 390,
-        position: 'relative',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.4), 0 24px 60px rgba(0,0,0,0.5)',
-      }}>
-        {/* Accent line at top */}
-        <div style={{ position: 'absolute', top: 0, left: 40, right: 40, height: 1, background: 'linear-gradient(90deg, transparent, var(--accent), transparent)', borderRadius: 99 }} />
-
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 36 }}>
-          <div style={{ width: 42, height: 42, borderRadius: 12, background: 'linear-gradient(135deg, var(--accent), #1a8a72)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px var(--accent-glow)' }}>
-            <span style={{ color: '#021a14', fontWeight: 900, fontSize: 20, fontFamily: 'var(--display)' }}>N</span>
-          </div>
-          <div>
-            <div style={{ fontFamily: 'var(--display)', color: 'var(--text-primary)', fontWeight: 800, fontSize: 18, letterSpacing: '-0.01em' }}>NIRAA</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 2 }}>Admin Console</div>
-          </div>
-        </div>
-
-        <div style={{ fontFamily: 'var(--display)', fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: 6 }}>Welcome back</div>
-        <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 28 }}>Enter your admin PIN to access the console</div>
-
-        <div style={{ marginBottom: 24 }}>
-          <label style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8, letterSpacing: '0.1em', textTransform: 'uppercase', fontFamily: 'var(--display)' }}>Admin PIN</label>
-          <div style={{ position: 'relative' }}>
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }}>
-              <Ic d={P.shield} size={15} />
-            </span>
-            <input
-              ref={inputRef}
-              type="password"
-              value={pin}
-              onChange={e => setPin(e.target.value)}
-              placeholder="••••••"
-              className="input"
-              style={{ paddingLeft: 38, fontFamily: 'var(--mono)', letterSpacing: 8, fontSize: 18, borderColor: error ? 'var(--red)' : undefined }}
-            />
-          </div>
-          {error && (
-            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--red)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Ic d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" size={13} />
-              {error}
-            </div>
-          )}
-        </div>
-
-        <button type="submit" disabled={loading || !pin} className="btn btn-primary" style={{ width: '100%', padding: '13px', fontSize: 14 }}>
-          {loading ? 'Verifying…' : 'Continue →'}
-        </button>
-
-        <div style={{ marginTop: 20, textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>
-          Secure admin access · NIRAA v2.0
-        </div>
-      </form>
-    </div>
-  );
-};
-
 // ─── Routes ───────────────────────────────────────────────────────────────────
 export const AdminRoutes = () => {
   const [auth, setAuth] = useState(() => {
     try {
       const user = JSON.parse(localStorage.getItem('niraa_user') || 'null');
-      const token = localStorage.getItem('niraa_token');
       const adminAuth = localStorage.getItem('niraa_admin_auth') === 'true';
-      return adminAuth && !!token && user?.role === 'admin';
+      return adminAuth && user?.role === 'admin';
     } catch { return false; }
   });
+
+  // Admin auth is persisted via localStorage (set on login, cleared on logout).
+  // No server fetch needed on mount — avoids 401 console errors.
+  useEffect(() => {
+    const user = (() => { try { return JSON.parse(localStorage.getItem('niraa_user') || 'null'); } catch { return null; } })();
+    const adminAuth = localStorage.getItem('niraa_admin_auth') === 'true';
+    setAuth(adminAuth && user?.role === 'admin');
+  }, []);
 
   if (!auth) {
     return (
       <Routes>
-        <Route path="/login" element={<AdminLogin setAuth={setAuth} />} />
+        <Route path="/login" element={<AdminLoginPage />} />
         <Route path="*" element={<Navigate to="/login" />} />
       </Routes>
     );

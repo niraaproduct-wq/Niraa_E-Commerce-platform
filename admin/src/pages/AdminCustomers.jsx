@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { useRealtime } from '../context/RealtimeContext.jsx';
 import { formatPrice } from '../utils/formatPrice.js';
 import { API_BASE_URL } from '../utils/constants.js';
 
@@ -114,7 +113,7 @@ const CustomerRow = ({ c, normalizePhone }) => {
   return (
     <div style={{ background: '#fff', border: '1px solid #eaedf2', borderRadius: 16, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', transition: 'box-shadow 0.15s' }}>
       {/* ── Main row ── */}
-      <div className="customer-row-grid" style={{ display: 'grid', gridTemplateColumns: '44px 1fr auto', gap: 14, padding: '14px 16px', alignItems: 'center' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '44px 1fr auto', gap: 14, padding: '14px 16px', alignItems: 'center' }}>
         <Avatar name={c.name} />
 
         <div style={{ minWidth: 0 }}>
@@ -154,7 +153,7 @@ const CustomerRow = ({ c, normalizePhone }) => {
         </div>
 
         {/* Actions */}
-        <div className="customer-row-actions" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
           <a href={waLink} target="_blank" rel="noreferrer"
             style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#25D366', color: '#fff', padding: '7px 12px', borderRadius: 10, fontSize: 12, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
             <IC d={icons.whatsapp} size={13} />WhatsApp
@@ -213,11 +212,9 @@ export default function AdminCustomers() {
   const [activityFilter, setActivityFilter] = useState('all');
   const [customerTypeFilter, setCustomerTypeFilter] = useState('all');
   const [sortBy, setSortBy] = useState('lastOrder');
+  const [connectionStatus, setConnectionStatus] = useState('offline');
   const [metrics, setMetrics] = useState({ totalRegisteredCustomers: 0, customersOrderedToday: 0, activeCustomers30Days: 0 });
-  const { lastEvent, socket } = useRealtime();
   const [refreshing, setRefreshing] = useState(false);
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [showMobileTypes, setShowMobileTypes] = useState(false);
 
   const normalizePhone = (phone) => String(phone || '').replace(/[^0-9]/g, '');
   const user = JSON.parse(localStorage.getItem('niraa_user') || 'null');
@@ -227,17 +224,16 @@ export default function AdminCustomers() {
     try {
       if (!quiet) setLoading(true);
       else setRefreshing(true);
-      const token = localStorage.getItem('niraa_token');
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
       const [ordersRes, registeredRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/orders`, { headers }),
-        fetch(`${API_BASE_URL}/admin/customers?limit=5000`, { headers }),
+        fetch(`${API_BASE_URL}/orders`, { credentials: 'include' }),
+        fetch(`${API_BASE_URL}/admin/customers?limit=5000`, { credentials: 'include' }),
       ]);
 
       if (!ordersRes.ok || !registeredRes.ok) throw new Error('Failed to load data');
 
-      const orderList = (await ordersRes.json()) || [];
+      const ordersPayload = await ordersRes.json();
+      const orderList = Array.isArray(ordersPayload) ? ordersPayload : (ordersPayload?.orders || []);
       const registeredPayload = await registeredRes.json();
       const registeredCustomers = registeredPayload.customers || [];
 
@@ -310,14 +306,43 @@ export default function AdminCustomers() {
 
   useEffect(() => { if (isAdmin) loadCustomers(); }, [isAdmin]);
 
-  // Listen for realtime events from the global socket
   useEffect(() => {
-    if (lastEvent?.event === 'orders.changed' || lastEvent?.event === 'customers.changed') {
-      loadCustomers(true);
-    }
-  }, [lastEvent, loadCustomers]);
+    if (!isAdmin) return;
+    const API_BASE = API_BASE_URL || 'http://localhost:5000/api';
+    const WS_BASE = API_BASE
+      .replace('/api', '')
+      .replace('https://', 'wss://')
+      .replace('http://', 'ws://');
+    
+    let ws = null;
+    let isMounted = true;
 
-  const connectionStatus = socket ? 'online' : 'offline';
+    try {
+      ws = new WebSocket(`${WS_BASE}/ws`);
+      ws.onopen = () => { if (isMounted) setConnectionStatus('online'); };
+      ws.onclose = () => { if (isMounted) setConnectionStatus('offline'); };
+      ws.onerror = () => { if (isMounted) setConnectionStatus('offline'); };
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data?.event === 'orders.changed' || data?.event === 'customers.changed') loadCustomers(true);
+        } catch { }
+      };
+    } catch (error) {
+      console.warn("WebSocket initialization failed:", error);
+    }
+
+    return () => {
+      isMounted = false;
+      if (ws) {
+        if (ws.readyState === WebSocket.CONNECTING) {
+          ws.onopen = () => ws.close();
+        } else {
+          ws.close();
+        }
+      }
+    };
+  }, [isAdmin, loadCustomers]);
 
   const filteredCustomers = useMemo(() => {
     const now = new Date();
@@ -376,34 +401,18 @@ export default function AdminCustomers() {
   );
 
   return (
-    <div className="admin-page-container" style={{ padding: '24px 20px', maxWidth: 960, margin: '0 auto', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+    <div style={{ padding: '24px 20px', maxWidth: 960, margin: '0 auto', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&family=DM+Mono:wght@400;500&display=swap');
         .cust-row { transition: box-shadow 0.15s; }
         .cust-row:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.07) !important; }
+        .filter-btn { transition: background 0.12s, color 0.12s; }
+        .filter-btn:hover { background: #f1f5f9 !important; }
         .filter-btn.active { background: #0f172a !important; color: #fff !important; }
-        
-        @media (max-width: 768px) {
-          .desktop-filters { display: none !important; }
-          .mobile-filter-trigger { display: flex !important; }
-        }
-        
-        .mobile-sidebar-overlay {
-          position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000;
-          backdrop-filter: blur(2px); animation: fadeIn 0.2s ease;
-        }
-        .mobile-sidebar {
-          position: fixed; right: 0; top: 0; bottom: 0; width: 280px;
-          background: #fff; z-index: 1001; padding: 24px;
-          box-shadow: -4px 0 20px rgba(0,0,0,0.1);
-          animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       `}</style>
 
       {/* ── Header ── */}
-      <div className="admin-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>Customers</h1>
           <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -437,7 +446,7 @@ export default function AdminCustomers() {
       </div>
 
       {/* ── Metric cards ── */}
-      <div className="admin-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 24 }}>
         <StatCard label="Total Customers" value={metrics.totalRegisteredCustomers} icon="user" accent="#2d9a8e" loading={loading} />
         <StatCard label="Ordered Today" value={metrics.customersOrderedToday} icon="bag" accent="#7c3aed" loading={loading} />
         <StatCard label="Active (30 days)" value={metrics.activeCustomers30Days} icon="star" accent="#d97706" loading={loading} />
@@ -445,7 +454,7 @@ export default function AdminCustomers() {
       </div>
 
       {/* ── Filters bar ── */}
-      <div className="filters-bar" style={{ background: '#fff', border: '1px solid #eaedf2', borderRadius: 14, padding: '12px 14px', marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+      <div style={{ background: '#fff', border: '1px solid #eaedf2', borderRadius: 14, padding: '12px 14px', marginBottom: 16, display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
         {/* Search */}
         <div style={{ position: 'relative', flex: '1 1 220px' }}>
           <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }}><IC d={icons.search} size={14} /></span>
@@ -453,8 +462,8 @@ export default function AdminCustomers() {
             style={{ width: '100%', padding: '8px 10px 8px 32px', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13, color: '#0f172a', background: '#f8fafc', outline: 'none', boxSizing: 'border-box' }} />
         </div>
 
-        {/* Activity filter pills (Desktop) */}
-        <div className="desktop-filters" style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+        {/* Activity filter pills */}
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
           {[
             { val: 'all', label: 'All' },
             { val: 'today', label: 'Today' },
@@ -470,15 +479,8 @@ export default function AdminCustomers() {
           ))}
         </div>
 
-        {/* Mobile Filter Trigger */}
-        <button className="mobile-filter-trigger" 
-          onClick={() => setShowMobileFilters(true)}
-          style={{ display: 'none', alignItems: 'center', gap: 8, padding: '8px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13, fontWeight: 700, color: '#475569' }}>
-          <IC d={icons.sort} size={14} /> Time
-        </button>
-
-        {/* Type filter pills (Desktop) */}
-        <div className="desktop-filters" style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+        {/* Type filter pills */}
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
           {[
             { val: 'all', label: '🌐 All Types' },
             { val: 'online', label: '🌐 Online' },
@@ -491,13 +493,6 @@ export default function AdminCustomers() {
             </button>
           ))}
         </div>
-
-        {/* Mobile Type Trigger */}
-        <button className="mobile-filter-trigger" 
-          onClick={() => setShowMobileTypes(true)}
-          style={{ display: 'none', alignItems: 'center', gap: 8, padding: '8px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, fontSize: 13, fontWeight: 700, color: '#475569' }}>
-          <IC d={icons.filter} size={14} /> Type
-        </button>
 
         {/* Sort */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
@@ -545,56 +540,6 @@ export default function AdminCustomers() {
             </div>
           )}
         </div>
-      )}
-      {/* ── Mobile Sidebars ── */}
-      {showMobileFilters && (
-        <>
-          <div className="mobile-sidebar-overlay" onClick={() => setShowMobileFilters(false)} />
-          <div className="mobile-sidebar">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Time Filter</h3>
-              <button onClick={() => setShowMobileFilters(false)} style={{ background: 'none', border: 'none', color: '#64748b' }}><IC d={icons.x} size={20} /></button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {[
-                { val: 'all', label: 'All' },
-                { val: 'today', label: 'Today' },
-                { val: '7d', label: '7 days' },
-                { val: '30d', label: '30 days' },
-                { val: 'no-orders', label: 'No orders' },
-              ].map(f => (
-                <button key={f.val} onClick={() => { setActivityFilter(f.val); setShowMobileFilters(false); }}
-                  style={{ textAlign: 'left', padding: '12px 16px', borderRadius: 12, border: '1px solid #e2e8f0', background: activityFilter === f.val ? '#0f172a' : '#fff', color: activityFilter === f.val ? '#fff' : '#475569', fontSize: 14, fontWeight: 700 }}>
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
-      {showMobileTypes && (
-        <>
-          <div className="mobile-sidebar-overlay" onClick={() => setShowMobileTypes(false)} />
-          <div className="mobile-sidebar">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>Customer Type</h3>
-              <button onClick={() => setShowMobileTypes(false)} style={{ background: 'none', border: 'none', color: '#64748b' }}><IC d={icons.x} size={20} /></button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {[
-                { val: 'all', label: '🌐 All Types' },
-                { val: 'online', label: '🌐 Online' },
-                { val: 'walkin', label: '🏬 Walk-in' },
-              ].map(f => (
-                <button key={f.val} onClick={() => { setCustomerTypeFilter(f.val); setShowMobileTypes(false); }}
-                  style={{ textAlign: 'left', padding: '12px 16px', borderRadius: 12, border: '1px solid #e2e8f0', background: customerTypeFilter === f.val ? '#334155' : '#fff', color: customerTypeFilter === f.val ? '#fff' : '#475569', fontSize: 14, fontWeight: 700 }}>
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
       )}
     </div>
   );

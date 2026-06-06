@@ -850,7 +850,7 @@ function useCounter(target, duration = 1800) {
         }, 16);
         observer.disconnect();
       }
-    }, { threshold: 0.3 });
+    }, { threshold: 0.01 });
     if (ref.current) observer.observe(ref.current);
     return () => observer.disconnect();
   }, [target, duration]);
@@ -1068,7 +1068,7 @@ export default function EnhancedHome() {
           <div className="feature-banner" style={{ background: 'linear-gradient(135deg, #f5f3ff, #fff)', border: '1px solid rgba(124,58,237,0.1)' }}>
             <div className="feature-banner-icon" style={{ background: 'rgba(124,58,237,0.08)', fontSize: '1.6rem' }}>👗</div>
             <p className="feature-banner-text" style={{ color: 'var(--gray-600)', margin: 0 }}>
-              <strong style={{ color: '#7c3aed' }}>Powerful deep clean</strong> for your clothes. 
+              <strong style={{ color: '#7c3aed' }}>Powerful deep clean</strong> for your clothes.
               Removes tough stains while protecting colors and keeping fabrics soft.
             </p>
           </div>

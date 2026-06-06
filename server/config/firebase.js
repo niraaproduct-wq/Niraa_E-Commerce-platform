@@ -1,11 +1,12 @@
 const admin = require('firebase-admin');
+const { FieldValue } = require('firebase-admin/firestore');
 
 // Initialize Firebase Admin
 const initFirebase = () => {
   try {
     // Check if already initialized
     if (admin.apps.length === 0) {
-      console.log("Firebase ENV:", process.env.FIREBASE_SERVICE_ACCOUNT ? "Detected" : "Missing");
+      // Firebase initialization status is logged securely via winston
       
       if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
         throw new Error("FIREBASE_SERVICE_ACCOUNT environment variable is missing!");
@@ -29,7 +30,8 @@ const initFirebase = () => {
       db: admin.firestore(),
       auth: admin.auth(),
       storage: admin.storage(),
-      admin
+      admin,
+      FieldValue
     };
   } catch (error) {
     console.error('❌ Firebase initialization failed:', error.message);

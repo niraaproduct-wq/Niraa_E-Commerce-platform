@@ -1,5 +1,5 @@
-import React from 'react';
-import { Routes, Route } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import Navbar        from '../components/Navbar.jsx';
 import Footer        from '../components/Footer.jsx';
 import Home          from '../pages/Home.jsx';
@@ -20,16 +20,60 @@ import ProfileOrders  from '../pages/ProfileOrders.jsx';
 
 const AdminRedirect = () => {
   React.useEffect(() => {
-    // Redirect to the admin port (5174)
-    window.location.href = window.location.protocol + '//' + window.location.hostname + ':5174';
+    // In development, redirect to the admin port (5174)
+    // In production, redirect to the admin custom domain
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      window.location.href = window.location.protocol + '//' + window.location.hostname + ':5174';
+    } else {
+      window.location.href = 'https://admin.niraacare.com';
+    }
   }, []);
   return <div style={{ padding: 40, textAlign: 'center', fontFamily: 'sans-serif' }}>Redirecting to Admin Panel...</div>;
 };
 
 export default function AppRoutes() {
+  const location = useLocation();
+  const [progress, setProgress] = useState(0);
+  const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    setActive(true);
+    setProgress(15);
+    
+    const timer1 = setTimeout(() => setProgress(45), 80);
+    const timer2 = setTimeout(() => setProgress(80), 200);
+    const timer3 = setTimeout(() => {
+      setProgress(100);
+      setTimeout(() => {
+        setActive(false);
+        setProgress(0);
+      }, 150);
+    }, 400);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+    };
+  }, [location.pathname]);
+
   return (
     <>
       <ScrollToTop />
+      {active && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          height: '3px',
+          width: `${progress}%`,
+          background: 'linear-gradient(90deg, #c8a84b, #1a7a6e)',
+          zIndex: 999999,
+          transition: 'width 0.15s ease, opacity 0.15s ease',
+          opacity: progress === 100 ? 0 : 1,
+          boxShadow: '0 0 8px rgba(200,168,75,0.6)'
+        }} />
+      )}
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<><Navbar /><Home /><Footer /></>} />

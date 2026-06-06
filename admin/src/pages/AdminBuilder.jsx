@@ -218,9 +218,20 @@ const PreviewTestimonial = ({ data }) => (
   </div>
 );
 
+const sanitizeHtml = (html) => {
+  if (!html || typeof html !== 'string') return '';
+  return html
+    .replace(/<script[\s\S]*?>[^]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[^]*?<\/style>/gi, '')
+    .replace(/<(iframe|object|embed|form|input|textarea|button)[^>]*>[\s\S]*?<\/\1>/gi, '')
+    .replace(/<(iframe|object|embed|form|input|textarea|button)\s*\/?>/gi, '')
+    .replace(/\s+on\w+\s*=\s*["']?[^"'>]*["']?/gi, '')
+    .replace(/\s+(href|src|action)\s*=\s*["']?javascript:[^"'>]*["']?/gi, '');
+};
+
 const PreviewRichText = ({ data }) => (
   <div style={{ padding: `${data.padding || 24}px`, background: '#f9fafb', borderRadius: 8, fontSize: 13, color: '#374151' }}
-    dangerouslySetInnerHTML={{ __html: data.html || '<p>Rich text content</p>' }} />
+    dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.html || '<p>Rich text content</p>') }} />
 );
 
 const PreviewFeatured = ({ data }) => (
@@ -469,8 +480,7 @@ const AdminBuilder = () => {
   const fetchSections = async (page) => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('niraa_token');
-      const res = await fetch(`${API_BASE_URL}/sections/admin/${page}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API_BASE_URL}/sections/admin/${page}`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         const initial = data.sections || [];
@@ -569,10 +579,10 @@ const AdminBuilder = () => {
   const saveSections = async () => {
     setSaving(true);
     try {
-      const token = localStorage.getItem('niraa_token');
       const res = await fetch(`${API_BASE_URL}/sections/bulk/${activePage}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sections }),
       });
       if (res.ok) {
@@ -590,10 +600,9 @@ const AdminBuilder = () => {
   const publishSections = async () => {
     await saveSections();
     try {
-      const token = localStorage.getItem('niraa_token');
       const res = await fetch(`${API_BASE_URL}/sections/${activePage}/publish`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
+        credentials: 'include',
       });
       if (res.ok) {
         setPublished(true);

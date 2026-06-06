@@ -1,16 +1,116 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { FiShoppingCart, FiStar, FiArrowRight } from 'react-icons/fi';
+import { FiShoppingCart, FiStar } from 'react-icons/fi';
 import { useCart } from '../context/CartContext.jsx';
 import { formatPrice, placeholderImage } from '../utils/constants.js';
 import toast from 'react-hot-toast';
 
+const CARD_CSS = `
+  @keyframes pcFlyToCart {
+    0%   { transform: scale(1) translateY(0); opacity: 1; }
+    60%  { transform: scale(0.6) translateY(-40px); opacity: 0.7; }
+    100% { transform: scale(0.1) translateY(-80px); opacity: 0; }
+  }
+  @keyframes pcAddPulse {
+    0%,100% { box-shadow: 0 10px 15px -3px rgba(42,125,114,0.3); }
+    50%      { box-shadow: 0 0 0 8px rgba(42,125,114,0.15); }
+  }
+  @keyframes pcBadgeIn {
+    from { transform: scale(0.5) rotate(-12deg); opacity: 0; }
+    to   { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+  @keyframes pcShimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  .pc-card {
+    background: #fff;
+    border-radius: 22px;
+    overflow: hidden;
+    border: 1px solid rgba(148,163,184,0.12);
+    transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1),
+                box-shadow 0.35s ease;
+    cursor: pointer;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .pc-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 28px 56px -12px rgba(42,125,114,0.2);
+  }
+  .pc-card:active {
+    transform: scale(0.97) translateY(-2px);
+    box-shadow: 0 10px 24px -6px rgba(42,125,114,0.15);
+  }
+  .pc-img {
+    transition: transform 0.6s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .pc-card:hover .pc-img { transform: scale(1.07); }
+  .pc-add-btn {
+    background: linear-gradient(135deg, var(--teal), var(--teal-dark));
+    color: #fff; border: none; border-radius: 12px;
+    padding: 12px 16px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1),
+                box-shadow 0.25s ease, filter 0.2s ease;
+    box-shadow: 0 10px 15px -3px rgba(42,125,114,0.3);
+    width: 100%; font-size: 0.9rem; font-weight: 700; gap: 6px;
+  }
+  .pc-add-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 20px 30px -6px rgba(42,125,114,0.4);
+    filter: brightness(1.08);
+  }
+  .pc-add-btn:active { transform: scale(0.96); }
+  .pc-add-btn.adding { animation: pcAddPulse 0.6s ease; }
+  .pc-badge { animation: pcBadgeIn 0.35s cubic-bezier(0.34,1.56,0.64,1); }
+  @media (max-width: 641px) {
+    .pc-title  { font-size: 0.9rem !important; margin-bottom: 4px !important; }
+    .pc-desc   { font-size: 0.75rem !important; margin-bottom: 8px !important; -webkit-line-clamp: 1 !important; }
+    .pc-proof  { margin-bottom: 12px !important; font-size: 0.65rem !important; }
+    .pc-price  { font-size: 1.1rem !important; }
+    .pc-btn-wrapper { display: none !important; }
+    .pc-mobile-cart {
+      display: flex !important; align-items: center !important;
+      justify-content: center !important;
+      width: 38px !important; height: 38px !important; min-width: 38px !important;
+      border-radius: 50% !important;
+      background: linear-gradient(135deg, var(--teal), var(--teal-dark)) !important;
+      color: #fff !important; border: none !important; cursor: pointer !important;
+      box-shadow: 0 4px 12px rgba(42,125,114,0.4) !important;
+      margin-left: auto !important; margin-top: 8px !important;
+      transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    }
+    .pc-mobile-cart:active { transform: scale(0.9) !important; }
+    .pc-mobile-cart.adding { animation: pcAddPulse 0.6s ease !important; }
+    .pc-btn-text { display: none !important; }
+  }
+`;
+
 export default function ProductCard({ product, compact = false }) {
   const { addToCart } = useCart();
+  const [adding, setAdding] = useState(false);
+  const btnRef = useRef(null);
+
+  const isOutOfStock = product?.variants && product.variants.length > 0
+    ? product.variants.every(v => (v.stockQuantity || 0) === 0)
+    : (product?.stock || 0) === 0;
 
   const handleAddToCart = (e) => {
     e.preventDefault();
     e.stopPropagation();
+
+    if (isOutOfStock) {
+      toast.error('Sorry, this product is currently out of stock!');
+      return;
+    }
+
+    setAdding(true);
+    setTimeout(() => setAdding(false), 600);
+
     const defaultVariant = product?.variants?.[0] || null;
     const cartItem = {
       ...product,
@@ -20,116 +120,107 @@ export default function ProductCard({ product, compact = false }) {
     };
     addToCart(cartItem);
     const variantLabel = defaultVariant ? ` (${defaultVariant.size})` : '';
-    toast.success(`${product?.name || 'Product'}${variantLabel} added to cart! 🛒`);
+    toast.success(`${product?.name || 'Product'}${variantLabel} added! 🛒`);
   };
 
-  // Optimize image URL for Cloudinary if applicable
   const getOptimizedImg = (url) => {
     if (!url) return placeholderImage(product.name || 'Product');
     if (url.includes('cloudinary.com')) {
-      // Use higher res and pure white padding for a seamless look
       return url.replace('/upload/', '/upload/w_600,h_600,c_pad,b_white,f_auto,q_auto/');
     }
     return url;
   };
 
-  const imgSrc = getOptimizedImg(product?.image || (product?.images?.[0]));
+  const imgSrc = getOptimizedImg(product?.image || product?.images?.[0]);
   const mrp = product?.comparePrice || product?.originalPrice || 0;
-  const price = product?.price || 0;
-  const savings = (mrp > price) ? (mrp - price) : 0;
-  const discountPct = mrp > 0 ? Math.round(((mrp - price) / mrp) * 100) : 0;
-  
-  // Highlight badges (prioritize bestseller, then discount)
+  const offerPrice = product?.price || 0;
+  const savings = mrp > offerPrice ? mrp - offerPrice : 0;
+  const discountPct = mrp > offerPrice ? Math.round(((mrp - offerPrice) / mrp) * 100) : 0;
   const badge = product.highlightBadge || (discountPct > 0 ? `${discountPct}% OFF` : null);
 
-  const productLink = (product.productType === 'combo' || product.isCombo) 
-    ? `/combos/${product.slug}` 
+  const productLink = (product.productType === 'combo' || product.isCombo)
+    ? `/combos/${product.slug}`
     : `/products/${product.slug}`;
 
   return (
     <Link to={productLink} style={{ textDecoration: 'none', display: 'block', height: '100%' }}>
-      <div
-        style={{
-          background: '#fff',
-          borderRadius: 22,
-          overflow: 'hidden',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
-          border: '1px solid rgba(148,163,184,0.12)',
-          transition: 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
-          cursor: 'pointer',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative'
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.transform = 'translateY(-10px)';
-          e.currentTarget.style.boxShadow = '0 25px 50px -12px rgba(42,125,114,0.2)';
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.06)';
-        }}
-      >
-        {/* Image Area - Normalized Square Box */}
-        <div style={{ 
-          position: 'relative', 
-          background: '#fff', // Pure white background to blend with Cloudinary padding
-          width: '100%',
-          aspectRatio: '1 / 1', // Force square ratio for perfect alignment
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 12, // Balanced padding
-          overflow: 'hidden',
-          borderBottom: '1px solid rgba(0,0,0,0.03)'
+      <style>{CARD_CSS}</style>
+
+      <div className="pc-card" style={{ boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+
+        {/* Image */}
+        <div style={{
+          position: 'relative', background: '#fff', width: '100%',
+          aspectRatio: '1/1', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 12, overflow: 'hidden',
+          borderBottom: '1px solid rgba(0,0,0,0.03)',
         }}>
           <img
             src={imgSrc}
             alt={product.name}
-            style={{ 
-              maxWidth: '100%', 
-              maxHeight: '100%', 
-              objectFit: 'contain', 
-              transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)',
-              filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.06))'
+            className="pc-img"
+            style={{
+              maxWidth: '100%', maxHeight: '100%', objectFit: 'contain',
+              filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.06))',
             }}
-            onMouseEnter={e => { e.target.style.transform = 'scale(1.08)'; }}
-            onMouseLeave={e => { e.target.style.transform = 'scale(1)'; }}
             onError={e => { e.target.src = placeholderImage(product.name); }}
           />
-          
-          {/* Persuasive Badges */}
+
           {badge && (
-            <div style={{
+            <div className="pc-badge" style={{
               position: 'absolute', top: 12, left: 12,
-              background: product.highlightBadge ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #16a34a, #15803d)',
-              color: '#fff',
-              borderRadius: 8, fontSize: '0.65rem', fontWeight: 800,
+              background: product.highlightBadge
+                ? 'linear-gradient(135deg, #ef4444, #dc2626)'
+                : 'linear-gradient(135deg, #16a34a, #15803d)',
+              color: '#fff', borderRadius: 8, fontSize: '0.65rem', fontWeight: 800,
               padding: '4px 10px', letterSpacing: '0.04em',
-              boxShadow: '0 4px 10px rgba(239, 68, 68, 0.3)',
-              textTransform: 'uppercase',
-              zIndex: 2
+              boxShadow: '0 4px 10px rgba(0,0,0,0.2)',
+              textTransform: 'uppercase', zIndex: 2,
             }}>{badge}</div>
           )}
-          
+
           {product.isCombo && (
-            <div style={{
+            <div className="pc-badge" style={{
               position: 'absolute', top: 12, right: 12,
               background: 'linear-gradient(135deg, #c8a84b, #d4a843)',
-              color: '#fff',
-              borderRadius: 8, fontSize: '0.65rem', fontWeight: 800, padding: '4px 10px',
-              boxShadow: '0 4px 10px rgba(200, 168, 75, 0.3)',
-              textTransform: 'uppercase',
-              zIndex: 2
+              color: '#fff', borderRadius: 8, fontSize: '0.65rem', fontWeight: 800,
+              padding: '4px 10px', boxShadow: '0 4px 10px rgba(200,168,75,0.3)',
+              textTransform: 'uppercase', zIndex: 2,
             }}>Best Value</div>
+          )}
+
+          {isOutOfStock && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(255, 255, 255, 0.72)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 3,
+            }}>
+              <span style={{
+                background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                color: '#fff',
+                fontWeight: 850,
+                fontSize: '0.78rem',
+                padding: '6px 14px',
+                borderRadius: '9px',
+                letterSpacing: '0.05em',
+                boxShadow: '0 4px 14px rgba(239, 68, 68, 0.45)',
+                textTransform: 'uppercase',
+                fontFamily: 'var(--font-sans)',
+              }}>
+                Out of Stock
+              </span>
+            </div>
           )}
         </div>
 
-        {/* Content Area */}
+        {/* Content */}
         <div style={{ padding: '18px 20px 24px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-          {/* Trust Line & Rating */}
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <div style={{ fontSize: '0.68rem', color: 'var(--teal)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
               {product.categoryLabel || product.category?.replace(/-/g, ' ')}
@@ -142,159 +233,116 @@ export default function ProductCard({ product, compact = false }) {
             </div>
           </div>
 
-          {/* Product Name */}
-          <h3 className="product-title" style={{ 
-            fontFamily: 'var(--font-display)', 
-            fontWeight: 900, 
-            color: 'var(--gray-900)', 
-            marginBottom: 8, 
-            lineHeight: 1.2, 
-            letterSpacing: '-0.02em' 
+          <h3 className="pc-title" style={{
+            fontFamily: 'var(--font-display)', fontWeight: 900,
+            color: 'var(--gray-900)', marginBottom: 8,
+            lineHeight: 1.2, letterSpacing: '-0.02em',
+            fontSize: compact ? '1rem' : '1.15rem',
           }}>
             {product.name}
           </h3>
 
-          {/* Benefit Highlight (Emotional Hook) */}
-          <p className="benefit-text" style={{ 
-            fontSize: '0.82rem', 
-            color: 'var(--gray-500)', 
-            marginBottom: 14, 
-            lineHeight: 1.5,
-            fontWeight: 500,
-            display: '-webkit-box',
-            WebkitLineClamp: '2',
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden'
+          <p className="pc-desc" style={{
+            fontSize: '0.82rem', color: 'var(--gray-500)',
+            marginBottom: 14, lineHeight: 1.5, fontWeight: 500,
+            display: '-webkit-box', WebkitLineClamp: '2',
+            WebkitBoxOrient: 'vertical', overflow: 'hidden',
           }}>
             {product.shortBenefit || "Professional grade cleaning that's safe for your home and family."}
           </p>
 
-          {/* Social Proof */}
-          <div className="social-proof" style={{ fontSize: '0.7rem', color: 'var(--gray-400)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
-             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }}></span> {product.salesCount || '500+'} customers trusted this
+          <div className="pc-proof" style={{
+            fontSize: '0.7rem', color: 'var(--gray-400)',
+            marginBottom: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600,
+          }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+            {product.salesCount || '500+'} customers trusted this
           </div>
 
-          {/* Bottom Row: Price & CTA */}
-          <div style={{ display: 'flex', flexDirection: 'column', marginTop: 'auto', gap: 12 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {/* Offer Price Row */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--teal)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Offer Price</span>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                  <span className="price-text" style={{ fontFamily: 'var(--font-display)', fontWeight: 900, color: 'var(--gray-900)', letterSpacing: '-0.04em' }}>
-                    {formatPrice(price)}
-                  </span>
-                  {mrp > price && (
-                    <>
-                      <span style={{ fontSize: '0.9rem', color: 'var(--gray-400)', textDecoration: 'line-through', fontWeight: 500 }}>
-                        {formatPrice(mrp)}
-                      </span>
-                      <span style={{ 
-                        fontSize: '0.75rem', 
-                        color: '#ef4444', 
-                        fontWeight: 900,
-                        background: '#fff1f2',
-                        padding: '2px 8px',
-                        borderRadius: 6,
-                      }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: '0.65rem', fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--teal)' }}>
+                Offer Price
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                <span className="pc-price" style={{
+                  fontFamily: 'var(--font-display)', fontWeight: 900,
+                  color: 'var(--gray-900)', letterSpacing: '-0.04em', fontSize: '1.45rem',
+                }}>{formatPrice(offerPrice)}</span>
+                {mrp > offerPrice && (
+                  <>
+                    <span style={{ fontSize: '0.9rem', color: 'var(--gray-400)', textDecoration: 'line-through', fontWeight: 500 }}>
+                      {formatPrice(mrp)}
+                    </span>
+                    {discountPct > 0 && (
+                      <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#e53935', background: 'rgba(229,57,53,0.12)', padding: '4px 8px', borderRadius: 4 }}>
                         {discountPct}% OFF
                       </span>
-                    </>
-                  )}
-                </div>
+                    )}
+                  </>
+                )}
               </div>
-              
-              {/* MRP & Savings Row */}
-              {savings > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(0,0,0,0.04)', paddingTop: 6, marginTop: 2 }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--gray-500)', fontWeight: 600 }}>MRP: {formatPrice(mrp)}</span>
-                  <span style={{ 
-                    fontSize: '0.8rem', 
-                    color: '#16a34a', 
-                    fontWeight: 800,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4
-                  }}>
-                    Save {formatPrice(savings)}
-                  </span>
+              {mrp > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--gray-600)', fontWeight: 500 }}>
+                  <span>MRP: {formatPrice(mrp)}</span>
+                  {savings > 0 && <span style={{ color: '#16a34a', fontWeight: 700 }}>Save {formatPrice(savings)}</span>}
                 </div>
               )}
             </div>
 
-            <button
-              onClick={handleAddToCart}
-              className="add-to-cart-btn"
-              style={{
-                width: '100%',
-                background: 'linear-gradient(135deg, var(--teal), var(--teal-dark))',
-                color: '#fff', border: 'none',
-                borderRadius: 14,
-                padding: '12px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                boxShadow: '0 10px 15px -3px rgba(42, 125, 114, 0.3)',
-              }}
-              onMouseEnter={e => { 
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 15px 20px -5px rgba(42, 125, 114, 0.4)';
-              }}
-              onMouseLeave={e => { 
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(42, 125, 114, 0.3)';
-              }}
-            >
-              <FiShoppingCart size={18} />
-              <span style={{ marginLeft: 8, fontSize: '0.9rem', fontWeight: 800 }}>Add to Cart</span>
-            </button>
+            {/* Mobile icon-only */}
+            {isOutOfStock ? (
+              <button
+                className="pc-mobile-cart"
+                disabled
+                style={{
+                  background: '#f1f5f9 !important',
+                  color: '#94a3b8 !important',
+                  cursor: 'not-allowed !important',
+                  boxShadow: 'none !important',
+                  marginLeft: 'auto !important',
+                  marginTop: '8px !important',
+                  display: 'flex !important',
+                  alignItems: 'center !important',
+                  justifyContent: 'center !important',
+                  width: '38px !important',
+                  height: '38px !important',
+                  minWidth: '38px !important',
+                  border: '1.5px solid #cbd5e1 !important',
+                  borderRadius: '50% !important',
+                }}
+              >
+                🚫
+              </button>
+            ) : (
+              <button className={`pc-mobile-cart${adding ? ' adding' : ''}`} onClick={handleAddToCart} style={{ display: 'none' }}>
+                <FiShoppingCart size={16} />
+              </button>
+            )}
+
+            {/* Desktop full button */}
+            <div className="pc-btn-wrapper">
+              <button
+                ref={btnRef}
+                onClick={handleAddToCart}
+                disabled={isOutOfStock}
+                className={`pc-add-btn${adding ? ' adding' : ''}`}
+                style={isOutOfStock ? {
+                  background: '#f1f5f9',
+                  color: '#94a3b8',
+                  border: '1.5px solid #cbd5e1',
+                  cursor: 'not-allowed',
+                  boxShadow: 'none'
+                } : {}}
+              >
+                {!isOutOfStock && <FiShoppingCart size={18} />}
+                <span className="pc-btn-text">
+                  {isOutOfStock ? 'Out of Stock' : adding ? 'Adding…' : 'Add to Cart'}
+                </span>
+              </button>
+            </div>
           </div>
         </div>
-
-        <style>{`
-          .product-card-content {
-            padding: 18px 20px 24px;
-          }
-          .product-title {
-            font-size: ${compact ? '1rem' : '1.15rem'};
-          }
-          .price-text {
-            font-size: 1.45rem;
-          }
-          .add-to-cart-btn {
-            padding: 12px 18px;
-          }
-          .btn-text {
-            display: inline-block;
-          }
-          
-          @media (max-width: 640px) {
-            .product-card-content {
-              padding: 12px 14px 16px !important;
-            }
-            .product-title {
-              font-size: 0.9rem !important;
-              margin-bottom: 4px !important;
-            }
-            .benefit-text {
-              font-size: 0.75rem !important;
-              margin-bottom: 8px !important;
-              -webkit-line-clamp: 1 !important;
-            }
-            .social-proof {
-              margin-bottom: 12px !important;
-              font-size: 0.65rem !important;
-            }
-            .price-text {
-              font-size: 1.1rem !important;
-            }
-            .add-to-cart-btn {
-              padding: 12px !important;
-              width: 100% !important;
-              height: auto !important;
-              border-radius: 12px !important;
-            }
-          }
-        `}</style>
       </div>
     </Link>
   );

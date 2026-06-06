@@ -1,4 +1,5 @@
 const firebaseStorage = require('../utils/firebaseStorage');
+const logger = require('../utils/logger');
 
 // Helper: Sanitize user response
 const sanitizeUser = (user) => {
@@ -29,7 +30,7 @@ const getUserProfile = async (req, res) => {
 
     res.status(200).json({ user: sanitizeUser(user) });
   } catch (error) {
-    console.error('Get User Profile Error:', error);
+    logger.error('Get User Profile Error:', error);
     res.status(500).json({ message: 'Failed to get user profile', error: error.message });
   }
 };
@@ -60,7 +61,7 @@ const updateUserProfile = async (req, res) => {
       user: sanitizeUser(user)
     });
   } catch (error) {
-    console.error('Update User Profile Error:', error);
+    logger.error('Update User Profile Error:', error);
     res.status(500).json({ message: 'Failed to update profile', error: error.message });
   }
 };
@@ -79,7 +80,7 @@ const getUserAddresses = async (req, res) => {
     const addresses = user.addresses || [];
     res.status(200).json({ addresses, count: addresses.length });
   } catch (error) {
-    console.error('Get User Addresses Error:', error);
+    logger.error('Get User Addresses Error:', error);
     res.status(500).json({ message: 'Failed to get addresses', error: error.message });
   }
 };
@@ -120,7 +121,7 @@ const addUserAddress = async (req, res) => {
       address: newAddress
     });
   } catch (error) {
-    console.error('Add User Address Error:', error);
+    logger.error('Add User Address Error:', error);
     res.status(500).json({ message: 'Failed to add address', error: error.message });
   }
 };
@@ -159,7 +160,7 @@ const updateUserAddress = async (req, res) => {
       address: addresses[addressIndex]
     });
   } catch (error) {
-    console.error('Update User Address Error:', error);
+    logger.error('Update User Address Error:', error);
     res.status(500).json({ message: 'Failed to update address', error: error.message });
   }
 };
@@ -186,7 +187,7 @@ const deleteUserAddress = async (req, res) => {
 
     res.status(200).json({ message: 'Address deleted successfully' });
   } catch (error) {
-    console.error('Delete User Address Error:', error);
+    logger.error('Delete User Address Error:', error);
     res.status(500).json({ message: 'Failed to delete address', error: error.message });
   }
 };
@@ -219,7 +220,7 @@ const setDefaultAddress = async (req, res) => {
       address: addresses[addressIndex]
     });
   } catch (error) {
-    console.error('Set Default Address Error:', error);
+    logger.error('Set Default Address Error:', error);
     res.status(500).json({ message: 'Failed to set default address', error: error.message });
   }
 };

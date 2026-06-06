@@ -7,16 +7,13 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing token and user data
-    const token = localStorage.getItem('niraa_token');
     const userData = localStorage.getItem('niraa_user');
     
-    if (token && userData) {
+    if (userData) {
       try {
         setUser(JSON.parse(userData));
       } catch (error) {
         console.error('Error parsing user data:', error);
-        localStorage.removeItem('niraa_token');
         localStorage.removeItem('niraa_user');
       }
     }
@@ -37,9 +34,12 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('niraa_token');
   };
 
-  const updateProfile = (updatedUserData) => {
+  const updateProfile = (updatedUserData, token) => {
     setUser(updatedUserData);
     localStorage.setItem('niraa_user', JSON.stringify(updatedUserData));
+    if (token) {
+      localStorage.setItem('niraa_token', token);
+    }
   };
 
   return (

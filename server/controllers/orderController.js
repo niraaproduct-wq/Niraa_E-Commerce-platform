@@ -1,5 +1,7 @@
+const jwt = require('jsonwebtoken');
 const { getFirebase } = require('../config/firebase');
 const { publishEvent } = require('../utils/realtimeHub');
+const logger = require('../utils/logger');
 
 const ORDERS_COLLECTION = 'orders';
 
@@ -8,13 +10,27 @@ const toPlainOrder = (doc) => {
   return { id: doc.id, _id: doc.id, ...doc.data() };
 };
 
-// @desc    Place new order (guest checkout)
+// @desc    Place new order (guest or authenticated)
 const placeOrder = async (req, res) => {
   try {
     const { db } = getFirebase();
     const { items } = req.body;
+    
+    // Check if user is authenticated (optional)
+    let userId = null;
+    const authHeader = req.headers.authorization;
+    const token = req.cookies?.niraa_token || (authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
+    
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded) userId = decoded.id;
+      } catch (e) {
+        // Ignore invalid token for guest checkout
+      }
+    }
 
-    if (!items || items.length === 0) {
+    if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'No items in order' });
     }
 
@@ -73,10 +89,12 @@ const placeOrder = async (req, res) => {
       }
 
       // 4. Create the order
+      const isPosOrder = (req.body.customerType === 'walkin' || req.body.source === 'pos');
       const orderData = {
         ...req.body,
-        status: req.body.status || 'placed',
-        paymentStatus: req.body.paymentStatus || 'pending',
+        userId: userId || req.body.userId || null,
+        status: req.body.status ?? (isPosOrder ? 'delivered' : 'placed'),
+        paymentStatus: req.body.paymentStatus ?? (isPosOrder ? 'paid' : 'pending'),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -86,7 +104,9 @@ const placeOrder = async (req, res) => {
       return orderRef.id;
     });
 
-    const savedOrder = { id: orderId, _id: orderId, ...req.body, status: 'placed' };
+    // Read back saved order document so the client receives accurate stored values
+    const orderDoc = await db.collection(ORDERS_COLLECTION).doc(orderId).get();
+    const savedOrder = toPlainOrder(orderDoc);
     
     // Notify clients about the new order
     publishEvent('orders.changed', { type: 'created', orderId: savedOrder._id });
@@ -94,9 +114,18 @@ const placeOrder = async (req, res) => {
     // Notify clients about potential stock changes
     publishEvent('products.changed', { type: 'batch_update' });
     
+    // Telemetry: Log business event
+    const businessLogger = require('../utils/businessLogger');
+    businessLogger.logOrderCreated(savedOrder._id, savedOrder.userId || 'guest', savedOrder.total || 0, savedOrder.items?.length || 0);
+    
     res.status(201).json(savedOrder);
   } catch (err) {
-    console.error('Place Order Error:', err.message);
+    logger.error('Place Order Error:', err.message);
+    
+    // Telemetry: Log failure event
+    const businessLogger = require('../utils/businessLogger');
+    businessLogger.logOrderFailed(req.body.id || 'draft', req.body.userId || 'guest', err.message);
+    
     res.status(400).json({ message: err.message });
   }
 };
@@ -105,16 +134,66 @@ const placeOrder = async (req, res) => {
 const getAllOrders = async (req, res) => {
   try {
     const { db } = getFirebase();
-    const snapshot = await db.collection(ORDERS_COLLECTION).orderBy('createdAt', 'desc').get();
-    
-    const orders = snapshot.docs.map(toPlainOrder);
+    const { page, limit } = req.query;
+
+    // If page or limit is explicitly provided, return paginated object
+    if (page || limit) {
+      const pageNum = Number(page || 1);
+      const limitNum = Number(limit || 10);
+      const skip = (pageNum - 1) * limitNum;
+
+      let baseQuery = db.collection(ORDERS_COLLECTION);
+      let orders;
+      let total;
+
+      try {
+        const orderedQuery = baseQuery.orderBy('createdAt', 'desc');
+        const countSnapshot = await orderedQuery.count().get();
+        total = countSnapshot.data().count;
+
+        const snapshot = await orderedQuery.offset(skip).limit(limitNum).get();
+        orders = snapshot.docs.map(toPlainOrder);
+      } catch (indexError) {
+        logger.warn('[Orders] Server-side ordered query failed (likely missing composite index). Falling back to safe in-memory sorting.', { error: indexError.message });
+        const snapshot = await baseQuery.get();
+        let allOrders = snapshot.docs.map(toPlainOrder);
+        allOrders.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        total = allOrders.length;
+        orders = allOrders.slice(skip, skip + limitNum);
+      }
+
+      return res.json({
+        orders,
+        total,
+        page: pageNum,
+        pages: Math.ceil(total / limitNum)
+      });
+    }
+
+    // Default path (backwards compatible for Admin Dashboard/POS): return plain array of all orders
+    let orders;
+    try {
+      const snapshot = await db.collection(ORDERS_COLLECTION)
+        .orderBy('createdAt', 'desc')
+        .get();
+      orders = snapshot.docs.map(toPlainOrder);
+    } catch (indexError) {
+      logger.warn('[Orders] Server-side orderBy failed. Fetching raw list and sorting in memory.', { error: indexError.message });
+      const snapshot = await db.collection(ORDERS_COLLECTION).get();
+      orders = snapshot.docs.map(toPlainOrder);
+      orders.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    }
+
     res.json(orders);
   } catch (err) {
+    logger.error('Get All Orders Error:', err.message);
     res.status(500).json({ message: err.message });
   }
 };
 
 // @desc    Get single order
+// @route   GET /api/orders/:id
+// @access  Private (owner or admin)
 const getOrder = async (req, res) => {
   try {
     const { db } = getFirebase();
@@ -122,7 +201,20 @@ const getOrder = async (req, res) => {
     
     if (!doc.exists) return res.status(404).json({ message: 'Order not found' });
     
-    res.json(toPlainOrder(doc));
+    const order = toPlainOrder(doc);
+
+    // Security check: Only admin or the customer who placed the order can see it
+    const isAdmin = req.user?.role === 'admin';
+    const isOwner = req.user && (
+      order.customerPhone === req.user.phone ||
+      order.userId === req.user.id
+    );
+
+    if (!isAdmin && !isOwner) {
+      return res.status(403).json({ message: 'Access denied. You can only view your own orders.' });
+    }
+    
+    res.json(order);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -206,7 +298,7 @@ const updateOrderStatus = async (req, res) => {
     
     res.json(updatedOrder);
   } catch (err) {
-    console.error('Update Order Status Error:', err.message);
+    logger.error('Update Order Status Error:', err.message);
     res.status(500).json({ message: err.message });
   }
 };
@@ -240,29 +332,102 @@ const getOrderStats = async (req, res) => {
 const getMyOrders = async (req, res) => {
   try {
     const { db } = getFirebase();
+    const { page = 1, limit = 10 } = req.query;
+    const limitNum = Number(limit);
+    const skip = (Number(page) - 1) * limitNum;
     
-    // We use the authenticated user's ID to look up their phone number
-    // Then we query orders by customerPhone since placeOrder saves customerPhone
-    const userSnapshot = await db.collection('users').doc(req.user.id).get();
+    const userData = req.user;
     
-    if (!userSnapshot.exists) {
-      return res.status(404).json({ message: 'User not found' });
+    if (!userData) {
+      logger.warn('[Orders] getMyOrders called without user data');
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const userId = userData.id;
+    const userPhone = userData.phone ? String(userData.phone).replace(/\D/g, '').slice(-10) : null;
+    
+    logger.debug(`[Orders] Fetching orders for User: ${userId}, Phone: ${userPhone}`);
+
+    // Build targeted index-based queries to search by userId, email, or phone
+    const queryPromises = [];
+    
+    if (userId) {
+      queryPromises.push(db.collection(ORDERS_COLLECTION).where('userId', '==', String(userId)).get());
     }
     
-    const userData = userSnapshot.data();
+    const userEmail = userData.email ? String(userData.email).toLowerCase().trim() : null;
+    if (userEmail) {
+      queryPromises.push(db.collection(ORDERS_COLLECTION).where('customerEmail', '==', userEmail).get());
+      if (userData.email !== userEmail) {
+        queryPromises.push(db.collection(ORDERS_COLLECTION).where('customerEmail', '==', userData.email).get());
+      }
+    }
     
-    const snapshot = await db.collection(ORDERS_COLLECTION)
-      .where('customerPhone', '==', userData.phone)
-      .get();
+    if (userData.phone) {
+      const rawPhone = String(userData.phone).trim();
+      queryPromises.push(db.collection(ORDERS_COLLECTION).where('customerPhone', '==', rawPhone).get());
       
-    const orders = snapshot.docs.map(toPlainOrder);
+      const tenDigit = rawPhone.replace(/\D/g, '').slice(-10);
+      if (tenDigit && tenDigit !== rawPhone) {
+        queryPromises.push(db.collection(ORDERS_COLLECTION).where('customerPhone', '==', tenDigit).get());
+        queryPromises.push(db.collection(ORDERS_COLLECTION).where('customerPhone', '==', `+91${tenDigit}`).get());
+      }
+    }
+
+    // Execute queries in parallel
+    const snapshots = await Promise.all(queryPromises);
+    const ordersMap = new Map();
     
-    // Sort client-side if needed since Firestore requires composite index for where + orderBy
-    orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    for (const snap of snapshots) {
+      for (const doc of snap.docs) {
+        const plainOrder = toPlainOrder(doc);
+        if (plainOrder) {
+          ordersMap.set(doc.id, plainOrder);
+        }
+      }
+    }
+
+    let orders = Array.from(ordersMap.values());
+
+    // Triple-check validation to completely secure data against cross-user leakage
+    orders = orders.filter(o => {
+      if (!o) return false;
+      
+      // 1. Match by userId
+      const orderUserId = o.userId || o.customerId || o.user || o.uid || null;
+      if (orderUserId && userId && String(orderUserId) === String(userId)) return true;
+      
+      // 2. Match by email
+      const orderEmail = o.customerEmail ? String(o.customerEmail).toLowerCase().trim() : null;
+      if (userEmail && orderEmail && userEmail === orderEmail) return true;
+      
+      // 3. Match by phone
+      if (userPhone && o.customerPhone) {
+        const orderPhone = String(o.customerPhone).replace(/\D/g, '').slice(-10);
+        const match = orderPhone === userPhone;
+        if (match) logger.debug(`[Orders] Phone match found for order ${o.id}`);
+        return match;
+      }
+      
+      return false;
+    });
+
+    logger.info(`[Orders] Found ${orders.length} orders for User: ${userId} (Phone: ${userPhone})`);
+
+    // Sort in memory (descending by createdAt)
+    orders.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+    const total = orders.length;
+    const paginated = orders.slice(skip, skip + limitNum);
     
-    res.json(orders);
+    res.json({
+      orders: paginated,
+      total,
+      page: Number(page),
+      pages: Math.ceil(total / limitNum)
+    });
   } catch (err) {
-    console.error('Get My Orders Error:', err);
+    logger.error('Get My Orders Error:', err);
     res.status(500).json({ message: err.message });
   }
 };
@@ -376,7 +541,7 @@ const cancelMyOrder = async (req, res) => {
 
     res.json(updatedOrder);
   } catch (err) {
-    console.error('Cancel Order Error:', err.message);
+    logger.error('Cancel Order Error:', err.message);
     res.status(400).json({ message: err.message });
   }
 };

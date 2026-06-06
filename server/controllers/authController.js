@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
 const firebaseStorage = require('../utils/firebaseStorage');
 const otpStorage = require('../utils/otpStorage');
 const smsService = require('../utils/smsService');
@@ -8,11 +9,38 @@ const { publishEvent } = require('../utils/realtimeHub');
 
 // Helper: Generate JWT Token
 const generateToken = (user) => {
+  // Admin tokens expire sooner for tighter security
+  const expiry = user.role === 'admin' ? '4h' : '24h';
   return jwt.sign(
     { id: user.id, role: user.role || 'customer' },
     process.env.JWT_SECRET,
-    { expiresIn: '30d' }
+    { expiresIn: expiry }
   );
+};
+
+const setAuthCookie = (res, token, user) => {
+  const isProd = process.env.NODE_ENV === 'production';
+  // Match cookie expiry to JWT expiry (1d admin, 7d customer)
+  const maxDays = user?.role === 'admin' ? 1 : 7;
+  const maxAgeMs = maxDays * 24 * 60 * 60 * 1000;
+
+  res.cookie('niraa_token', token, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'lax' : 'lax', // Use Lax for better CSRF protection, ensuring Domain is handled if needed
+    maxAge: maxAgeMs,
+    path: '/',
+  });
+};
+
+const clearAuthCookie = (res) => {
+  const isProd = process.env.NODE_ENV === 'production';
+  res.clearCookie('niraa_token', {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'lax' : 'lax',
+    path: '/',
+  });
 };
 
 // Helper: Get user data for response (exclude sensitive fields)
@@ -39,22 +67,21 @@ const sanitizeUser = (user) => {
 const checkPhone = async (req, res) => {
   try {
     const { phone } = req.body;
-    if (!phone) return res.status(400).json({ message: 'Phone is required' });
+    if (!phone || typeof phone !== 'string') return res.status(400).json({ message: 'Phone is required and must be a string' });
 
     const cleanPhone = phone.replace(/[\s\-\(\)]/g, '').slice(-10);
     const user = await firebaseStorage.findUserByPhone(cleanPhone);
     
     if (user) {
-      // Mask email for security (e.g., u***@gmail.com)
+      // Mask email for security — never expose the full email to prevent harvesting
       let maskedEmail = '';
-      if (user.email) {
+      if (user.email && typeof user.email === 'string') {
         const [name, domain] = user.email.split('@');
         maskedEmail = name.charAt(0) + '*'.repeat(Math.min(name.length - 1, 3)) + '@' + domain;
       }
 
       return res.status(200).json({ 
         exists: true, 
-        email: user.email,
         maskedEmail,
         hasPassword: !!user.hasPassword
       });
@@ -62,8 +89,8 @@ const checkPhone = async (req, res) => {
 
     return res.status(200).json({ exists: false });
   } catch (error) {
-    console.error('Check Phone Error:', error);
-    res.status(500).json({ message: 'Error checking phone', error: error.message });
+    logger.error('Check Phone Error:', error);
+    res.status(500).json({ message: 'Error checking phone' });
   }
 };
 
@@ -72,13 +99,25 @@ const checkPhone = async (req, res) => {
 // @access  Public
 const sendEmailOtp = async (req, res) => {
   try {
-    const { phone, email } = req.body;
+    let { phone, email } = req.body;
 
-    if (!phone || !email) {
-      return res.status(400).json({ message: 'Phone and Email are required' });
+    if (!phone || typeof phone !== 'string') {
+      return res.status(400).json({ message: 'Phone number is required and must be a string' });
     }
 
     const cleanPhone = phone.replace(/[\s\-\(\)]/g, '').slice(-10);
+    
+    // If email is not provided, look it up by phone (for existing users)
+    if (!email) {
+      const user = await firebaseStorage.findUserByPhone(cleanPhone);
+      if (user && user.email) {
+        email = user.email;
+      }
+    }
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
 
     // Enforce 60-second resend cooldown
     const cooldownSeconds = otpStorage.getResendCooldown(email);
@@ -109,13 +148,11 @@ const sendEmailOtp = async (req, res) => {
 
     res.status(200).json({
       message: 'OTP sent to your email',
-      devOtp: result.devOtp,
       email: email
     });
   } catch (error) {
-    console.error('Send Email OTP Error:', error);
-    res.status(500).json({ message: 'Failed to send OTP', error: error.message });
-
+    logger.error('Send Email OTP Error:', error);
+    res.status(500).json({ message: 'Failed to send OTP' });
   }
 };
 
@@ -130,7 +167,7 @@ const sendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
 
-    if (!phone || phone.length < 10) {
+    if (!phone || typeof phone !== 'string' || phone.length < 10) {
       return res.status(400).json({ message: 'Please enter a valid phone number' });
     }
 
@@ -149,7 +186,7 @@ const sendOtp = async (req, res) => {
     const smsResult = await smsService.sendSMS(validatedPhone, otp);
 
     if (!smsResult.success) {
-      console.error('SMS sending failed:', smsResult.message);
+      logger.error('SMS sending failed:', smsResult.message);
       if (process.env.SMS_PROVIDER !== 'development') {
         return res.status(500).json({
           message: 'Failed to send OTP via SMS',
@@ -160,13 +197,12 @@ const sendOtp = async (req, res) => {
 
     res.status(200).json({
       message: 'OTP sent successfully',
-      devOtp: smsResult.devOtp,
       provider: smsResult.provider,
       phone: validatedPhone
     });
   } catch (error) {
-    console.error('Send OTP Error:', error);
-    res.status(500).json({ message: 'Failed to send OTP', error: error.message });
+    logger.error('Send OTP Error:', error);
+    res.status(500).json({ message: 'Failed to send OTP' });
   }
 };
 
@@ -181,7 +217,7 @@ const verifyOtp = async (req, res) => {
   try {
     const { phone, otp, name, firstName, lastName, address, password, loginPassword, email } = req.body;
 
-    if (!phone || !otp) {
+    if (!phone || typeof phone !== 'string' || !otp) {
       return res.status(400).json({ message: 'Phone number and OTP are required' });
     }
 
@@ -194,9 +230,23 @@ const verifyOtp = async (req, res) => {
       });
     }
 
-    const verifyKey = email || validatedPhone;
+    let verifyKey = email;
+    
+    // If email is not provided (existing user login flow), look it up by phone
+    if (!verifyKey) {
+      const user = await firebaseStorage.findUserByPhone(validatedPhone);
+      if (user && user.email) {
+        verifyKey = user.email;
+      }
+    }
+    
+    // Fallback to phone if still no email (legacy SMS flow)
+    if (!verifyKey) {
+      verifyKey = validatedPhone;
+    }
+
     const otpResult = await otpStorage.verifyStoredOTP(verifyKey, otp, true);
-    console.log(`Verifying OTP for ${verifyKey}: Entered=${otp}, Result=${otpResult.valid}, Message=${otpResult.message}`);
+    logger.info(`Verifying OTP for ${verifyKey}: Entered=${otp}, Result=${otpResult.valid}, Message=${otpResult.message}`);
 
     if (!otpResult.valid) {
       return res.status(401).json({ message: otpResult.message });
@@ -206,8 +256,8 @@ const verifyOtp = async (req, res) => {
 
     // New user — needs signup details
     if (!user) {
-      const userFirstName = firstName || (name ? name.split(' ')[0] : '');
-      const userLastName = lastName || (name ? name.split(' ').slice(1).join(' ') : '');
+      const userFirstName = firstName || (typeof name === 'string' ? name.split(' ')[0] : '');
+      const userLastName = lastName || (typeof name === 'string' ? name.split(' ').slice(1).join(' ') : '');
 
       if (!userFirstName) {
         return res.status(400).json({
@@ -236,6 +286,7 @@ const verifyOtp = async (req, res) => {
 
       user = await firebaseStorage.createUser(newUser);
       const token = generateToken(user);
+      setAuthCookie(res, token, user);
       publishEvent('customers.changed', { type: 'registered', userId: user.id });
 
       return res.status(201).json({
@@ -264,7 +315,7 @@ const verifyOtp = async (req, res) => {
 
     if (name || address || email) {
       const updateData = {};
-      if (name) {
+      if (name && typeof name === 'string') {
         const nameParts = name.split(' ');
         updateData.firstName = nameParts[0];
         updateData.lastName = nameParts.slice(1).join(' ');
@@ -280,6 +331,7 @@ const verifyOtp = async (req, res) => {
     }
 
     const token = generateToken(user);
+    setAuthCookie(res, token, user);
     res.status(200).json({
       message: 'Welcome back!',
       user: sanitizeUser(user),
@@ -287,8 +339,8 @@ const verifyOtp = async (req, res) => {
       isNewUser: false
     });
   } catch (error) {
-    console.error('Verify OTP Error:', error);
-    res.status(500).json({ message: 'OTP verification failed', error: error.message });
+    logger.error('Verify OTP Error:', error);
+    res.status(500).json({ message: 'OTP verification failed' });
   }
 };
 
@@ -326,6 +378,7 @@ const register = async (req, res) => {
     });
 
     const token = generateToken(user);
+    setAuthCookie(res, token, user);
     publishEvent('customers.changed', { type: 'registered', userId: user.id });
 
     res.status(201).json({
@@ -334,8 +387,8 @@ const register = async (req, res) => {
       token
     });
   } catch (error) {
-    console.error('Register Error:', error);
-    res.status(500).json({ message: 'Registration failed', error: error.message });
+    logger.error('Register Error:', error);
+    res.status(500).json({ message: 'Registration failed' });
   }
 };
 
@@ -352,8 +405,7 @@ const login = async (req, res) => {
 
     let user = await firebaseStorage.findUserByPhone(phone);
     if (!user && email) {
-      const allUsers = await firebaseStorage.getAllUsers();
-      user = allUsers.find(u => u.email === email) || null;
+      user = await firebaseStorage.findUserByEmail(email);
     }
 
     if (!user) {
@@ -366,14 +418,15 @@ const login = async (req, res) => {
     }
 
     const token = generateToken(user);
+    setAuthCookie(res, token, user);
     res.status(200).json({
       message: 'Login successful!',
       user: sanitizeUser(user),
       token
     });
   } catch (error) {
-    console.error('Login Error:', error);
-    res.status(500).json({ message: 'Login failed', error: error.message });
+    logger.error('Login Error:', error);
+    res.status(500).json({ message: 'Login failed' });
   }
 };
 
@@ -390,8 +443,8 @@ const getProfile = async (req, res) => {
 
     res.status(200).json({ user: sanitizeUser(user) });
   } catch (error) {
-    console.error('Get Profile Error:', error);
-    res.status(500).json({ message: 'Failed to get profile', error: error.message });
+    logger.error('Get Profile Error:', error);
+    res.status(500).json({ message: 'Failed to get profile' });
   }
 };
 
@@ -421,8 +474,8 @@ const updateProfile = async (req, res) => {
       user: sanitizeUser(user)
     });
   } catch (error) {
-    console.error('Update Profile Error:', error);
-    res.status(500).json({ message: 'Failed to update profile', error: error.message });
+    logger.error('Update Profile Error:', error);
+    res.status(500).json({ message: 'Failed to update profile' });
   }
 };
 
@@ -453,8 +506,8 @@ const changePassword = async (req, res) => {
 
     res.status(200).json({ message: 'Password changed successfully' });
   } catch (error) {
-    console.error('Change Password Error:', error);
-    res.status(500).json({ message: 'Failed to change password', error: error.message });
+    logger.error('Change Password Error:', error);
+    res.status(500).json({ message: 'Failed to change password' });
   }
 };
 
@@ -464,9 +517,8 @@ const changePassword = async (req, res) => {
 const setPassword = async (req, res) => {
   try {
     const { newPassword } = req.body;
-
-    if (!newPassword || newPassword.length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      return res.status(400).json({ message: 'Password must be a string and at least 8 characters long' });
     }
 
     const user = await firebaseStorage.findUserById(req.user.id);
@@ -480,8 +532,8 @@ const setPassword = async (req, res) => {
 
     res.status(200).json({ message: 'Password set successfully' });
   } catch (error) {
-    console.error('Set Password Error:', error);
-    res.status(500).json({ message: 'Failed to set password', error: error.message });
+    logger.error('Set Password Error:', error);
+    res.status(500).json({ message: 'Failed to set password' });
   }
 };
 
@@ -491,13 +543,8 @@ const setPassword = async (req, res) => {
 const resetPasswordWithOtp = async (req, res) => {
   try {
     const { otp, newPassword } = req.body;
-
-    if (!otp || !newPassword) {
-      return res.status(400).json({ message: 'OTP and new password are required' });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    if (typeof otp !== 'string' || typeof newPassword !== 'string' || newPassword.length < 8) {
+      return res.status(400).json({ message: 'OTP and password (minimum 8 characters string) are required' });
     }
 
     const user = await firebaseStorage.findUserById(req.user.id);
@@ -521,39 +568,44 @@ const resetPasswordWithOtp = async (req, res) => {
 
     res.status(200).json({ message: 'Password updated successfully' });
   } catch (error) {
-    console.error('Reset Password With OTP Error:', error);
-    res.status(500).json({ message: 'Failed to update password', error: error.message });
+    logger.error('Reset Password With OTP Error:', error);
+    res.status(500).json({ message: 'Failed to update password' });
   }
 };
 
-// @desc    Admin login with PIN
+// @desc    Admin login with password
 // @route   POST /api/auth/admin-login
 // @access  Public
 const adminLogin = async (req, res) => {
   try {
-    const { pin } = req.body;
+    const { email, password } = req.body;
 
-    if (pin !== '1234') {
-      return res.status(401).json({ message: 'Invalid admin PIN' });
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    const adminUser = {
-      id: 'admin_12345',
-      name: 'System Admin',
-      role: 'admin',
-      email: 'admin@niraa.com'
-    };
+    const user = await firebaseStorage.findAdminByEmail(email);
 
-    const token = generateToken(adminUser);
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid admin credentials' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password || '');
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Invalid admin credentials' });
+    }
+
+    const token = generateToken(user);
+    setAuthCookie(res, token, user);
 
     res.status(200).json({
       message: 'Admin login successful!',
-      user: adminUser,
+      user: sanitizeUser(user),
       token
     });
   } catch (error) {
-    console.error('Admin Login Error:', error);
-    res.status(500).json({ message: 'Admin login failed', error: error.message });
+    logger.error('Admin Login Error:', error);
+    res.status(500).json({ message: 'Admin login failed' });
   }
 };
 
@@ -576,7 +628,7 @@ const verifyFirebase = async (req, res) => {
     try {
       decodedToken = await auth.verifyIdToken(idToken);
     } catch (err) {
-      console.error('Firebase token verification failed:', err.message);
+      logger.error('Firebase token verification failed:', err.message);
       return res.status(401).json({ message: 'Invalid or expired Firebase token' });
     }
 
@@ -592,8 +644,8 @@ const verifyFirebase = async (req, res) => {
 
     // New user — needs signup details
     if (!user) {
-      const userFirstName = firstName || (name ? name.split(' ')[0] : '');
-      const userLastName = lastName || (name ? name.split(' ').slice(1).join(' ') : '');
+      const userFirstName = firstName || (typeof name === 'string' ? name.split(' ')[0] : '');
+      const userLastName = lastName || (typeof name === 'string' ? name.split(' ').slice(1).join(' ') : '');
 
       if (!userFirstName) {
         return res.status(400).json({
@@ -622,6 +674,7 @@ const verifyFirebase = async (req, res) => {
 
       user = await firebaseStorage.createUser(newUser);
       const token = generateToken(user);
+      setAuthCookie(res, token, user);
       publishEvent('customers.changed', { type: 'registered', userId: user.id });
 
       return res.status(201).json({
@@ -643,7 +696,7 @@ const verifyFirebase = async (req, res) => {
 
     if (name || address || email) {
       const updateData = {};
-      if (name) {
+      if (name && typeof name === 'string') {
         const nameParts = name.split(' ');
         updateData.firstName = nameParts[0];
         updateData.lastName = nameParts.slice(1).join(' ');
@@ -659,6 +712,7 @@ const verifyFirebase = async (req, res) => {
     }
 
     const token = generateToken(user);
+    setAuthCookie(res, token, user);
     res.status(200).json({
       message: 'Welcome back!',
       user: sanitizeUser(user),
@@ -666,8 +720,8 @@ const verifyFirebase = async (req, res) => {
       isNewUser: false
     });
   } catch (error) {
-    console.error('Verify Firebase Error:', error);
-    res.status(500).json({ message: 'Firebase authentication failed', error: error.message });
+    logger.error('Verify Firebase Error:', error);
+    res.status(500).json({ message: 'Firebase authentication failed' });
   }
 };
 
@@ -677,6 +731,11 @@ module.exports = {
   verifyOtp,
   register,
   login,
+  // cookie-based session helpers
+  logout: async (req, res) => {
+    clearAuthCookie(res);
+    res.status(200).json({ message: 'Logged out' });
+  },
   getProfile,
   updateProfile,
   changePassword,

@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /cart
+Disallow: /checkout
+Disallow: /login
+Disallow: /profile
+Disallow: /admin
+
+Sitemap: https://niraacare.com/sitemap.xml

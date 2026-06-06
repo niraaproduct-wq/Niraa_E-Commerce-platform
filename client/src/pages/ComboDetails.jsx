@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { formatPrice } from '../utils/formatPrice';
 import toast from 'react-hot-toast';
 import { useCart } from '../context/CartContext';
@@ -7,7 +8,7 @@ import { WHATSAPP_NUMBER } from '../utils/constants.js';
 import { FiShoppingCart, FiZap, FiCheck, FiArrowLeft, FiTruck, FiShield, FiGift } from 'react-icons/fi';
 import { AiOutlineWhatsApp } from 'react-icons/ai';
 import { db } from '../config/firebase';
-import { collection, query, where, limit, onSnapshot, documentId, getDocs } from 'firebase/firestore';
+import { collection, query, where, limit, onSnapshot, getDocs } from 'firebase/firestore';
 
 const TRUST_POINTS = [
   { icon: <FiShield size={14} />, text: 'Guaranteed Savings' },
@@ -21,7 +22,7 @@ const ComboDetails = () => {
   const [mainImage, setMainImage] = useState(null);
   const [qty, setQty] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [dynamicItems, setDynamicItems] = useState({});
+  const [comboItemsWithCurrentPrices, setComboItemsWithCurrentPrices] = useState([]);
   const navigate = useNavigate();
   const { addToCart, items, updateQty } = useCart();
 
@@ -38,27 +39,12 @@ const ComboDetails = () => {
         const data = docSnap.data();
         const p = { id: docSnap.id, _id: docSnap.id, ...data };
         setProduct(p);
-        setMainImage(img => img || p.images?.[0] || p.image);
-
-        // Fetch dynamic product details for combo items
-        const comboItems = p.comboItems || [];
-        const productIds = comboItems
-          .map(item => typeof item === 'object' ? item.productId : null)
-          .filter(Boolean);
-
-        if (productIds.length > 0) {
-          try {
-            // Batch fetch products by ID
-            const qItems = query(collection(db, 'products'), where(documentId(), 'in', productIds));
-            const itemsSnap = await getDocs(qItems);
-            const latestData = itemsSnap.docs.reduce((acc, d) => {
-              acc[d.id] = { id: d.id, ...d.data() };
-              return acc;
-            }, {});
-            setDynamicItems(latestData);
-          } catch (err) {
-            console.error('Error fetching dynamic combo items:', err);
-          }
+        setMainImage(p.images?.[0] || p.image);
+        setQty(1);
+        
+        // Fetch current prices for combo items if they exist
+        if (p.comboItems && p.comboItems.length > 0) {
+          await fetchComboItemsWithCurrentPrices(p.comboItems);
         }
         
         setLoading(false);
@@ -74,6 +60,98 @@ const ComboDetails = () => {
     return () => unsubscribe();
   }, [slug]);
 
+  // Fetch current prices for all combo items from database
+  const fetchComboItemsWithCurrentPrices = async (comboItems) => {
+    try {
+      // Fetch all active products once to allow fuzzy/normalized matching
+      const productsSnap = await getDocs(query(collection(db, 'products')));
+      const products = productsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      const normalize = (s = '') =>
+        s
+          .toString()
+          .toLowerCase()
+          .replace(/[–—_\/]+/g, ' ')
+          .replace(/[^a-z0-9\s]/g, '')
+          .replace(/\b(litre|liter|lt|l|ml|g|kg|500ml|750ml|1l|1lt|1lt)\b/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      const findProduct = (itemName) => {
+        if (!itemName) return null;
+        const n = normalize(itemName);
+
+        // Exact normalized match
+        let match = products.find((p) => normalize(p.name) === n);
+        if (match) return match;
+
+        // Contains / partial match
+        match = products.find((p) => {
+          const pn = normalize(p.name);
+          return (pn && n && (pn.includes(n) || n.includes(pn)));
+        });
+        if (match) return match;
+
+        // Try matching by slug
+        match = products.find((p) => p.slug && p.slug.toLowerCase() === itemName.toString().toLowerCase());
+        if (match) return match;
+
+        return null;
+      };
+
+      const updatedItems = await Promise.all(
+        comboItems.map(async (item) => {
+          // String item (e.g., "Dish Wash Lemon 750ml")
+          if (typeof item === 'string') {
+            const matched = findProduct(item);
+            if (matched) {
+              return { name: item, price: matched.price || 0, qty: 1, productId: matched.id };
+            }
+            return { name: item, price: 0, qty: 1 };
+          }
+
+          // Object item with name
+          if (typeof item === 'object' && item.name) {
+            const matched = findProduct(item.name);
+            if (matched) {
+              return {
+                ...item,
+                price: matched.price || item.price || 0,
+                qty: item.qty || 1,
+                productId: matched.id,
+              };
+            }
+            // keep as-is but ensure numeric fields
+            return {
+              ...item,
+              price: item.price || 0,
+              qty: item.qty || 1,
+            };
+          }
+
+          return item;
+        })
+      );
+
+      setComboItemsWithCurrentPrices(updatedItems);
+    } catch (err) {
+      console.error('Error fetching combo items prices:', err);
+      setComboItemsWithCurrentPrices(comboItems);
+    }
+  };
+
+  // Sync qty when stock changes
+  useEffect(() => {
+    if (product) {
+      const stock = product.stock || 0;
+      if (stock <= 0) {
+        setQty(0);
+      } else {
+        setQty(1);
+      }
+    }
+  }, [product]);
+
   const imageList = useMemo(() => {
     if (product?.images?.length) return product.images;
     if (product?.image) return [product.image];
@@ -81,9 +159,89 @@ const ComboDetails = () => {
   }, [product]);
 
   if (loading) return (
-    <main className="container page">
-      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 700, color: 'var(--teal)' }}>
-        Loading combo details...
+    <main className="container page" style={{ paddingTop: 12 }}>
+      <div className="pd-layout">
+        <style>{`
+          .pd-layout { display: grid; grid-template-columns: 1fr; gap: 32px; margin-top: 20px; }
+          @media (min-width: 900px) { .pd-layout { grid-template-columns: 1fr 1.1fr; } }
+          
+          .pdd-shimmer {
+            animation: pddSweep 1.6s infinite linear;
+            background: linear-gradient(to right, #f6f7f8 8%, #edeef1 18%, #f6f7f8 33%);
+            background-size: 1000px 104px;
+            position: relative;
+            overflow: hidden;
+          }
+          @keyframes pddSweep {
+            0% { background-position: -468px 0; }
+            100% { background-position: 468px 0; }
+          }
+          .skeleton-breadcrumb {
+            height: 16px; width: 220px; border-radius: 4px; margin-bottom: 20px;
+          }
+          .skeleton-img-box {
+            height: 380px; border-radius: 22px; width: 100%; margin-bottom: 14px;
+          }
+          .skeleton-thumbs {
+            display: flex; gap: 12px;
+          }
+          .skeleton-thumb {
+            width: 66px; height: 66px; border-radius: 12px;
+          }
+          .skeleton-badge {
+            width: 120px; height: 22px; border-radius: 999px; margin-bottom: 12px;
+          }
+          .skeleton-title {
+            width: 80%; height: 36px; border-radius: 6px; margin-bottom: 12px;
+          }
+          .skeleton-desc-line {
+            width: 60%; height: 16px; border-radius: 4px; margin-bottom: 24px;
+          }
+          .skeleton-items-card {
+            height: 140px; border-radius: 16px; width: 100%; margin-bottom: 20px;
+          }
+          .skeleton-price-card {
+            height: 110px; border-radius: 16px; width: 100%; margin-bottom: 24px;
+          }
+          .skeleton-qty {
+            width: 140px; height: 40px; border-radius: 14px; margin-bottom: 28px;
+          }
+          .skeleton-btn-row {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;
+          }
+          .skeleton-btn-large {
+            height: 50px; border-radius: 14px;
+          }
+          .skeleton-btn-wide {
+            height: 50px; border-radius: 14px; width: 100%;
+          }
+        `}</style>
+        
+        <div>
+          <div className="skeleton-breadcrumb pdd-shimmer" />
+          <div className="skeleton-img-box pdd-shimmer" />
+          <div className="skeleton-thumbs">
+            <div className="skeleton-thumb pdd-shimmer" />
+            <div className="skeleton-thumb pdd-shimmer" />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: '36px' }}>
+          <div className="skeleton-title pdd-shimmer" />
+          <div className="skeleton-desc-line pdd-shimmer" />
+          
+          <div style={{ width: '150px', height: '18px', borderRadius: '4px', marginBottom: '10px' }} className="pdd-shimmer" />
+          <div className="skeleton-items-card pdd-shimmer" />
+          
+          <div className="skeleton-price-card pdd-shimmer" />
+          <div className="skeleton-qty pdd-shimmer" />
+          
+          <div className="skeleton-btn-row">
+            <div className="skeleton-btn-large pdd-shimmer" />
+            <div className="skeleton-btn-large pdd-shimmer" />
+          </div>
+          <div className="skeleton-btn-wide pdd-shimmer" />
+        </div>
       </div>
     </main>
   );
@@ -110,56 +268,81 @@ const ComboDetails = () => {
     </main>
   );
 
-  // Compute Prices
-  const comboItemsList = product.comboItems || [];
+  // Compute Prices Dynamically
+  const comboItemsList = comboItemsWithCurrentPrices.length > 0 ? comboItemsWithCurrentPrices : product?.comboItems || [];
   
-  // Calculate total individual price based on dynamic data if available
+  // Calculate total individual price with current prices
   let totalIndividualPrice = 0;
-  comboItemsList.forEach(item => {
-    const productId = typeof item === 'object' ? item.productId : null;
-    const latestProd = productId ? dynamicItems[productId] : null;
-    
-    // Prioritize dynamic price, then hardcoded item price, then 0
-    const price = latestProd ? (latestProd.price || 0) : (typeof item === 'object' ? (item.price || 0) : 0);
-    const itemQty = typeof item === 'object' ? (item.qty || 1) : 1;
-    totalIndividualPrice += price * itemQty;
-  });
-
-  // If no prices found yet, fallback to comparePrice/originalPrice/price
-  if (totalIndividualPrice === 0) {
-    totalIndividualPrice = product.comparePrice || product.originalPrice || product.price || 0;
+  if (comboItemsList.length > 0) {
+    totalIndividualPrice = comboItemsList.reduce((acc, item) => {
+      const itemPrice = typeof item === 'object' && item.price ? Number(item.price) : 0;
+      const itemQty = typeof item === 'object' && item.qty ? Number(item.qty) : 1;
+      return acc + (itemPrice * itemQty);
+    }, 0);
   }
   
-  const comboPrice = product.price || 0;
+  // If no items or calculated price is 0, fallback to originalPrice
+  if (totalIndividualPrice === 0) {
+    totalIndividualPrice = product?.originalPrice || product?.comparePrice || product?.price || 0;
+  }
+  
+  const comboPrice = product?.price || 0;
   // Make sure totalIndividualPrice is at least comboPrice for sanity
   totalIndividualPrice = Math.max(totalIndividualPrice, comboPrice);
   
   const savingsAmount = totalIndividualPrice - comboPrice;
   const savingsPct = totalIndividualPrice > 0 ? Math.round((savingsAmount / totalIndividualPrice) * 100) : 0;
-  const currentStock = product.stock || 0;
+  const currentStock = product?.stock || 0;
 
-  const addSelectedToCart = () => {
+
+
+  const addSelectedToCart = (silent = false) => {
+    if (currentStock <= 0) {
+      toast.error('Sorry, this combo is currently out of stock!');
+      return false;
+    }
     const uid = product._id;
     const existing = items.find(i => i.uid === uid);
-    const safeQty = Math.max(1, Math.min(10, Number(qty) || 1));
-    if (existing) {
-      updateQty(uid, existing.qty + safeQty);
-    } else {
-      for (let i = 0; i < safeQty; i++) addToCart(product);
+    
+    // Ensure we don't exceed current stock
+    const cartQty = existing ? existing.qty : 0;
+    const requestedQty = Math.max(1, Math.min(10, Number(qty) || 1));
+    
+    if (cartQty + requestedQty > currentStock) {
+      toast.error(`Cannot add more. You already have ${cartQty} in cart, and only ${currentStock} are available.`);
+      return false;
     }
-    toast.success(`${product.name} combo added to cart!`);
+
+    if (existing) {
+      updateQty(uid, cartQty + requestedQty);
+    } else {
+      for (let i = 0; i < requestedQty; i++) addToCart(product);
+    }
+    
+    if (!silent) {
+      toast.success(`${product.name} combo added to cart!`);
+    }
+    return true;
   };
 
   const handleBuyNow = () => {
-    addSelectedToCart();
-    navigate('/checkout');
+    const success = addSelectedToCart(true);
+    if (success) {
+      navigate('/checkout');
+    }
   };
 
-  const waText = `Hello NIRAA! I want to order the COMBO deal:\n*${product.name}*\nQty: ${qty}\nCombo Price: ${formatPrice(comboPrice)}\n\nPlease confirm availability and delivery.`;
+  const waText = currentStock <= 0
+    ? `Hello NIRAA! I wanted to inquire about the availability of the COMBO deal:\n*${product.name}*\nIt is currently showing as out of stock. When will it be back in stock?`
+    : `Hello NIRAA! I want to order the COMBO deal:\n*${product.name}*\nQty: ${qty}\nCombo Price: ${formatPrice(comboPrice)}\n\nPlease confirm availability and delivery.`;
   const waLink = `https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}?text=${encodeURIComponent(waText)}`;
 
   return (
     <main className="container page" style={{ paddingTop: 12 }}>
+      <Helmet>
+        <title>{`${product.name} Combo | Niraa Care`}</title>
+        <meta name="description" content={product.description ? (product.description.length > 155 ? `${product.description.substring(0, 152)}...` : product.description) : `Save on Niraa Care's special bundle deal: ${product.name}. Eco-friendly cleaning products with fast delivery in Dharmapuri.`} />
+      </Helmet>
       <style>{`
         .pd-layout { display: grid; grid-template-columns: 1fr; gap: 32px; }
         @media (min-width: 900px) { .pd-layout { grid-template-columns: 1fr 1.1fr; } }
@@ -229,16 +412,18 @@ const ComboDetails = () => {
           letter-spacing: -0.01em;
         }
         .action-btn:active { transform: scale(0.97); }
-        .action-btns-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
+        .action-btn--cart {
+          background: #fff8e6;
+          color: #92640a;
+          border: 1.5px solid rgba(200,168,75,0.4);
         }
-        @media (max-width: 600px) {
-          .action-btns-grid {
-            grid-template-columns: 1fr;
-          }
+        .action-btn--cart:hover { background: #fef0bc; border-color: #c8a84b; }
+        .action-btn--buy {
+          background: linear-gradient(135deg, #d4a843, #b48616);
+          color: #fff;
+          box-shadow: 0 8px 24px rgba(200,168,75,0.3);
         }
+        .action-btn--buy:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(200,168,75,0.4); }
 
         .price-breakdown {
           background: linear-gradient(135deg, #fffdf8, #fffdf8);
@@ -350,13 +535,10 @@ const ComboDetails = () => {
                 🧾 Included Products
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: '#f8fafc', padding: 16, borderRadius: 16, border: '1px solid #e2e8f0' }}>
-                {comboItemsList.map((item, idx) => {
-                  const productId = typeof item === 'object' ? item.productId : null;
-                  const latestProd = productId ? dynamicItems[productId] : null;
-                  
-                  const itemName = latestProd ? latestProd.name : (typeof item === 'object' ? item.name : item);
-                  const itemPrice = latestProd ? latestProd.price : (typeof item === 'object' && item.price ? item.price : null);
-                  const itemQty = typeof item === 'object' && item.qty ? item.qty : 1;
+           {comboItemsList.map((item, idx) => {
+                   const itemName = typeof item === 'object' ? item.name : item;
+                   const itemPrice = typeof item === 'object' && item.price ? Number(item.price) : null;
+                   const itemQty = typeof item === 'object' && item.qty ? item.qty : 1;
                   
                   return (
                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: idx !== comboItemsList.length - 1 ? '1px solid #e2e8f0' : 'none', paddingBottom: idx !== comboItemsList.length - 1 ? 8 : 0 }}>
@@ -367,16 +549,9 @@ const ComboDetails = () => {
                         </span>
                       </div>
                       {itemPrice && (
-                        <div style={{ textAlign: 'right' }}>
-                           <span style={{ fontSize: '0.9rem', color: 'var(--gray-800)', fontWeight: 700 }}>
-                            {formatPrice(itemPrice * itemQty)}
-                          </span>
-                          {latestProd && (latestProd.comparePrice || latestProd.originalPrice) > latestProd.price && (
-                             <div style={{ fontSize: '0.7rem', color: 'var(--gray-400)', textDecoration: 'line-through' }}>
-                                {formatPrice((latestProd.comparePrice || latestProd.originalPrice) * itemQty)}
-                             </div>
-                          )}
-                        </div>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--gray-500)', fontWeight: 500 }}>
+                          {formatPrice(itemPrice * itemQty)}
+                        </span>
                       )}
                     </div>
                   );
@@ -386,49 +561,21 @@ const ComboDetails = () => {
           )}
 
           {/* Pricing & Value Comparison */}
-          <div style={{ background: 'linear-gradient(135deg, #fffdf8, #fffdf8)', border: '1px solid rgba(200,168,75,0.3)', borderRadius: 16, padding: '20px', marginTop: 16 }}>
-            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#b48616', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>Offer Price</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap', marginBottom: 8 }}>
-              <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.8rem', fontWeight: 900, color: '#b48616', letterSpacing: '-0.04em', lineHeight: 1 }}>
-                {formatPrice(comboPrice)}
-              </span>
-              {savingsAmount > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ textDecoration: 'line-through', color: 'var(--gray-400)', fontSize: '1.4rem', fontWeight: 500 }}>
-                    {formatPrice(totalIndividualPrice)}
-                  </span>
-                  <span style={{
-                    background: 'linear-gradient(135deg, #e53e3e, #c53030)',
-                    color: '#fff', fontWeight: 900, fontSize: '0.9rem',
-                    padding: '4px 12px', borderRadius: 10,
-                    boxShadow: '0 4px 12px rgba(229,62,62,0.25)',
-                  }}>
-                    {savingsPct}% OFF
-                  </span>
-                </div>
-              )}
+          <div className="price-breakdown">
+            <div className="breakdown-row" style={{ color: 'var(--gray-500)' }}>
+              <span>Total Individual Price:</span>
+              <span style={{ textDecoration: 'line-through' }}>{formatPrice(totalIndividualPrice)}</span>
             </div>
-            
+            <div className="breakdown-row" style={{ color: 'var(--gray-800)', fontWeight: 700, fontSize: '1.1rem', marginTop: 8 }}>
+              <span>Combo Price:</span>
+              <span style={{ color: '#b48616', fontSize: '1.4rem', fontFamily: 'var(--font-display)', fontWeight: 900 }}>{formatPrice(comboPrice)}</span>
+            </div>
             {savingsAmount > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, borderTop: '1px solid rgba(200,168,75,0.1)', paddingTop: 12 }}>
-                 <span style={{ fontSize: '1rem', color: 'var(--gray-500)', fontWeight: 600 }}>MRP: {formatPrice(totalIndividualPrice)}</span>
-                 <span style={{ 
-                   background: '#fdf6e3', 
-                   color: '#16a34a', 
-                   fontWeight: 800, 
-                   fontSize: '1rem', 
-                   padding: '4px 12px', 
-                   borderRadius: 8,
-                   border: '1px solid rgba(22,163,74,0.1)'
-                 }}>
-                   Save {formatPrice(savingsAmount)}
-                 </span>
+              <div style={{ background: '#dcfce7', color: '#16a34a', padding: '8px 12px', borderRadius: 8, marginTop: 12, display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '0.95rem' }}>
+                <span>You Save:</span>
+                <span>{formatPrice(savingsAmount)} ({savingsPct}%)</span>
               </div>
             )}
-            
-            <div style={{ marginTop: 4, fontSize: '0.82rem', color: 'var(--gray-500)' }}>
-              Inclusive of all taxes • Free delivery in Dharmapuri area
-            </div>
           </div>
 
           {/* Quantity */}
@@ -436,13 +583,44 @@ const ComboDetails = () => {
             <div style={{ fontWeight: 800, color: 'var(--gray-800)', marginBottom: 8, fontSize: '0.9rem' }}>Quantity</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 0, background: '#fff', border: '1.5px solid rgba(200,168,75,0.3)', borderRadius: 14, overflow: 'hidden' }}>
-                <button className="qty-btn" onClick={() => setQty(q => Math.max(1, q - 1))} style={{ border: 'none', borderRadius: 0, borderRight: '1px solid rgba(200,168,75,0.15)' }}>−</button>
-                <span style={{ fontWeight: 900, fontSize: '1.1rem', minWidth: 44, textAlign: 'center', padding: '0 8px' }}>{qty}</span>
-                <button className="qty-btn" onClick={() => setQty(q => Math.min(10, q + 1))} style={{ border: 'none', borderRadius: 0, borderLeft: '1px solid rgba(200,168,75,0.15)' }}>+</button>
+                <button
+                  className="qty-btn"
+                  onClick={() => setQty(q => Math.max(1, q - 1))}
+                  disabled={currentStock <= 0}
+                  style={{
+                    border: 'none',
+                    borderRadius: 0,
+                    borderRight: '1px solid rgba(200,168,75,0.15)',
+                    ...(currentStock <= 0 ? { cursor: 'not-allowed', opacity: 0.5 } : {})
+                  }}
+                >
+                  −
+                </button>
+                <span style={{ fontWeight: 900, fontSize: '1.1rem', minWidth: 44, textAlign: 'center', padding: '0 8px', color: currentStock <= 0 ? 'var(--gray-400)' : 'inherit' }}>
+                  {qty}
+                </span>
+                <button
+                  className="qty-btn"
+                  onClick={() => setQty(q => Math.min(currentStock, q + 1))}
+                  disabled={currentStock <= 0 || qty >= currentStock}
+                  style={{
+                    border: 'none',
+                    borderRadius: 0,
+                    borderLeft: '1px solid rgba(200,168,75,0.15)',
+                    ...(currentStock <= 0 || qty >= currentStock ? { cursor: 'not-allowed', opacity: 0.5 } : {})
+                  }}
+                >
+                  +
+                </button>
               </div>
               {currentStock < 15 && currentStock > 0 && (
                 <span style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.82rem' }}>
                   ⚠ Only {currentStock} in stock
+                </span>
+              )}
+              {currentStock === 0 && (
+                <span style={{ color: '#dc2626', fontWeight: 800, fontSize: '0.82rem' }}>
+                  ❌ Out of Stock
                 </span>
               )}
             </div>
@@ -450,29 +628,51 @@ const ComboDetails = () => {
 
           {/* CTA Buttons */}
           <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
-            <div className="action-btns-grid">
-              <button className="action-btn action-btn--cart" onClick={addSelectedToCart} style={{
-                background: '#fff8e6',
-                color: '#92640a',
-                border: '1.5px solid rgba(200,168,75,0.4)',
-              }}>
-                <FiShoppingCart size={17} /> Add Combo to Cart
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <button
+                className="action-btn action-btn--cart"
+                onClick={() => addSelectedToCart(false)}
+                disabled={currentStock <= 0}
+                style={currentStock <= 0 ? {
+                  background: '#f1f5f9',
+                  color: '#94a3b8',
+                  border: '1.5px solid #cbd5e1',
+                  cursor: 'not-allowed',
+                  boxShadow: 'none'
+                } : {}}
+              >
+                <FiShoppingCart size={17} />
+                {currentStock <= 0 ? 'Out of Stock' : 'Add Combo to Cart'}
               </button>
-              <button className="action-btn action-btn--buy" onClick={handleBuyNow} style={{
-                background: 'linear-gradient(135deg, #d4a843, #b48616)',
-                color: '#fff',
-                boxShadow: '0 8px 24px rgba(200,168,75,0.3)',
-              }}>
+              <button
+                className="action-btn action-btn--buy"
+                onClick={handleBuyNow}
+                disabled={currentStock <= 0}
+                style={currentStock <= 0 ? {
+                  background: '#f8fafc',
+                  color: '#cbd5e1',
+                  cursor: 'not-allowed',
+                  boxShadow: 'none',
+                  border: '1px solid #e2e8f0'
+                } : {}}
+              >
                 <FiZap size={17} /> Buy Combo Now
               </button>
             </div>
-            <a href={waLink} target="_blank" rel="noreferrer" className="action-btn" style={{ 
-              background: 'linear-gradient(135deg, #25D366, #1da851)',
-              color: '#fff',
-              boxShadow: '0 8px 24px rgba(37,211,102,0.3)',
-              textDecoration: 'none' 
-            }}>
-              <AiOutlineWhatsApp size={20} /> Order via WhatsApp
+            <a
+              href={waLink}
+              target="_blank"
+              rel="noreferrer"
+              className="action-btn"
+              style={{
+                color: '#fff',
+                textDecoration: 'none',
+                background: currentStock <= 0 ? 'linear-gradient(135deg, #718096, #4a5568)' : '#25D366',
+                boxShadow: currentStock <= 0 ? 'none' : '0 8px 24px rgba(37,211,102,0.3)'
+              }}
+            >
+              <AiOutlineWhatsApp size={20} />
+              {currentStock <= 0 ? 'Inquire Stock via WhatsApp' : 'Order via WhatsApp'}
             </a>
           </div>
 

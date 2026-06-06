@@ -99,20 +99,20 @@ const STATUS_META = {
   confirmed: { label: 'Confirmed', emoji: '✅', bg: '#fffbeb', fg: '#b45309', border: '#fde68a', dot: '#d97706' },
   packed: { label: 'Packed', emoji: '📦', bg: '#f5f3ff', fg: '#6d28d9', border: '#ddd6fe', dot: '#7c3aed' },
   shipped: { label: 'Shipped', emoji: '🚢', bg: '#f0f9ff', fg: '#0369a1', border: '#bae6fd', dot: '#0ea5e9' },
-  'out-for-delivery': { label: 'Delivery', emoji: '🚚', bg: '#eff6ff', fg: '#1d4ed8', border: '#bfdbfe', dot: '#3b82f6' },
+  'out_for_delivery': { label: 'Delivery', emoji: '🚚', bg: '#eff6ff', fg: '#1d4ed8', border: '#bfdbfe', dot: '#3b82f6' },
   delivered: { label: 'Delivered', emoji: '🎉', bg: '#f0fdf4', fg: '#15803d', border: '#bbf7d0', dot: '#22c55e' },
   cancelled: { label: 'Cancelled', emoji: '❌', bg: '#fff1f2', fg: '#be123c', border: '#fecdd3', dot: '#f43f5e' },
 };
 
-const STATUS_ORDER = ['placed', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered'];
-const ALL_STATUSES = ['placed', 'confirmed', 'packed', 'shipped', 'out-for-delivery', 'delivered', 'cancelled'];
+const STATUS_ORDER = ['placed', 'confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered'];
+const ALL_STATUSES = ['placed', 'confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered', 'cancelled'];
 
 const NEXT_STATUS = {
   placed: 'confirmed',
   confirmed: 'packed',
   packed: 'shipped',
-  shipped: 'out-for-delivery',
-  'out-for-delivery': 'delivered',
+  shipped: 'out_for_delivery',
+  'out_for_delivery': 'delivered',
 };
 
 const NEXT_LABEL = {
@@ -120,7 +120,7 @@ const NEXT_LABEL = {
   confirmed: '📦 Mark Packed',
   packed: '🚢 Mark Shipped',
   shipped: '🚚 Mark for Delivery',
-  'out-for-delivery': '🎉 Mark Delivered',
+  'out_for_delivery': '🎉 Mark Delivered',
 };
 
 /* ─── helpers ──────────────────────────────────────────────────────────── */
@@ -254,7 +254,7 @@ function OrderCard({ order: o, onStatusChange, updating }) {
             boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
           }}>
             <div style={{ fontSize: '2rem', marginBottom: 8 }}>{STATUS_META[confirmStatus]?.emoji}</div>
-            
+
             {confirmStatus === 'delivered' && o.paymentStatus !== 'paid' ? (
               <>
                 <div style={{ fontWeight: 800, color: '#111827', fontSize: '1.05rem', marginBottom: 6 }}>
@@ -314,7 +314,7 @@ function OrderCard({ order: o, onStatusChange, updating }) {
                 {meta.label}
               </span>
               {(() => {
-                const isWalkin = o.customerType === 'walkin' || o.address?.street === 'POS Walk-in' || o.customerName === 'Walk-in Customer';
+                const isWalkin = o.customerType === 'walkin' || o.address?.street === 'POS Walk-in' || o.address?.street === 'POS Pickup' || o.customerName === 'Walk-in Customer';
                 const type = isWalkin ? 'walkin' : 'online';
                 return (
                   <span style={{
@@ -376,7 +376,18 @@ function OrderCard({ order: o, onStatusChange, updating }) {
             <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Deliver to</div>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 4, color: '#374151', fontSize: '0.82rem', marginTop: 2, fontWeight: 600 }}>
               <Icon.MapPin />
-              <span style={{ lineHeight: 1.4 }}>{o.address?.street || '-'}, {o.address?.city || '-'} {o.address?.pincode ? `- ${o.address.pincode}` : ''}</span>
+              <span style={{ lineHeight: 1.4 }}>
+                {(() => {
+                  const addr = o.address || o.shippingAddress;
+                  if (!addr) return '-';
+                  const parts = [];
+                  if (addr.street) parts.push(addr.street);
+                  if (addr.address) parts.push(addr.address); // alternative key
+                  if (addr.city) parts.push(addr.city);
+                  const main = parts.join(', ') || '-';
+                  return addr.pincode ? `${main} - ${addr.pincode}` : main;
+                })()}
+              </span>
             </div>
           </div>
         </div>
@@ -590,7 +601,7 @@ export default function AdminOrders() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed');
-      const list = data || [];
+      const list = Array.isArray(data) ? data : (data?.orders || []);
 
       // detect genuinely new orders
       if (quiet && prevOrderIds.current.size > 0) {
@@ -663,7 +674,7 @@ export default function AdminOrders() {
     let list = orders;
     if (filterStatus !== 'all') list = list.filter(o => o.status === filterStatus);
     if (customerTypeFilter !== 'all') list = list.filter(o => {
-      const isWalkin = o.customerType === 'walkin' || o.address?.street === 'POS Walk-in' || o.customerName === 'Walk-in Customer';
+      const isWalkin = o.customerType === 'walkin' || o.address?.street === 'POS Walk-in' || o.address?.street === 'POS Pickup' || o.customerName === 'Walk-in Customer';
       const type = isWalkin ? 'walkin' : 'online';
       return type === customerTypeFilter;
     });
@@ -769,7 +780,7 @@ export default function AdminOrders() {
           <div className="stat-card-container"><StatCard label="Revenue" value={formatPrice(stats.revenue)} sub="(non-cancelled)" color="#0f766e" bg="#f0fdf9" /></div>
           <div className="stat-card-container"><StatCard label="Placed" value={stats.placed || 0} color={STATUS_META.placed.dot} bg={STATUS_META.placed.bg} /></div>
           <div className="stat-card-container"><StatCard label="Confirmed" value={stats.confirmed || 0} color={STATUS_META.confirmed.dot} bg={STATUS_META.confirmed.bg} /></div>
-          <div className="stat-card-container"><StatCard label="Delivering" value={stats['out-for-delivery'] || 0} color={STATUS_META['out-for-delivery'].dot} bg={STATUS_META['out-for-delivery'].bg} /></div>
+          <div className="stat-card-container"><StatCard label="Delivering" value={stats['out_for_delivery'] || 0} color={STATUS_META['out_for_delivery'].dot} bg={STATUS_META['out_for_delivery'].bg} /></div>
           <div className="stat-card-container"><StatCard label="Delivered" value={stats.delivered || 0} color={STATUS_META.delivered.dot} bg={STATUS_META.delivered.bg} /></div>
           <div className="stat-card-container"><StatCard label="Cancelled" value={stats.cancelled || 0} color={STATUS_META.cancelled.dot} bg={STATUS_META.cancelled.bg} /></div>
         </div>
@@ -819,7 +830,7 @@ export default function AdminOrders() {
 
         {/* status filter tabs */}
         {/* Status Filter Trigger (Mobile) */}
-        <button className="mobile-filter-trigger" 
+        <button className="mobile-filter-trigger"
           onClick={() => setShowStatusSidebar(true)}
           style={{ display: 'none', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, fontSize: '0.85rem', fontWeight: 700, color: '#374151', marginBottom: 12 }}>
           <Icon.Filter /> {filterStatus === 'all' ? 'All Status' : STATUS_META[filterStatus].label}
@@ -853,7 +864,7 @@ export default function AdminOrders() {
         </div>
 
         {/* Source Filter Trigger (Mobile) */}
-        <button className="mobile-filter-trigger" 
+        <button className="mobile-filter-trigger"
           onClick={() => setShowSourceSidebar(true)}
           style={{ display: 'none', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, fontSize: '0.85rem', fontWeight: 700, color: '#374151', marginBottom: 18 }}>
           🌐 {customerTypeFilter === 'all' ? 'All Sources' : customerTypeFilter === 'online' ? 'Website' : 'Shop'}

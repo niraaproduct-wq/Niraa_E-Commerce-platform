@@ -2,7 +2,6 @@ import { API_BASE_URL } from './constants';
 
 const getHeaders = () => ({
   'Content-Type': 'application/json',
-  Authorization: `Bearer ${localStorage.getItem('niraa_token')}`,
 });
 
 // ── Broadcast ─────────────────────────────────────────────────────────────────
@@ -11,6 +10,7 @@ export const sendBroadcast = async (message, channel = 'sms') => {
   const res = await fetch(`${API_BASE_URL}/marketing/broadcast`, {
     method: 'POST',
     headers: getHeaders(),
+    credentials: 'include',
     body: JSON.stringify({ message, channel }),
   });
   const data = await res.json();
@@ -21,6 +21,7 @@ export const sendBroadcast = async (message, channel = 'sms') => {
 export const getBroadcastLogs = async () => {
   const res = await fetch(`${API_BASE_URL}/marketing/broadcast/logs`, {
     headers: getHeaders(),
+    credentials: 'include',
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to fetch logs');
@@ -32,6 +33,7 @@ export const getBroadcastLogs = async () => {
 export const getBanners = async () => {
   const res = await fetch(`${API_BASE_URL}/marketing/banners`, {
     headers: getHeaders(),
+    credentials: 'include',
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to fetch banners');
@@ -42,6 +44,7 @@ export const createBanner = async (payload) => {
   const res = await fetch(`${API_BASE_URL}/marketing/banners`, {
     method: 'POST',
     headers: getHeaders(),
+    credentials: 'include',
     body: JSON.stringify(payload),
   });
   const data = await res.json();
@@ -53,6 +56,7 @@ export const updateBanner = async (id, payload) => {
   const res = await fetch(`${API_BASE_URL}/marketing/banners/${id}`, {
     method: 'PUT',
     headers: getHeaders(),
+    credentials: 'include',
     body: JSON.stringify(payload),
   });
   const data = await res.json();
@@ -64,6 +68,7 @@ export const deleteBanner = async (id) => {
   const res = await fetch(`${API_BASE_URL}/marketing/banners/${id}`, {
     method: 'DELETE',
     headers: getHeaders(),
+    credentials: 'include',
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to delete banner');
@@ -74,6 +79,7 @@ export const toggleBanner = async (id) => {
   const res = await fetch(`${API_BASE_URL}/marketing/banners/${id}/toggle`, {
     method: 'PATCH',
     headers: getHeaders(),
+    credentials: 'include',
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to toggle banner');
@@ -83,6 +89,7 @@ export const toggleBanner = async (id) => {
 export const getMarketingStats = async () => {
   const res = await fetch(`${API_BASE_URL}/marketing/stats`, {
     headers: getHeaders(),
+    credentials: 'include',
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to fetch stats');

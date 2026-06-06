@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import ProductCard from '../components/ProductCard';
-import { formatPrice } from '../utils/formatPrice.js';
 import { WHATSAPP_NUMBER } from '../utils/constants.js';
 import { CATEGORIES } from '../utils/categories.js';
 import { getProducts } from '../utils/productApi.js';
@@ -13,101 +13,89 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? (import.meta.env.VITE_API_BASE_URL.endsWith('/api') ? import.meta.env.VITE_API_BASE_URL : `${import.meta.env.VITE_API_BASE_URL}/api`)
   : '/api';
 
+/* ─── SCROLL REVEAL ─── */
+function useScrollReveal(threshold = 0.01) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) { setVisible(true); observer.disconnect(); }
+    }, { threshold });
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [threshold]);
+  return [ref, visible];
+}
+
+function Reveal({ children, delay = 0, style = {} }) {
+  const [ref, visible] = useScrollReveal();
+  return (
+    <div ref={ref} style={{
+      opacity: visible ? 1 : 0,
+      transform: visible ? 'none' : 'translateY(24px)',
+      transition: `opacity 0.6s ease ${delay}ms, transform 0.6s cubic-bezier(0.16,1,0.3,1) ${delay}ms`,
+      ...style
+    }}>
+      {children}
+    </div>
+  );
+}
+
 export default function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const activeCategory = searchParams.get('category') || 'all';
+  const [headerVisible, setHeaderVisible] = useState(false);
 
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dynamicSections, setDynamicSections] = useState([]);
 
-  const { products: liveProducts, loading: liveLoading } = useFirestoreProducts({
-    category: activeCategory
-  });
-  
-  // Also get ALL products to derive the category list (so filters don't disappear when one is selected)
+  const { products: liveProducts, loading: liveLoading } = useFirestoreProducts({ category: activeCategory });
   const { products: allProducts } = useFirestoreProducts();
   const { lastEvent } = useRealtime();
 
   useEffect(() => {
-    if (!liveLoading) {
-      setProducts(liveProducts);
-      setLoading(false);
-    }
+    if (!liveLoading) { setProducts(liveProducts); setLoading(false); }
   }, [liveProducts, liveLoading]);
 
-  const fetchProducts = async () => {
-    setLoading(true);
-    try {
-      const params = {
-        category: activeCategory !== 'all' && activeCategory !== 'combo' ? activeCategory : undefined,
-        featured: activeCategory === 'featured' ? true : undefined,
-        search: searchQuery || undefined,
-        limit: 100
-      };
-      const data = await getProducts(params);
-      setProducts(data?.products || []);
-    } catch (err) {
-      console.error("Products fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchSections = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/sections/products`);
-      if (res.ok) {
-        const data = await res.json();
-        setDynamicSections(data.sections || []);
-      }
-    } catch (err) {
-      console.error("Products sections fetch error:", err);
-    }
-  };
+  useEffect(() => {
+    const t = setTimeout(() => setHeaderVisible(true), 50);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
-    fetchSections();
+    fetch(`${API_BASE}/sections/products`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d && setDynamicSections(d.sections || []))
+      .catch(() => { });
   }, [activeCategory, searchQuery]);
 
-  // Realtime updates handled by useFirestoreProducts hook
-
-  const individuals = useMemo(() => (Array.isArray(products) ? products : []).filter(p => p.productType !== 'combo' && !p.isCombo), [products]);
-  const combos = useMemo(() => (Array.isArray(products) ? products : []).filter(p => p.productType === 'combo' || p.isCombo), [products]);
+  const individuals = useMemo(() =>
+    (Array.isArray(products) ? products : []).filter(p => p.productType !== 'combo' && !p.isCombo),
+    [products]);
+  const combos = useMemo(() =>
+    (Array.isArray(products) ? products : []).filter(p => p.productType === 'combo' || p.isCombo),
+    [products]);
 
   const grouped = useMemo(() => {
     const dynamicCats = [...new Set(liveProducts.map(p => p.category))].filter(c => Boolean(c) && c !== 'combo');
     const merged = [...CATEGORIES];
-    
     dynamicCats.forEach(catId => {
       if (!merged.find(c => c.id === catId)) {
-        merged.push({
-          id: catId,
-          label: catId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-          icon: '🧴',
-          desc: 'Premium cleaning solutions for your home.'
-        });
+        merged.push({ id: catId, label: catId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), icon: '🧴', desc: 'Premium cleaning solutions.' });
       }
     });
-
-    return merged.map(cat => ({
-      ...cat,
-      products: individuals.filter(p => p.category === cat.id),
-    })).filter(g => g.products.length > 0);
+    return merged.map(cat => ({ ...cat, products: individuals.filter(p => p.category === cat.id) }))
+      .filter(g => g.products.length > 0);
   }, [individuals, allProducts]);
 
   const showAll = activeCategory === 'all';
   const showCombos = activeCategory === 'combo' || showAll;
-
-  // Since we are now filtering via API, we don't need the complex filteredGroups useMemo
-  // But we still want to group individuals by category for display if showing "all" or a specific category
-  const displayedGroups = useMemo(() => {
-    if (activeCategory === 'combo') return [];
-    return grouped;
-  }, [grouped, activeCategory]);
-
+  const displayedGroups = useMemo(() => activeCategory === 'combo' ? [] : grouped, [grouped, activeCategory]);
   const totalProducts = products.length;
+
   const waText = `Hello NIRAA, I'd like to order cleaning products from your website. Please contact me.`;
   const waLink = `https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}?text=${encodeURIComponent(waText)}`;
 
@@ -115,371 +103,516 @@ export default function Products() {
     const dynamicCats = [...new Set(allProducts.map(p => p.category))].filter(c => c && c !== 'combo');
     const merged = [...CATEGORIES];
     dynamicCats.forEach(catId => {
-      if (!merged.find(c => c.id === catId)) {
-        merged.push({
-          id: catId,
-          label: catId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-          icon: '🧴'
-        });
-      }
+      if (!merged.find(c => c.id === catId)) merged.push({ id: catId, label: catId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), icon: '🧴' });
     });
-
-    // Only show categories that have at least one product in allProducts
     return merged
       .filter(cat => allProducts.some(p => p.category === cat.id))
       .map(cat => (
-        <Link 
-          key={cat.id} 
-          to={`/products?category=${cat.id}`} 
-          className={`filter-pill ${activeCategory === cat.id ? 'filter-pill--active' : ''}`}
-        >
-          {cat.icon} {cat.label}
+        <Link key={cat.id} to={`/products?category=${cat.id}`} className={`np-pill ${activeCategory === cat.id ? 'np-pill--active' : ''}`}>
+          <span className="np-pill__icon">{cat.icon}</span>
+          {cat.label}
         </Link>
       ));
   }, [allProducts, activeCategory]);
 
   return (
     <>
+      <Helmet>
+        <title>Our Products | NIRAA Wellness & Lifestyle</title>
+        <meta name="description" content="Browse Niraa Care's full range of eco-friendly home care products. From liquid detergents and floor cleaners to value combo packs, order online for local delivery." />
+      </Helmet>
       <SectionRenderer sections={dynamicSections} />
-      <main className="container page">
+
+      <div className="np-root">
         <style>{`
-        .products-header-bar {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 24px;
-        }
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,500&family=Jost:wght@300;400;500;600;700&display=swap');
 
-        .search-wrap {
-          position: relative;
-          flex: 1;
-          min-width: 200px;
-          max-width: 360px;
-        }
-        .search-input {
-          width: 100%;
-          padding: 10px 14px 10px 38px;
-          border: 1.5px solid rgba(42,125,114,0.2);
-          border-radius: 999px;
-          font-size: 0.88rem;
-          background: #fff;
-          color: var(--gray-700);
-          outline: none;
-          transition: all 0.2s;
-          box-sizing: border-box;
-        }
-        .search-input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(42,125,114,0.12); }
-        .search-icon {
-          position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-          color: var(--gray-400); pointer-events: none; font-size: 1rem;
-        }
+:root {
+  --teal:       #1a7a6e;
+  --teal-dark:  #0f4f47;
+  --teal-mid:   #2a9d8f;
+  --teal-light: #e6f5f3;
+  --teal-pale:  #f2faf9;
+  --gold:       #c8a84b;
+  --charcoal:   #1c2726;
+  --ink:        #2d3d3b;
+  --stone:      #6b8480;
+  --mist:       #a8bfbc;
+  --pearl:      #f7faf9;
+  --white:      #ffffff;
+  --font-serif: 'Cormorant Garamond', Georgia, serif;
+  --font-sans:  'Jost', system-ui, sans-serif;
+  --ease-bounce: cubic-bezier(0.34,1.56,0.64,1);
+  --ease-smooth: cubic-bezier(0.16,1,0.3,1);
+}
 
-        .products-filter {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          margin-bottom: 32px;
-          padding: 16px 18px;
-          background: #fff;
-          border-radius: 20px;
-          border: 1px solid rgba(42,125,114,0.1);
-          box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-        }
-        .filter-pill {
-          padding: 8px 16px;
-          border-radius: 999px;
-          font-size: 0.8rem;
-          font-weight: 700;
-          border: 1.5px solid rgba(42,125,114,0.18);
-          background: transparent;
-          color: var(--gray-600);
-          cursor: pointer;
-          transition: all 0.2s ease;
-          text-decoration: none;
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-        }
-        .filter-pill:hover {
-          border-color: var(--teal);
-          color: var(--teal);
-          background: rgba(42,125,114,0.05);
-          transform: translateY(-1px);
-        }
-        .filter-pill--active {
-          background: linear-gradient(135deg, var(--teal), var(--teal-dark));
-          color: #fff;
-          border-color: transparent;
-          box-shadow: 0 4px 14px rgba(42,125,114,0.28);
-          transform: translateY(-1px);
-        }
+.np-root { font-family: var(--font-sans); background: var(--pearl); min-height: 100vh; }
 
-        .cat-section { margin-bottom: 44px; }
+/* ── HEADER ── */
+.np-header {
+  background: linear-gradient(135deg, #0b1f1d 0%, #1a5048 55%, #0d3d35 100%);
+  padding: clamp(40px,6vw,72px) clamp(20px,4vw,64px) clamp(32px,5vw,56px);
+  position: relative; overflow: hidden;
+}
+.np-header::before {
+  content: ''; position: absolute;
+  top: -80px; right: -40px;
+  width: 350px; height: 350px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(200,168,75,0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+.np-header::after {
+  content: ''; position: absolute;
+  bottom: -40px; left: 30%;
+  width: 200px; height: 200px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(74,222,128,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.np-header__inner { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; }
+.np-header__eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(170,222,205,0.9);
+  border-radius: 999px; padding: 6px 16px;
+  font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; margin-bottom: 16px;
+}
+.np-header__title {
+  font-family: var(--font-serif);
+  font-size: clamp(1.8rem, 4.5vw, 3rem);
+  font-weight: 700; color: #fff; margin: 0 0 12px;
+  line-height: 1.1; letter-spacing: -0.01em;
+}
+.np-header__sub {
+  color: rgba(170,222,205,0.75); font-size: 0.92rem; line-height: 1.7;
+  margin: 0 0 24px; max-width: 520px; font-weight: 300;
+}
+.np-header__sub strong { color: #4ade80; font-weight: 600; }
+.np-header__actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.np-btn-wa {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: #25D366; color: #fff; padding: 12px 22px;
+  border-radius: 999px; font-weight: 600; font-size: 0.88rem;
+  text-decoration: none; letter-spacing: 0.02em;
+  transition: all 0.3s var(--ease-smooth);
+  box-shadow: 0 8px 24px rgba(37,211,102,0.3);
+}
+.np-btn-wa:hover { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(37,211,102,0.45); }
+.np-btn-checkout {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.2);
+  backdrop-filter: blur(8px);
+  color: rgba(255,255,255,0.85); padding: 12px 22px;
+  border-radius: 999px; font-weight: 600; font-size: 0.88rem;
+  text-decoration: none; transition: all 0.3s ease;
+}
+.np-btn-checkout:hover { background: rgba(255,255,255,0.14); color: #fff; }
 
-        .cat-header {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-          margin-bottom: 18px;
-          padding-bottom: 16px;
-          border-bottom: 2px solid rgba(42,125,114,0.08);
-        }
-        .cat-icon-wrap {
-          width: 52px; height: 52px;
-          border-radius: 16px;
-          background: linear-gradient(135deg, #f0faf8, #e6f4f0);
-          display: flex; align-items: center; justify-content: center;
-          font-size: 1.6rem;
-          border: 1px solid rgba(42,125,114,0.1);
-          flex-shrink: 0;
-        }
-        .cat-count {
-          margin-left: auto;
-          font-size: 0.72rem;
-          color: var(--teal-dark);
-          background: rgba(42,125,114,0.1);
-          padding: 5px 14px;
-          border-radius: 999px;
-          font-weight: 700;
-        }
-        .cat-desc {
-          background: linear-gradient(135deg, #f8fffe, #fefcf3);
-          border-radius: 16px;
-          padding: 14px 18px;
-          margin-bottom: 16px;
-          font-size: 0.86rem;
-          color: var(--gray-600);
-          border: 1px solid rgba(42,125,114,0.08);
-          line-height: 1.7;
-        }
+/* ── MAIN ── */
+.np-main { max-width: 1200px; margin: 0 auto; padding: clamp(28px,4vw,48px) clamp(20px,4vw,48px); }
 
-        .prod-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 14px;
-        }
-        @media (min-width: 640px) { .prod-grid { grid-template-columns: repeat(3, 1fr); } }
-        @media (min-width: 1024px) { .prod-grid { grid-template-columns: repeat(4, 1fr); } }
+/* ── SEARCH & FILTER BAR ── */
+.np-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+.np-search {
+  position: relative; flex: 1; min-width: 200px; max-width: 400px;
+}
+.np-search__icon {
+  position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+  font-size: 1rem; pointer-events: none; opacity: 0.5;
+}
+.np-search__input {
+  width: 100%; padding: 12px 16px 12px 44px;
+  border-radius: 999px; border: 1.5px solid rgba(26,122,110,0.18);
+  background: var(--white); color: var(--charcoal);
+  font-family: var(--font-sans); font-size: 0.88rem; font-weight: 400;
+  outline: none; transition: all 0.3s ease;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.04); box-sizing: border-box;
+}
+.np-search__input:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 4px rgba(26,122,110,0.1), 0 2px 10px rgba(0,0,0,0.04);
+}
+.np-search__clear {
+  padding: 9px 18px; border-radius: 999px;
+  border: 1.5px solid rgba(26,122,110,0.2);
+  background: var(--white); color: var(--stone);
+  font-weight: 600; font-size: 0.8rem;
+  cursor: pointer; transition: all 0.25s ease;
+  white-space: nowrap;
+}
+.np-search__clear:hover { border-color: #ef4444; color: #ef4444; background: #fef2f2; }
 
-        .combo-header-card {
-          background: linear-gradient(135deg, #062019 0%, #1a4f47 70%, #0b3d35 100%);
-          border-radius: 26px;
-          padding: 26px 24px;
-          margin-bottom: 20px;
-          position: relative;
-          overflow: hidden;
-          box-shadow: 0 20px 50px rgba(6,32,25,0.25);
-        }
-        .combo-header-card::before {
-          content: '';
-          position: absolute;
-          top: -50px; right: -30px;
-          width: 180px; height: 180px;
-          border-radius: 50%;
-          background: rgba(200,168,75,0.12);
-        }
-        .combo-header-card::after {
-          content: '';
-          position: absolute;
-          bottom: -40px; left: 30%;
-          width: 120px; height: 120px;
-          border-radius: 50%;
-          background: rgba(74,222,128,0.08);
-        }
-        .combo-tag-pill {
-          position: absolute; top: -8px; left: 14px; z-index: 10;
-          border-radius: 999px; font-size: 0.65rem; font-weight: 800;
-          padding: 4px 12px; box-shadow: 0 3px 10px rgba(0,0,0,0.2);
-        }
-      `}</style>
+/* ── FILTER PILLS ── */
+.np-filters {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  margin-bottom: 36px;
+  padding: 16px 20px;
+  background: var(--white);
+  border-radius: 24px;
+  border: 1.5px solid rgba(26,122,110,0.08);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.04);
+}
+.np-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 18px; border-radius: 999px;
+  font-size: 0.8rem; font-weight: 600;
+  border: 1.5px solid rgba(26,122,110,0.15);
+  color: var(--stone); background: transparent;
+  text-decoration: none; transition: all 0.3s var(--ease-bounce);
+  white-space: nowrap;
+}
+.np-pill:hover {
+  background: var(--teal-light); color: var(--teal-dark);
+  border-color: var(--teal-mid); transform: translateY(-1px);
+}
+.np-pill--active {
+  background: var(--teal); color: #fff;
+  border-color: var(--teal);
+  box-shadow: 0 4px 16px rgba(26,122,110,0.3);
+}
+.np-pill--active:hover {
+  background: var(--teal-dark); color: #fff;
+  border-color: var(--teal-dark); transform: translateY(-1px);
+}
+.np-pill__icon { font-size: 0.95rem; }
 
-      {/* ─── HEADER ─────────────────────────── */}
-      <header style={{ marginBottom: 30 }}>
-        <div style={{
-          background: 'linear-gradient(135deg, #062019 0%, #1a4f47 100%)',
-          borderRadius: 26, padding: '32px 28px', color: '#fff',
-          position: 'relative', overflow: 'hidden',
-          boxShadow: '0 20px 60px rgba(6,32,25,0.3)',
-        }}>
-          <div style={{ position: 'absolute', top: -40, right: -20, width: 160, height: 160, borderRadius: '50%', background: 'rgba(200,168,75,0.1)', pointerEvents: 'none' }} />
-          <div style={{ position: 'relative' }}>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: 'rgba(255,255,255,0.12)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              color: '#aadecd',
-              borderRadius: 999, fontSize: '0.7rem', fontWeight: 800,
-              padding: '5px 14px', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14,
-            }}>🧴 Product Catalog</div>
-            <h1 style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 'clamp(1.6rem, 4vw, 2.3rem)',
-              fontWeight: 900, color: '#fff', margin: '0 0 10px',
-              lineHeight: 1.1, letterSpacing: '-0.02em',
-            }}>
-              Our Products
-            </h1>
-            <p style={{ color: '#aadecd', fontSize: '0.92rem', margin: '0 0 20px', maxWidth: 480, lineHeight: 1.6 }}>
+/* ── CATEGORY SECTION ── */
+.np-section { margin-bottom: 52px; }
+.np-section__header {
+  display: flex; align-items: center; gap: 16px;
+  padding: 20px 24px; margin-bottom: 20px;
+  background: var(--white); border-radius: 20px;
+  border: 1.5px solid rgba(26,122,110,0.08);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+}
+.np-section__icon {
+  width: 52px; height: 52px; border-radius: 16px;
+  background: var(--teal-light); display: flex; align-items: center;
+  justify-content: center; font-size: 1.6rem; flex-shrink: 0;
+  transition: transform 0.4s var(--ease-bounce);
+}
+.np-section__header:hover .np-section__icon { transform: scale(1.12) rotate(-8deg); }
+.np-section__title {
+  font-family: var(--font-serif); font-size: 1.4rem;
+  font-weight: 700; color: var(--charcoal); margin: 0;
+}
+.np-section__desc { font-size: 0.75rem; color: var(--stone); margin-top: 2px; }
+.np-section__count {
+  margin-left: auto; background: var(--teal-light);
+  color: var(--teal); font-size: 0.75rem; font-weight: 700;
+  padding: 5px 14px; border-radius: 999px; white-space: nowrap;
+}
+.np-section__body-desc {
+  background: linear-gradient(135deg, var(--teal-pale), var(--white));
+  border: 1px solid rgba(26,122,110,0.08);
+  border-radius: 16px; padding: 14px 18px; margin-bottom: 16px;
+  font-size: 0.86rem; color: var(--stone); line-height: 1.7;
+}
+
+/* ── PRODUCT GRID ── */
+.np-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+}
+@media (min-width: 640px) { .np-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 1024px) { .np-grid { grid-template-columns: repeat(4, 1fr); } }
+
+/* ── COMBO HEADER ── */
+.np-combo-header {
+  background: linear-gradient(135deg, #0b1f1d 0%, #1a5048 55%, #0d3d35 100%);
+  border-radius: 24px; padding: 28px 32px; margin-bottom: 20px;
+  position: relative; overflow: hidden;
+}
+.np-combo-header::before {
+  content: ''; position: absolute;
+  top: -50px; right: -30px;
+  width: 220px; height: 220px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(200,168,75,0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+.np-combo-header__inner { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+.np-combo-header__eyebrow { font-size: 0.65rem; color: #4ade80; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; margin-bottom: 8px; }
+.np-combo-header__title { font-family: var(--font-serif); font-size: clamp(1.3rem,3vw,1.8rem); font-weight: 700; color: #fff; margin: 0 0 6px; }
+.np-combo-header__sub { color: rgba(170,222,205,0.75); font-size: 0.86rem; margin: 0; }
+.np-combo-header__sub strong { color: #4ade80; }
+.np-combo-count {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 18px; padding: 14px 22px; text-align: center;
+}
+.np-combo-count__val { font-family: var(--font-serif); font-size: 2rem; font-weight: 700; color: #4ade80; display: block; }
+.np-combo-count__label { font-size: 0.65rem; color: rgba(170,222,205,0.7); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+
+.np-combo-tag {
+  position: absolute; top: -8px; left: 16px; z-index: 10;
+  border-radius: 999px; font-size: 0.63rem; font-weight: 800;
+  padding: 4px 12px; letter-spacing: 0.04em;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+}
+
+/* ── LOADING ── */
+.np-loading {
+  text-align: center; padding: 80px 20px;
+  color: var(--teal); font-weight: 600;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+}
+.np-loading-ring {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 2.5px solid var(--teal-light);
+  border-top-color: var(--teal);
+  animation: np-spin 0.9s linear infinite;
+}
+@keyframes np-spin { to { transform: rotate(360deg); } }
+
+/* ── NO RESULTS ── */
+.np-empty {
+  text-align: center; padding: 72px 24px;
+  background: var(--white); border-radius: 28px;
+  border: 1.5px solid rgba(26,122,110,0.08);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+}
+.np-empty__icon { font-size: 3.5rem; margin-bottom: 18px; display: block; }
+.np-empty__title { font-family: var(--font-serif); font-size: 1.5rem; font-weight: 700; color: var(--charcoal); margin: 0 0 8px; }
+.np-empty__sub { color: var(--stone); font-size: 0.9rem; margin: 0 0 24px; }
+.np-empty__cta {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--teal); color: #fff;
+  padding: 12px 24px; border-radius: 999px;
+  font-weight: 600; text-decoration: none; font-size: 0.88rem;
+  transition: all 0.3s var(--ease-smooth);
+}
+.np-empty__cta:hover { background: var(--teal-dark); transform: translateY(-2px); }
+
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.np-h-1 { animation: fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.1s both; }
+.np-h-2 { animation: fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.22s both; }
+.np-h-3 { animation: fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.34s both; }
+.np-h-4 { animation: fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) 0.46s both; }
+        `}</style>
+
+        {/* ── HEADER ── */}
+        <header className="np-header">
+          <div className="np-header__inner">
+            <div className="np-header__eyebrow np-h-1">🧴 Product Catalog</div>
+            <h1 className="np-header__title np-h-2">Our Products</h1>
+            <p className="np-header__sub np-h-3">
               Premium eco-friendly cleaning solutions for every corner of your home.
-              Serving Dharmapuri & nearby areas — <strong style={{ color: '#4ade80' }}>{totalProducts} products</strong> to explore.
+              Serving Dharmapuri & nearby areas —{' '}
+              <strong>{totalProducts} products</strong> to explore.
             </p>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <a href={waLink} target="_blank" rel="noreferrer" style={{
-                background: '#25D366', color: '#fff',
-                padding: '12px 20px', borderRadius: 14, fontWeight: 800,
-                textDecoration: 'none', fontSize: '0.88rem',
-                display: 'flex', alignItems: 'center', gap: 6,
-                boxShadow: '0 8px 20px rgba(37,211,102,0.3)',
-              }}>
+            <div className="np-header__actions np-h-4">
+              <a href={waLink} target="_blank" rel="noreferrer" className="np-btn-wa">
                 📱 Order via WhatsApp
               </a>
-              <Link to="/checkout" style={{
-                background: 'rgba(255,255,255,0.1)',
-                backdropFilter: 'blur(8px)',
-                border: '1.5px solid rgba(255,255,255,0.25)',
-                color: '#fff', padding: '12px 20px', borderRadius: 14,
-                fontWeight: 800, textDecoration: 'none', fontSize: '0.88rem',
-              }}>
+              <Link to="/checkout" className="np-btn-checkout">
                 🛒 Go to Checkout
               </Link>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* ─── SEARCH + FILTER ─────────────────── */}
-      <div className="products-header-bar">
-        <div className="search-wrap">
-          <span className="search-icon">🔍</span>
-          <input
-            className="search-input"
-            type="text"
-            placeholder="Search products..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
-        </div>
-        {searchQuery && (
-          <button onClick={() => setSearchQuery('')} style={{
-            padding: '8px 16px', borderRadius: 999, border: '1.5px solid rgba(42,125,114,0.2)',
-            background: '#fff', color: 'var(--gray-600)', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer',
-          }}>
-            Clear ✕
-          </button>
-        )}
-      </div>
+        <main className="np-main">
 
-      {/* Filter Pills */}
-      <div className="products-filter">
-        <Link to="/products" className={`filter-pill ${activeCategory === 'all' ? 'filter-pill--active' : ''}`}>
-          🏠 All Products
-        </Link>
-        {categoryFilters}
-        <Link
-          to="/products?category=combo"
-          className={`filter-pill ${activeCategory === 'combo' ? 'filter-pill--active' : ''}`}
-        >
-          🎁 Combo Deals
-        </Link>
-      </div>
-
-      {/* ─── CATEGORY SECTIONS ───────────────── */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--teal)', fontWeight: 700 }}>
-          Finding the best cleaning products for you...
-        </div>
-      ) : (
-        displayedGroups.map(group => (
-        <section key={group.id} className="cat-section">
-          <div className="cat-header">
-            <div className="cat-icon-wrap">{group.icon}</div>
-            <div>
-              <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 900, color: 'var(--gray-800)', margin: 0, letterSpacing: '-0.01em' }}>
-                {group.label}
-              </h2>
-              <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginTop: 2, fontWeight: 500 }}>
-                {group.desc?.split('.')[0]}
+          {/* ── SEARCH ── */}
+          <Reveal>
+            <div className="np-toolbar">
+              <div className="np-search">
+                <span className="np-search__icon">🔍</span>
+                <input
+                  className="np-search__input"
+                  type="text"
+                  placeholder="Search products…"
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                />
               </div>
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="np-search__clear">
+                  Clear ✕
+                </button>
+              )}
             </div>
-            <span className="cat-count">{group.products.length} item{group.products.length !== 1 ? 's' : ''}</span>
-          </div>
-          <div className="cat-desc">{group.desc}</div>
-          <div className="prod-grid">
-            {group.products.map(p => (
-              <ProductCard key={p._id} product={p} />
-            ))}
-          </div>
-        </section>
-      )))}
+          </Reveal>
 
-      {/* ─── COMBO SECTION ───────────────────── */}
-      {showCombos && combos.length > 0 && (
-        <section className="cat-section">
-          <div className="combo-header-card">
-            <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-              <div>
-                <div style={{ fontSize: '0.68rem', color: '#4ade80', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.14em', marginBottom: 8 }}>
-                  🎁 Bundle Deals
-                </div>
-                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.2rem, 3vw, 1.6rem)', fontWeight: 900, color: '#fff', margin: '0 0 6px', letterSpacing: '-0.02em' }}>
-                  Combo Deals & Bundles
-                </h2>
-                <p style={{ color: '#aadecd', fontSize: '0.85rem', margin: 0 }}>
-                  Save up to <strong style={{ color: '#4ade80' }}>38%</strong> when you bundle your favourites together.
-                </p>
-              </div>
-              <div style={{
-                background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)',
-                border: '1px solid rgba(255,255,255,0.2)',
-                borderRadius: 16, padding: '12px 18px', textAlign: 'center',
-              }}>
-                <div style={{ color: '#4ade80', fontWeight: 900, fontSize: '1.6rem', fontFamily: 'var(--font-display)' }}>{combos.length}</div>
-                <div style={{ color: '#aadecd', fontSize: '0.7rem', fontWeight: 600 }}>bundles</div>
-              </div>
+          {/* ── FILTER PILLS ── */}
+          <Reveal delay={80}>
+            <div className="np-filters">
+              <Link to="/products" className={`np-pill ${activeCategory === 'all' ? 'np-pill--active' : ''}`}>
+                <span className="np-pill__icon">🏠</span> All Products
+              </Link>
+              {categoryFilters}
+              <Link to="/products?category=combo" className={`np-pill ${activeCategory === 'combo' ? 'np-pill--active' : ''}`}>
+                <span className="np-pill__icon">🎁</span> Combo Deals
+              </Link>
             </div>
-          </div>
+          </Reveal>
 
-          <div className="prod-grid">
-            {combos.map(p => (
-              <div key={p._id} style={{ position: 'relative' }}>
-                {p.comboTag && (
-                  <div className="combo-tag-pill" style={{ background: p.comboColor || 'var(--teal)', color: '#fff' }}>
-                    {p.comboTag}
+          {/* ── PRODUCTS ── */}
+          {loading ? (
+            <div className="np-skeleton-grid">
+              <style>{`
+                .np-skeleton-grid {
+                  display: grid;
+                  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+                  gap: 20px;
+                  width: 100%;
+                  margin-top: 24px;
+                }
+                .np-skeleton-card {
+                  background: #fff;
+                  border-radius: 16px;
+                  border: 1px solid rgba(42,125,114,0.08);
+                  padding: 16px;
+                  display: flex;
+                  flex-direction: column;
+                  gap: 12px;
+                  position: relative;
+                  overflow: hidden;
+                }
+                .np-skeleton-shimmer {
+                  animation: shimmerSweep 1.5s infinite linear;
+                  background: linear-gradient(to right, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
+                  background-size: 800px 104px;
+                  position: relative;
+                }
+                @keyframes shimmerSweep {
+                  0% { background-position: -468px 0; }
+                  100% { background-position: 468px 0; }
+                }
+                .np-skeleton-img {
+                  height: 180px;
+                  border-radius: 12px;
+                  width: 100%;
+                }
+                .np-skeleton-badge {
+                  width: 60px;
+                  height: 16px;
+                  border-radius: 4px;
+                }
+                .np-skeleton-title {
+                  width: 85%;
+                  height: 20px;
+                  border-radius: 4px;
+                }
+                .np-skeleton-price {
+                  width: 45%;
+                  height: 24px;
+                  border-radius: 4px;
+                }
+                .np-skeleton-btn {
+                  width: 100%;
+                  height: 40px;
+                  border-radius: 8px;
+                  margin-top: 4px;
+                }
+              `}</style>
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="np-skeleton-card">
+                  <div className="np-skeleton-img np-skeleton-shimmer" />
+                  <div className="np-skeleton-badge np-skeleton-shimmer" />
+                  <div className="np-skeleton-title np-skeleton-shimmer" />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="np-skeleton-price np-skeleton-shimmer" />
+                    <div style={{ width: '30px', height: '20px', borderRadius: '4px' }} className="np-skeleton-shimmer" />
                   </div>
-                )}
-                <ProductCard product={p} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+                  <div className="np-skeleton-btn np-skeleton-shimmer" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              {displayedGroups.map((group, gIdx) => (
+                <Reveal key={group.id} delay={gIdx * 60}>
+                  <section className="np-section">
+                    <div className="np-section__header">
+                      <div className="np-section__icon">{group.icon}</div>
+                      <div>
+                        <h2 className="np-section__title">{group.label}</h2>
+                        <div className="np-section__desc">{group.desc?.split('.')[0]}</div>
+                      </div>
+                      <span className="np-section__count">
+                        {group.products.length} item{group.products.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
 
-      {/* ─── NO RESULTS ──────────────────────── */}
-      {!loading && displayedGroups.length === 0 && !showCombos && (
-        <div style={{
-          textAlign: 'center', padding: '60px 20px',
-          background: '#fff', borderRadius: 24,
-          border: '1px solid rgba(42,125,114,0.1)',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.04)',
-        }}>
-          <div style={{ fontSize: '3.5rem', marginBottom: 16 }}>🔍</div>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.2rem', color: 'var(--gray-800)', marginBottom: 8 }}>
-            No products found
-          </div>
-          <div style={{ color: 'var(--gray-500)', fontSize: '0.9rem', marginBottom: 20 }}>
-            {searchQuery ? `No results for "${searchQuery}"` : 'No products in this category'}
-          </div>
-          <Link to="/products" style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            color: '#fff', background: 'var(--teal)',
-            padding: '10px 20px', borderRadius: 12, fontWeight: 700, textDecoration: 'none', fontSize: '0.88rem',
-          }}>
-            View all products →
-          </Link>
-        </div>
-      )}
-    </main>
+                    {group.desc && (
+                      <div className="np-section__body-desc">{group.desc}</div>
+                    )}
+
+                    <div className="np-grid">
+                      {group.products.map((p, pIdx) => (
+                        <Reveal key={p._id} delay={pIdx * 55}>
+                          <ProductCard product={p} />
+                        </Reveal>
+                      ))}
+                    </div>
+                  </section>
+                </Reveal>
+              ))}
+
+              {/* ── COMBOS ── */}
+              {showCombos && combos.length > 0 && (
+                <Reveal>
+                  <section className="np-section">
+                    <div className="np-combo-header">
+                      <div className="np-combo-header__inner">
+                        <div>
+                          <div className="np-combo-header__eyebrow">✦ Bundle Deals</div>
+                          <h2 className="np-combo-header__title">Combo Deals & Bundles</h2>
+                          <p className="np-combo-header__sub">
+                            Save up to <strong>38%</strong> when you bundle your favourites.
+                          </p>
+                        </div>
+                        <div className="np-combo-count">
+                          <span className="np-combo-count__val">{combos.length}</span>
+                          <span className="np-combo-count__label">Bundles</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="np-grid">
+                      {combos.map((p, idx) => (
+                        <Reveal key={p._id} delay={idx * 60}>
+                          <div style={{ position: 'relative' }}>
+                            {p.comboTag && (
+                              <div className="np-combo-tag" style={{ background: p.comboColor || 'var(--teal)', color: '#fff' }}>
+                                {p.comboTag}
+                              </div>
+                            )}
+                            <ProductCard product={p} />
+                          </div>
+                        </Reveal>
+                      ))}
+                    </div>
+                  </section>
+                </Reveal>
+              )}
+
+              {/* ── NO RESULTS ── */}
+              {displayedGroups.length === 0 && !showCombos && (
+                <Reveal>
+                  <div className="np-empty">
+                    <span className="np-empty__icon">🔍</span>
+                    <h3 className="np-empty__title">No products found</h3>
+                    <p className="np-empty__sub">
+                      {searchQuery ? `No results for "${searchQuery}"` : 'No products in this category yet.'}
+                    </p>
+                    <Link to="/products" className="np-empty__cta">
+                      View all products →
+                    </Link>
+                  </div>
+                </Reveal>
+              )}
+            </>
+          )}
+        </main>
+
+      </div>
     </>
   );
 }

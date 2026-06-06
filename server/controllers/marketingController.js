@@ -3,6 +3,7 @@
 const { getFirebase } = require('../config/firebase');
 const { uploadBuffer, deleteImage } = require('../config/cloudinary');
 const broadcastProvider = require('../services/broadcastProvider');
+const logger = require('../utils/logger');
 
 // Firestore collection names
 const COLLECTIONS = {
@@ -21,14 +22,11 @@ const getDb = () => getFirebase().db;
  * The marketing module itself is Firebase-based, but customer data lives in MongoDB.
  */
 const getCustomerPhones = async () => {
-    // Adjust model path to match your project structure
-    const User = require('../models/User');
-    const users = await User.find(
-        { role: { $ne: 'admin' }, phone: { $exists: true, $ne: null } },
-        { phone: 1 }
-    ).lean();
+    const firebaseStorage = require('../utils/firebaseStorage');
+    const users = await firebaseStorage.getAllUsers();
 
     return users
+        .filter(u => u.role !== 'admin' && u.phone)
         .map((u) => String(u.phone).replace(/\D/g, '').slice(-10))
         .filter((p) => p.length === 10);
 };
@@ -42,29 +40,29 @@ const nowISO = () => new Date().toISOString();
  */
 exports.getMarketingStats = async (req, res) => {
     try {
-        const User = require('../models/User');
+        const firebaseStorage = require('../utils/firebaseStorage');
+        const allUsers = await firebaseStorage.getAllUsers();
+        const reachableCustomers = allUsers.filter(u => u.role !== 'admin' && u.phone).length;
 
         const [
             bannersSnap,
-            logsSnap,
-            reachableCustomers,
+            recentLogsSnap,
         ] = await Promise.all([
             getDb().collection(COLLECTIONS.BANNERS).where('isActive', '==', true).count().get(),
             getDb().collection(COLLECTIONS.BROADCAST_LOGS)
-                .where('status', '==', 'sent')
                 .orderBy('createdAt', 'desc')
-                .limit(1)
+                .limit(20)
                 .get(),
-            User.countDocuments({ role: { $ne: 'admin' }, phone: { $exists: true, $ne: null } }),
         ]);
 
-        const totalSentSnap = await db
+        const totalSentSnap = await getDb()
             .collection(COLLECTIONS.BROADCAST_LOGS)
             .where('status', '==', 'sent')
             .count()
             .get();
 
-        const lastLog = logsSnap.empty ? null : logsSnap.docs[0].data();
+        const lastLogDoc = recentLogsSnap.docs.find(d => d.data().status === 'sent');
+        const lastLog = lastLogDoc ? lastLogDoc.data() : null;
 
         return res.json({
             success: true,
@@ -78,7 +76,7 @@ exports.getMarketingStats = async (req, res) => {
             },
         });
     } catch (err) {
-        console.error('[Marketing] getMarketingStats:', err);
+        logger.error('[Marketing] getMarketingStats:', err);
         return res.status(500).json({ success: false, message: 'Failed to fetch stats.' });
     }
 };
@@ -93,7 +91,7 @@ exports.sendBroadcast = async (req, res) => {
     try {
         const { message, channel = 'sms' } = req.body;
 
-        if (!message || message.trim().length < 5) {
+        if (typeof message !== 'string' || message.trim().length < 5) {
             return res.status(400).json({ success: false, message: 'Message is too short (min 5 chars).' });
         }
 
@@ -103,7 +101,7 @@ exports.sendBroadcast = async (req, res) => {
         }
 
         // Create pending log in Firestore
-        const logRef = db.collection(COLLECTIONS.BROADCAST_LOGS).doc();
+        const logRef = getDb().collection(COLLECTIONS.BROADCAST_LOGS).doc();
         await logRef.set({
             id: logRef.id,
             message: message.trim(),
@@ -147,7 +145,7 @@ exports.sendBroadcast = async (req, res) => {
                 })
             );
     } catch (err) {
-        console.error('[Marketing] sendBroadcast:', err);
+        logger.error('[Marketing] sendBroadcast:', err);
         return res.status(500).json({ success: false, message: 'Server error during broadcast.' });
     }
 };
@@ -157,7 +155,7 @@ exports.sendBroadcast = async (req, res) => {
  */
 exports.getBroadcastLogs = async (req, res) => {
     try {
-        const snap = await db
+        const snap = await getDb()
             .collection(COLLECTIONS.BROADCAST_LOGS)
             .orderBy('createdAt', 'desc')
             .limit(30)
@@ -166,7 +164,7 @@ exports.getBroadcastLogs = async (req, res) => {
         const logs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         return res.json({ success: true, logs });
     } catch (err) {
-        console.error('[Marketing] getBroadcastLogs:', err);
+        logger.error('[Marketing] getBroadcastLogs:', err);
         return res.status(500).json({ success: false, message: 'Failed to fetch logs.' });
     }
 };
@@ -178,7 +176,7 @@ exports.getBroadcastLogs = async (req, res) => {
  */
 exports.getBanners = async (req, res) => {
     try {
-        const snap = await db
+        const snap = await getDb()
             .collection(COLLECTIONS.BANNERS)
             .orderBy('order', 'asc')
             .get();
@@ -186,7 +184,7 @@ exports.getBanners = async (req, res) => {
         const banners = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         return res.json({ success: true, banners });
     } catch (err) {
-        console.error('[Marketing] getBanners:', err);
+        logger.error('[Marketing] getBanners:', err);
         return res.status(500).json({ success: false, message: 'Failed to fetch banners.' });
     }
 };
@@ -212,7 +210,7 @@ exports.createBanner = async (req, res) => {
             imagePublicId = result.public_id;
         }
 
-        const docRef = db.collection(COLLECTIONS.BANNERS).doc();
+        const docRef = getDb().collection(COLLECTIONS.BANNERS).doc();
         const banner = {
             id: docRef.id,
             title,
@@ -231,7 +229,7 @@ exports.createBanner = async (req, res) => {
         await docRef.set(banner);
         return res.status(201).json({ success: true, banner });
     } catch (err) {
-        console.error('[Marketing] createBanner:', err);
+        logger.error('[Marketing] createBanner:', err);
         return res.status(500).json({ success: false, message: 'Failed to create banner.' });
     }
 };
@@ -243,7 +241,7 @@ exports.createBanner = async (req, res) => {
 exports.updateBanner = async (req, res) => {
     try {
         const { id } = req.params;
-        const docRef = db.collection(COLLECTIONS.BANNERS).doc(id);
+        const docRef = getDb().collection(COLLECTIONS.BANNERS).doc(id);
         const snap = await docRef.get();
 
         if (!snap.exists) {
@@ -275,7 +273,7 @@ exports.updateBanner = async (req, res) => {
         const updated = { id, ...existing, ...updates };
         return res.json({ success: true, banner: updated });
     } catch (err) {
-        console.error('[Marketing] updateBanner:', err);
+        logger.error('[Marketing] updateBanner:', err);
         return res.status(500).json({ success: false, message: 'Failed to update banner.' });
     }
 };
@@ -286,7 +284,7 @@ exports.updateBanner = async (req, res) => {
 exports.deleteBanner = async (req, res) => {
     try {
         const { id } = req.params;
-        const docRef = db.collection(COLLECTIONS.BANNERS).doc(id);
+        const docRef = getDb().collection(COLLECTIONS.BANNERS).doc(id);
         const snap = await docRef.get();
 
         if (!snap.exists) {
@@ -299,7 +297,7 @@ exports.deleteBanner = async (req, res) => {
         await docRef.delete();
         return res.json({ success: true, message: 'Banner deleted.' });
     } catch (err) {
-        console.error('[Marketing] deleteBanner:', err);
+        logger.error('[Marketing] deleteBanner:', err);
         return res.status(500).json({ success: false, message: 'Failed to delete banner.' });
     }
 };
@@ -310,7 +308,7 @@ exports.deleteBanner = async (req, res) => {
 exports.toggleBanner = async (req, res) => {
     try {
         const { id } = req.params;
-        const docRef = db.collection(COLLECTIONS.BANNERS).doc(id);
+        const docRef = getDb().collection(COLLECTIONS.BANNERS).doc(id);
         const snap = await docRef.get();
 
         if (!snap.exists) {
@@ -322,7 +320,7 @@ exports.toggleBanner = async (req, res) => {
 
         return res.json({ success: true, banner: { id, ...snap.data(), isActive: newActive } });
     } catch (err) {
-        console.error('[Marketing] toggleBanner:', err);
+        logger.error('[Marketing] toggleBanner:', err);
         return res.status(500).json({ success: false, message: 'Failed to toggle banner.' });
     }
 };
