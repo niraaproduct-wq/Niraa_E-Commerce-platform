@@ -1,5 +1,6 @@
 const { getFirebase } = require('../config/firebase');
 const logger = require('../utils/logger');
+const cacheService = require('../services/cache');
 
 const SECTIONS_COLLECTION = 'pageSections';
 
@@ -20,6 +21,13 @@ const getPublicSections = async (req, res) => {
     const { db } = getFirebase();
     const { page } = req.params;
 
+    const cacheKey = `sections:page_${page}`;
+    const cachedData = await cacheService.get(cacheKey);
+    if (cachedData) {
+      logger.info(`[Sections] Cache HIT for page: ${page}`);
+      return res.json(cachedData);
+    }
+
     const snapshot = await db.collection(SECTIONS_COLLECTION)
       .where('page', '==', page)
       .get();
@@ -30,7 +38,12 @@ const getPublicSections = async (req, res) => {
       .filter(s => s.status === 'published' && s.isActive === true)
       .sort((a, b) => (a.order || 0) - (b.order || 0));
 
-    res.json({ success: true, sections, page });
+    const responsePayload = { success: true, sections, page };
+    
+    // Cache for 1 hour (3600 seconds)
+    await cacheService.set(cacheKey, responsePayload, 3600);
+
+    res.json(responsePayload);
   } catch (error) {
     logger.error('Error fetching public sections:', error);
     res.status(500).json({ success: false, message: 'Failed to load page content' });
@@ -96,6 +109,9 @@ const createSection = async (req, res) => {
 
     const docRef = await db.collection(SECTIONS_COLLECTION).add(sectionData);
 
+    // Invalidate section cache for this page
+    await cacheService.del(`sections:page_${page}`);
+
     res.status(201).json({
       success: true,
       message: 'Section created',
@@ -136,6 +152,11 @@ const updateSection = async (req, res) => {
     await docRef.update(payload);
     const updated = await docRef.get();
 
+    // Invalidate section cache
+    if (existing.data()?.page) {
+      await cacheService.del(`sections:page_${existing.data().page}`);
+    }
+
     res.json({ success: true, message: 'Section saved as draft', section: toPlainSection(updated) });
   } catch (error) {
     logger.error('Error updating section:', error);
@@ -167,6 +188,12 @@ const deleteSection = async (req, res) => {
     }
 
     await docRef.delete();
+
+    // Invalidate section cache
+    if (sectionData.page) {
+      await cacheService.del(`sections:page_${sectionData.page}`);
+    }
+
     res.json({ success: true, message: 'Section deleted' });
   } catch (error) {
     logger.error('Error deleting section:', error);
@@ -193,6 +220,9 @@ const reorderSections = async (req, res) => {
       batch.update(docRef, { order: i, lastEditedBy: req.user.id, updatedAt: new Date().toISOString() });
     }
     await batch.commit();
+
+    // Invalidate section cache
+    await cacheService.del(`sections:page_${page}`);
 
     const snapshot = await db.collection(SECTIONS_COLLECTION)
       .where('page', '==', page)
@@ -236,6 +266,9 @@ const publishPage = async (req, res) => {
 
     await batch.commit();
 
+    // Invalidate section cache
+    await cacheService.del(`sections:page_${page}`);
+
     res.json({
       success: true,
       message: `Published ${publishedCount} section${publishedCount !== 1 ? 's' : ''} successfully`,
@@ -269,6 +302,11 @@ const revertSection = async (req, res) => {
 
     await docRef.update({ status: 'published', updatedAt: new Date().toISOString() });
     const updated = await docRef.get();
+
+    // Invalidate section cache
+    if (doc.data()?.page) {
+      await cacheService.del(`sections:page_${doc.data().page}`);
+    }
 
     res.json({ success: true, message: 'Reverted to published version', section: toPlainSection(updated) });
   } catch (error) {
@@ -312,6 +350,9 @@ const duplicateSection = async (req, res) => {
     };
 
     const newDocRef = await db.collection(SECTIONS_COLLECTION).add(duplicateData);
+
+    // Invalidate section cache
+    await cacheService.del(`sections:page_${original.page}`);
 
     res.status(201).json({
       success: true,

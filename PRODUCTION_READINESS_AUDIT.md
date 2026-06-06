@@ -101,11 +101,11 @@ We will resolve these bottlenecks systematically to guarantee a performant, cost
 - [x] Cloudinary image optimization (auto WebP and size transformation)
 - [x] Inventory race condition protection implemented via Transactions
 - [x] Zero-downtime deployment health check `/healthz` ready
-- [ ] Implement server-side pagination for `getProducts` (remove memory pagination)
-- [ ] Implement server-side pagination/filtering for customer `getMyOrders` (remove memory query)
-- [ ] Configure `firestore.indexes.json` with required pagination composite indexes
-- [ ] Implement caching layer (with Upstash Redis / Memory cache fallback)
-- [ ] Wrap storefront catalog requests with caching (caching products & banners)
-- [ ] Implement robust HTML tag stripping middleware (XSS protection on reviews/text input)
-- [ ] Integrate Discord/Telegram/Slack webhook for immediate alerts on critical failures (500 errors)
-- [ ] Connect Sentry or equivalent error capturing framework for production server logs
+- [x] Implement server-side pagination for `getProducts` (remove memory pagination)
+- [x] Implement server-side pagination/filtering for customer `getMyOrders` (remove memory query)
+- [x] Configure `firestore.indexes.json` with required pagination composite indexes
+- [x] Implement caching layer (with Upstash Redis / Memory cache fallback)
+- [x] Wrap storefront catalog requests with caching (caching products & banners)
+- [x] Implement robust HTML tag stripping middleware (XSS protection on reviews/text input)
+- [x] Integrate Discord/Telegram/Slack webhook for immediate alerts on critical failures (500 errors)
+- [x] Connect Sentry or equivalent error capturing framework for production server logs

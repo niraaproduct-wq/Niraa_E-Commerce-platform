@@ -211,6 +211,16 @@ function createApp() {
     const status = err.status || 500;
     const message = isProd ? 'Something went wrong. Please try again later.' : (err.message || 'Something went wrong!');
 
+    // Trigger webhook alert for critical 500 server errors
+    if (status === 500) {
+      try {
+        const { sendErrorAlert } = require('./utils/alertService');
+        sendErrorAlert(err, req);
+      } catch (alertErr) {
+        logger.error('Failed to dispatch alert notification:', alertErr.message);
+      }
+    }
+
     res.status(status).json({
       message,
       ...(isProd ? {} : { error: err.message }),
