@@ -63,6 +63,11 @@ window.fetch = async function (input, init = {}) {
 
   let finalInit = { ...init };
 
+  // Ensure credentials: 'include' is set for all cross-origin API requests to send/receive cookies
+  if (url && (url.includes('/api/') || url.includes(API_BASE_URL))) {
+    finalInit.credentials = 'include';
+  }
+
   if (isMutating && !isCsrfRequest) {
     const token = await getCsrfToken();
     if (token) {

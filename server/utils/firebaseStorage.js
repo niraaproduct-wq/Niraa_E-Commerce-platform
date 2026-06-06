@@ -155,20 +155,42 @@ const updateUser = async (userId, updateData) => {
 const findAdminByEmail = async (email) => {
   if (!email) return null;
   const { db } = getFirebase();
+  
+  // 1. Check admins collection
   const snap = await db
     .collection(ADMINS_COLLECTION)
     .where('email', '==', String(email).toLowerCase().trim())
     .limit(1)
     .get();
 
-  if (snap.empty) return null;
-  return toPlainUser(snap.docs[0]);
+  if (!snap.empty) return toPlainUser(snap.docs[0]);
+
+  // 2. Fallback to users collection if they have admin role
+  const userSnap = await db
+    .collection(USERS_COLLECTION)
+    .where('email', '==', String(email).toLowerCase().trim())
+    .where('role', '==', 'admin')
+    .limit(1)
+    .get();
+
+  if (!userSnap.empty) return toPlainUser(userSnap.docs[0]);
+  return null;
 };
 
 const findAdminById = async (id) => {
   const { db } = getFirebase();
+  
+  // 1. Check admins collection
   const doc = await db.collection(ADMINS_COLLECTION).doc(String(id)).get();
-  return toPlainUser(doc);
+  if (doc.exists) return toPlainUser(doc);
+
+  // 2. Fallback to users collection
+  const userDoc = await db.collection(USERS_COLLECTION).doc(String(id)).get();
+  if (userDoc.exists) {
+    const user = toPlainUser(userDoc);
+    if (user && user.role === 'admin') return user;
+  }
+  return null;
 };
 
 const createAdmin = async (adminData) => {
