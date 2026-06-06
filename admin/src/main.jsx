@@ -51,6 +51,7 @@ async function getCsrfToken() {
 
 // Global fetch wrapper to handle Render backend cold starts and inject CSRF tokens
 const originalFetch = window.fetch;
+let isRedirectingToLogin = false;
 window.fetch = async function (input, init = {}) {
   // Determine url and options
   const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
@@ -84,6 +85,26 @@ window.fetch = async function (input, init = {}) {
   while (retries > 0) {
     try {
       const response = await originalFetch.call(this, input, finalInit);
+
+      // Handle invalid/expired tokens — auto-logout and redirect to login
+      if (response.status === 401) {
+        // Only auto-logout for API calls (not the login endpoint itself)
+        if (url.includes('/api/') && !url.includes('/auth/admin-login') && !isRedirectingToLogin) {
+          isRedirectingToLogin = true;
+          localStorage.removeItem('niraa_token');
+          localStorage.removeItem('niraa_user');
+          localStorage.removeItem('niraa_admin_auth');
+          // Small delay to batch clear, then redirect
+          setTimeout(() => {
+            isRedirectingToLogin = false;
+            if (window.location.pathname !== '/login') {
+              window.location.href = '/login';
+            }
+          }, 300);
+        }
+        return response;
+      }
+
       // If the backend is waking up, Render might return a 502 Bad Gateway
       if (response.status === 502 || response.status === 503 || response.status === 504) {
         throw new Error(`Server waking up (Status: ${response.status})`);
