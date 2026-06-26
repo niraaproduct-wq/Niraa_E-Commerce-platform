@@ -25,8 +25,6 @@ const T = {
 
 /* ─── Global CSS ─────────────────────────────────────────────────── */
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,700;0,800;0,900;1,700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
-
   .lp * { box-sizing: border-box; margin: 0; padding: 0; }
 
   /* ── Page shell ── */

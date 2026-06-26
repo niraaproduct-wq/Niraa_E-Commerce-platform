@@ -19,7 +19,6 @@ const T = {
 };
 
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap');
 
   .cart-page * { box-sizing: border-box; }
 

@@ -307,10 +307,8 @@ export default function Home() {
         <meta name="description" content="Discover Niraa Care's scientifically formulated, research-backed cleaning solutions. 99.9% germ kill, eco-friendly, and safe for families. Fast delivery in Dharmapuri." />
       </Helmet>
       <SectionRenderer sections={dynamicSections} />
-      <div className="niraa-home">
+      <main className="niraa-home">
         <style>{`
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Jost:wght@300;400;500;600;700&display=swap');
-
 :root {
   --teal:        #1a7a6e;
   --teal-dark:   #0f4f47;
@@ -322,7 +320,7 @@ export default function Home() {
   --gold-pale:   #fffdf5;
   --charcoal:    #1c2726;
   --ink:         #2d3d3b;
-  --stone:       #6b8480;
+  --stone:       #526663;
   --mist:        #a8bfbc;
   --pearl:       #f7faf9;
   --white:       #ffffff;
@@ -1196,7 +1194,7 @@ export default function Home() {
 
           {/* Right column — image */}
           <div className="niraa-hero__image hero-animate-img">
-            <img src={bannerImage} alt="NIRAA eco-friendly cleaning products" />
+            <img src={bannerImage} alt="NIRAA eco-friendly cleaning products" width={460} height={500} fetchPriority="high" decoding="async" />
             <div className="niraa-hero__image-overlay" />
 
             {/* Top Right: Premium Quality badge */}
@@ -1380,6 +1378,7 @@ export default function Home() {
                       key={i}
                       className={`niraa-testimonials__dot ${i === activeTestimonial ? 'active' : ''}`}
                       onClick={() => setActiveTestimonial(i)}
+                      aria-label={`Testimonial ${i + 1}`}
                     />
                   ))}
                 </div>
@@ -1418,7 +1417,7 @@ export default function Home() {
         </div>
 
 
-      </div>
+      </main>
     </>
   );
 }

@@ -371,7 +371,7 @@ export default function About() {
 
         {/* ─── HERO ─────────────────────────────── */}
         <div className="about-hero" style={{ background: 'linear-gradient(145deg, #062019, #1a4f47)' }}>
-          <img src={bannerImage} alt="NIRAA banner" />
+          <img src={bannerImage} alt="NIRAA banner" width={1100} height={300} loading="lazy" decoding="async" />
           <div className="about-hero-overlay" />
           <div className="about-hero-content">
             {/* Floating decorative */}
@@ -548,6 +548,7 @@ export default function About() {
                 <button
                   onClick={() => setTestimonialIdx(i => Math.max(0, i - 1))}
                   disabled={testimonialIdx === 0}
+                  aria-label="Previous testimonials"
                   style={{
                     width: 40, height: 40, borderRadius: 12,
                     background: testimonialIdx === 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.12)',
@@ -563,6 +564,7 @@ export default function About() {
                 <button
                   onClick={() => setTestimonialIdx(i => Math.min(maxIdx, i + 1))}
                   disabled={testimonialIdx === maxIdx}
+                  aria-label="Next testimonials"
                   style={{
                     width: 40, height: 40, borderRadius: 12,
                     background: testimonialIdx === maxIdx ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.12)',
@@ -638,6 +640,7 @@ export default function About() {
               <button
                 key={i}
                 onClick={() => setTestimonialIdx(i)}
+                aria-label={`Go to testimonial page ${i + 1}`}
                 style={{
                   width: i === testimonialIdx ? 24 : 8, height: 8,
                   borderRadius: 4, border: 'none', cursor: 'pointer',

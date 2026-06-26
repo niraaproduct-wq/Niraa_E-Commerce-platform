@@ -164,6 +164,10 @@ export default function ProductCard({ product, compact = false }) {
               maxWidth: '100%', maxHeight: '100%', objectFit: 'contain',
               filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.06))',
             }}
+            width={300}
+            height={300}
+            loading="lazy"
+            decoding="async"
             onError={e => { e.target.src = placeholderImage(product.name); }}
           />
 
@@ -222,7 +226,7 @@ export default function ProductCard({ product, compact = false }) {
         <div style={{ padding: '18px 20px 24px', display: 'flex', flexDirection: 'column', flex: 1 }}>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ fontSize: '0.68rem', color: 'var(--teal)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            <div style={{ fontSize: '0.68rem', color: 'var(--teal-dark)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
               {product.categoryLabel || product.category?.replace(/-/g, ' ')}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 3, background: '#fef3c7', padding: '3px 8px', borderRadius: 8 }}>
@@ -243,7 +247,7 @@ export default function ProductCard({ product, compact = false }) {
           </h3>
 
           <p className="pc-desc" style={{
-            fontSize: '0.82rem', color: 'var(--gray-500)',
+            fontSize: '0.82rem', color: 'var(--gray-600)',
             marginBottom: 14, lineHeight: 1.5, fontWeight: 500,
             display: '-webkit-box', WebkitLineClamp: '2',
             WebkitBoxOrient: 'vertical', overflow: 'hidden',
@@ -252,7 +256,7 @@ export default function ProductCard({ product, compact = false }) {
           </p>
 
           <div className="pc-proof" style={{
-            fontSize: '0.7rem', color: 'var(--gray-400)',
+            fontSize: '0.7rem', color: 'var(--gray-600)',
             marginBottom: 20, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600,
           }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
@@ -295,6 +299,7 @@ export default function ProductCard({ product, compact = false }) {
               <button
                 className="pc-mobile-cart"
                 disabled
+                aria-label="Out of stock"
                 style={{
                   background: '#f1f5f9 !important',
                   color: '#94a3b8 !important',
@@ -315,7 +320,7 @@ export default function ProductCard({ product, compact = false }) {
                 🚫
               </button>
             ) : (
-              <button className={`pc-mobile-cart${adding ? ' adding' : ''}`} onClick={handleAddToCart} style={{ display: 'none' }}>
+              <button className={`pc-mobile-cart${adding ? ' adding' : ''}`} onClick={handleAddToCart} aria-label="Add to cart" style={{ display: 'none' }}>
                 <FiShoppingCart size={16} />
               </button>
             )}

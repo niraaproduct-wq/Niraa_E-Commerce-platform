@@ -366,21 +366,27 @@ const AdminProducts = () => {
 
   /* ── Generate Table Barcodes ── */
   useEffect(() => {
-    filtered.forEach(product => {
-      if (product.barcode) {
-        try {
-          JsBarcode(`#barcode-${product._id}`, product.barcode, {
-            height: 30,
-            fontSize: 12,
-            width: 1.2,
-            margin: 0,
-            displayValue: true
-          });
-        } catch (e) {
-          console.error(`Error generating barcode for ${product._id}:`, e);
+    const timer = setTimeout(() => {
+      filtered.forEach(product => {
+        if (product.barcode) {
+          try {
+            const el = document.querySelector(`#barcode-${product._id}`);
+            if (el) {
+              JsBarcode(el, product.barcode, {
+                height: 30,
+                fontSize: 12,
+                width: 1.2,
+                margin: 0,
+                displayValue: true
+              });
+            }
+          } catch (e) {
+            console.error(`Error generating barcode for ${product._id}:`, e);
+          }
         }
-      }
-    });
+      });
+    }, 50);
+    return () => clearTimeout(timer);
   }, [filtered, loading]);
 
 

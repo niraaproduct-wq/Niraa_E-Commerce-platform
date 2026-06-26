@@ -460,7 +460,7 @@ const ComboDetails = () => {
                     onMouseEnter={() => setMainImage(src)}
                     onClick={() => setMainImage(src)}
                   >
-                    <img src={src} alt={`${product.name} view ${i + 1}`} />
+                    <img src={src} alt={`${product.name} view ${i + 1}`} width={66} height={66} loading="lazy" decoding="async" />
                   </button>
                 ))}
               </div>
@@ -486,7 +486,7 @@ const ComboDetails = () => {
               )}
 
               {mainImage ? (
-                <img src={mainImage} alt={product.name} />
+                <img src={mainImage} alt={product.name} width={340} height={340} fetchPriority="high" decoding="async" />
               ) : (
                 <div style={{ fontSize: '6rem', opacity: 0.4 }}>🎁</div>
               )}

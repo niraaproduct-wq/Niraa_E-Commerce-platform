@@ -105,7 +105,7 @@ export default function Footer() {
           <div className="footer-col">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div className="footer-logo-wrap">
-                <img src={logoImage} alt="NIRAA logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <img src={logoImage} alt="NIRAA logo" width={44} height={44} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
               <div>
                 <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 700, letterSpacing: '0.06em', color: '#fff' }}>NIRAA</div>
@@ -123,7 +123,7 @@ export default function Footer() {
 
           {/* Quick Links */}
           <div className="footer-col">
-            <h4 className="footer-heading">Quick Links</h4>
+            <h3 className="footer-heading">Quick Links</h3>
             {[['/', 'Home'], ['/products', 'Products'], ['/about', 'About Us'], ['/contact', 'Contact']].map(([to, label]) => (
               <FooterLink key={to} to={to}>{label}</FooterLink>
             ))}
@@ -131,7 +131,7 @@ export default function Footer() {
 
           {/* Products */}
           <div className="footer-col">
-            <h4 className="footer-heading">Our Products</h4>
+            <h3 className="footer-heading">Our Products</h3>
             {['Floor Cleaner', 'Toilet Cleaner', 'Dish Wash Liquid', 'Detergent Powder', 'Combo Pack'].map(p => (
               <FooterLink key={p} to="/products">{p}</FooterLink>
             ))}
@@ -139,7 +139,7 @@ export default function Footer() {
 
           {/* Contact */}
           <div className="footer-col" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <h4 className="footer-heading">Contact Us</h4>
+            <h3 className="footer-heading">Contact Us</h3>
 
             <a
               href="https://maps.app.goo.gl/xRtJMzmbtsAPsztr5"

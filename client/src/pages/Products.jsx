@@ -123,10 +123,8 @@ export default function Products() {
       </Helmet>
       <SectionRenderer sections={dynamicSections} />
 
-      <div className="np-root">
+      <main className="np-root">
         <style>{`
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,500&family=Jost:wght@300;400;500;600;700&display=swap');
-
 :root {
   --teal:       #1a7a6e;
   --teal-dark:  #0f4f47;
@@ -136,7 +134,7 @@ export default function Products() {
   --gold:       #c8a84b;
   --charcoal:   #1c2726;
   --ink:        #2d3d3b;
-  --stone:      #6b8480;
+  --stone:      #526663;
   --mist:       #a8bfbc;
   --pearl:      #f7faf9;
   --white:      #ffffff;
@@ -612,7 +610,7 @@ export default function Products() {
           )}
         </main>
 
-      </div>
+      </main>
     </>
   );
 }

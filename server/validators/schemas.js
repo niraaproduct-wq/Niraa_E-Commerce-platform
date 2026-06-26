@@ -117,6 +117,11 @@ const adminCreateProduct = Joi.object({
   highlightBadge: safeString.allow('', null),
   salesCount: Joi.alternatives().try(Joi.number(), Joi.string()).allow('', null),
   rating: Joi.number().min(0).max(5),
+  barcode: Joi.string().allow('', null),
+  sku: Joi.string().allow('', null),
+  size: Joi.string().allow('', null),
+  productType: Joi.string().valid('single', 'combo').allow('', null),
+  comboItems: Joi.array().items(Joi.object()).max(100).allow(null),
 });
 
 const adminUpdateProduct = Joi.object({
@@ -136,6 +141,11 @@ const adminUpdateProduct = Joi.object({
   highlightBadge: safeString.allow('', null),
   salesCount: Joi.alternatives().try(Joi.number(), Joi.string()).allow('', null),
   rating: Joi.number().min(0).max(5),
+  barcode: Joi.string().allow('', null),
+  sku: Joi.string().allow('', null),
+  size: Joi.string().allow('', null),
+  productType: Joi.string().valid('single', 'combo').allow('', null),
+  comboItems: Joi.array().items(Joi.object()).max(100).allow(null),
 });
 
 const adminUpdateOrderStatus = Joi.object({

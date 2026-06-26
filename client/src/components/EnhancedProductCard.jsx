@@ -62,6 +62,8 @@ const EnhancedProductCard = ({ product, onEdit, onDelete, compact = false }) => 
       `}</style>
 
       <div
+        role={isAdminMode ? "button" : undefined}
+        aria-label={isAdminMode ? `Edit ${product.name}` : undefined}
         style={{
           position: 'relative', background: '#fff', borderRadius: 16,
           overflow: 'hidden',
@@ -131,6 +133,10 @@ const EnhancedProductCard = ({ product, onEdit, onDelete, compact = false }) => 
               transition: 'transform 0.4s cubic-bezier(0.34,1.56,0.64,1)',
               transform: isHovered ? 'scale(1.07)' : 'scale(1)',
             }}
+            width={compact ? 200 : 300}
+            height={compact ? 120 : 160}
+            loading="lazy"
+            decoding="async"
           />
           <div style={{
             position: 'absolute', bottom: 8, left: 8,

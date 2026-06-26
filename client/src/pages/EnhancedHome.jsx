@@ -16,8 +16,6 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL
 
 /* ─── DESIGN TOKENS ─────────────────────────────────────────── */
 const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,700;0,9..144,900;1,9..144,400&family=DM+Sans:wght@300;400;500;600;700&display=swap');
-
   :root {
     --teal:        #2a7d72;
     --teal-dark:   #1a5048;
@@ -978,7 +976,15 @@ export default function EnhancedHome() {
           {/* Right: hero combo card */}
           {mainCombo && (
             <div className="niraa-hero__right">
-              <img src={bannerImage} alt="NIRAA cleaning products" className="hero-img" />
+              <img
+                src={bannerImage}
+                alt="NIRAA cleaning products"
+                className="hero-img"
+                width={640}
+                height={480}
+                fetchPriority="high"
+                decoding="async"
+              />
               <div className="hero-overlay" />
               <div className="hero-deal">
                 <div className="deal-chip">🏆 Best Value Deal</div>

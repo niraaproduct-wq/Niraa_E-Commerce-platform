@@ -18,7 +18,6 @@ const T = {
 };
 
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap');
 
   .checkout-page * { box-sizing: border-box; }
 
@@ -272,11 +271,91 @@ const css = `
     transition: all 0.25s;
   }
   .login-nudge:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(245,158,11,0.2); }
+
+  /* ─── OTP Modal ─── */
+  .otp-modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(26,25,23,0.6); backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.25s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .otp-modal {
+    background: ${T.white}; border-radius: 24px; padding: 32px;
+    width: 100%; max-width: 420px; box-shadow: 0 12px 36px rgba(0,0,0,0.15);
+    border: 1.5px solid ${T.gray200};
+    animation: popIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both;
+  }
+  .otp-input {
+    width: 100%; height: 50px; text-align: center;
+    font-size: 24px; font-weight: 800; border-radius: 12px;
+    border: 2px solid ${T.gray200}; color: ${T.gray900};
+    margin: 16px 0; letter-spacing: 8px; text-indent: 8px;
+    transition: all 0.2s;
+  }
+  .otp-input:focus {
+    border-color: ${T.teal}; outline: none;
+    box-shadow: 0 0 0 4px rgba(29,158,117,0.15);
+  }
+  .otp-btn {
+    width: 100%; padding: 14px; border-radius: 12px;
+    border: none; font-size: 14px; font-weight: 800; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .otp-btn--confirm {
+    background: ${T.teal}; color: #fff;
+    margin-bottom: 10px;
+  }
+  .otp-btn--confirm:hover:not(:disabled) {
+    background: ${T.tealDark}; transform: translateY(-2px);
+  }
+  .otp-btn--cancel {
+    background: ${T.gray100}; color: ${T.gray600};
+  }
+  .otp-btn--cancel:hover {
+    background: ${T.gray200};
+  }
+
+  /* ─── Success Page ─── */
+  .success-card {
+    background: ${T.white}; border: 1.5px solid ${T.gray200};
+    border-radius: 26px; padding: 40px; text-align: center;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.05);
+    animation: slideInUp 0.6s cubic-bezier(0.22,1,0.36,1) both;
+    max-width: 600px; margin: 20px auto;
+  }
+  .success-icon {
+    width: 72px; height: 72px; border-radius: 50%;
+    background: ${T.tealLight}; color: ${T.teal};
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px; margin: 0 auto 24px;
+    animation: checkPop 0.5s 0.2s cubic-bezier(0.34,1.56,0.64,1) both;
+  }
+  .save-account-box {
+    background: linear-gradient(135deg, ${T.tealLight}, #f0fff8);
+    border: 1.5px solid rgba(29,158,117,0.18);
+    border-radius: 18px; padding: 22px; margin: 28px 0;
+    text-align: left;
+  }
+  .pwd-input {
+    width: 100%; padding: 12px 16px; border-radius: 10px;
+    border: 1.5px solid rgba(29,158,117,0.25);
+    font-size: 14px; outline: none; transition: all 0.2s;
+    background: #fff;
+  }
+  .pwd-input:focus {
+    border-color: ${T.teal};
+    box-shadow: 0 0 0 3px rgba(29,158,117,0.15);
+  }
 `;
 
 const Checkout = () => {
   const { items, subtotal, clearCart } = useCart();
-  const { user } = useAuth();
+  const { user, login } = useAuth();
   const navigate = useNavigate();
   const formRef = useRef(null);
   const whatsAppOverrideRef = useRef(false);
@@ -286,9 +365,22 @@ const Checkout = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
 
+  // Guest Checkout & OTP States
+  const [checkoutMode, setCheckoutMode] = useState('guest'); // 'guest' or 'login'
+  const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
+  const [otpValue, setOtpValue] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [placedOrderDetails, setPlacedOrderDetails] = useState(null);
+  
+  // Post-Order Account Creation States
+  const [passwordValue, setPasswordValue] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false);
+
   const [form, setForm] = useState({
     name: user?.name || (user?.firstName ? `${user?.firstName || ''} ${user?.lastName || ''}`.trim() : ''),
     phone: user?.phone || '',
+    email: user?.email || '',
     street: user?.address?.street || '',
     city: user?.address?.city || 'Dharmapuri',
     pincode: user?.address?.pincode || '',
@@ -300,6 +392,7 @@ const Checkout = () => {
       ...p,
       name: user.name || p.name,
       phone: user.phone || p.phone,
+      email: user.email || p.email,
       street: user.address?.street || p.street,
       city: user.address?.city || p.city,
       pincode: user.address?.pincode || p.pincode,
@@ -330,28 +423,24 @@ const Checkout = () => {
 
   const handleChange = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }));
 
-  const placeOrder = async e => {
-    e.preventDefault();
-    if (items.length === 0) { toast.error('Your cart is empty!'); return; }
+  // Helper to trigger placing the actual order
+  const submitOrder = async (overrideToken = null) => {
     setLoading(true);
     try {
-      // Map cart items to the server's Joi schema shape:
-      //   cart uses  { _id, qty, ... }
-      //   server needs { product, quantity, name, price, ... }
       const mappedItems = items.map(item => ({
         product: item._id,
         name: item.name,
         price: item.price,
-        quantity: item.qty,                          // qty → quantity
+        quantity: item.qty,
         image: item.image || item.images?.[0] || null,
         variantId: item.variantId || null,
         variantDesc: item.variantDesc || null,
       }));
 
       const orderPayload = {
-        customerName: form.name,                    // name → customerName
-        customerPhone: form.phone,                  // phone → customerPhone
-        address: {                                  // flat fields → address object
+        customerName: form.name,
+        customerPhone: form.phone,
+        address: {
           street: form.street,
           city: form.city,
           pincode: form.pincode,
@@ -362,7 +451,7 @@ const Checkout = () => {
         items: mappedItems,
       };
 
-      const token = localStorage.getItem('niraa_token');
+      const token = overrideToken || localStorage.getItem('niraa_token');
       const headers = { 'Content-Type': 'application/json' };
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
@@ -371,20 +460,149 @@ const Checkout = () => {
       const res = await fetch(`${API_BASE_URL}/orders`, {
         method: 'POST',
         headers,
-        credentials: 'include',                     // send HttpOnly auth cookie
+        credentials: 'include',
         body: JSON.stringify(orderPayload),
       });
+
       if (res.ok) {
+        const savedOrder = await res.json();
         toast.success('🎉 Order placed successfully!');
-        if (!whatsAppOverrideRef.current) { clearCart(); navigate('/'); }
+        clearCart();
+        setPlacedOrderDetails(savedOrder);
       } else {
         const errData = await res.json().catch(() => ({}));
         const errMsg = errData?.errors?.[0]?.message || errData?.message || 'Something went wrong. Try WhatsApp!';
         toast.error(errMsg);
       }
-    } catch {
+    } catch (err) {
       toast.error('Network error. Please try WhatsApp ordering.');
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const placeOrder = async e => {
+    e.preventDefault();
+    if (items.length === 0) { toast.error('Your cart is empty!'); return; }
+
+    const cleanPhone = form.phone.replace(/[\s\-\(\)]/g, '');
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      toast.error('Please enter a valid 10-digit Indian mobile number');
+      return;
+    }
+
+    // If customer is not logged in, handle guest/login options
+    if (!user) {
+      if (checkoutMode === 'login') {
+        navigate('/login', { state: { from: '/checkout' } });
+        return;
+      }
+
+      // Validate email for guest purchase
+      if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+        toast.error('Please enter a valid email address');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const res = await fetch(`${API_BASE_URL}/auth/send-email-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: cleanPhone, email: form.email })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          toast.success('🔑 OTP sent to your email address!');
+          setIsOtpModalOpen(true);
+        } else {
+          toast.error(data.message || 'Failed to send OTP. Try ordering via WhatsApp!');
+        }
+      } catch (err) {
+        toast.error('Network error sending OTP. Try ordering via WhatsApp!');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // If already logged in, submit the order immediately
+    await submitOrder();
+  };
+
+  const handleVerifyOtp = async e => {
+    e.preventDefault();
+    if (!otpValue || otpValue.length !== 6) {
+      toast.error('Please enter a 6-digit OTP code');
+      return;
+    }
+    setOtpLoading(true);
+    try {
+      const cleanPhone = form.phone.replace(/[\s\-\(\)]/g, '');
+      const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: cleanPhone,
+          otp: otpValue,
+          email: form.email,
+          name: form.name,
+          address: {
+            street: form.street,
+            city: form.city,
+            pincode: form.pincode
+          }
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('Verified successfully!');
+        login(data.user, data.token);
+        setIsOtpModalOpen(false);
+        // Place order under the newly verified customer context
+        await submitOrder(data.token);
+      } else {
+        toast.error(data.message || 'OTP verification failed');
+      }
+    } catch (err) {
+      toast.error('Network error verifying OTP');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleCreateAccount = async e => {
+    e.preventDefault();
+    if (passwordValue.length < 8) {
+      toast.error('Password must be at least 8 characters long');
+      return;
+    }
+    setPasswordLoading(true);
+    try {
+      const token = localStorage.getItem('niraa_token');
+      const res = await fetch(`${API_BASE_URL}/auth/set-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ newPassword: passwordValue })
+      });
+      if (res.ok) {
+        toast.success('🔒 Account password set successfully!');
+        setAccountCreated(true);
+        const currentUser = JSON.parse(localStorage.getItem('niraa_user') || '{}');
+        currentUser.hasPassword = true;
+        login(currentUser, token);
+      } else {
+        const data = await res.json();
+        toast.error(data.message || 'Failed to set password');
+      }
+    } catch (err) {
+      toast.error('Network error setting password');
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   const submitViaWhatsApp = async () => {
@@ -428,10 +646,135 @@ const Checkout = () => {
     { label: 'Confirm', icon: '✓' },
   ];
 
+  if (placedOrderDetails) {
+    return (
+      <main className="checkout-page" style={{ background: '#F7F6F3', minHeight: '100vh', fontFamily: T.font, padding: '40px 16px' }}>
+        <style>{css}</style>
+        <div className="success-card">
+          <div className="success-icon">✓</div>
+          <h1 style={{ fontFamily: T.fontDisplay, fontSize: '2.2rem', fontWeight: 900, color: T.gray900, marginBottom: 8 }}>Order Confirmed!</h1>
+          <p style={{ color: T.gray500, fontSize: 15, marginBottom: 24 }}>
+            Thank you for shopping with Niraa. Your order ID is <strong style={{ color: T.teal }}>#{placedOrderDetails.id || placedOrderDetails._id}</strong>.
+          </p>
+
+          <div style={{ background: '#FAF9F6', borderRadius: 16, padding: 20, border: `1px solid ${T.gray200}`, textAlign: 'left', marginBottom: 24 }}>
+            <div style={{ fontWeight: 800, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em', color: T.gray400, marginBottom: 12 }}>
+              Delivery Details
+            </div>
+            <div style={{ fontSize: 14, color: T.gray800, lineHeight: 1.6 }}>
+              <strong>Name:</strong> {placedOrderDetails.customerName || placedOrderDetails.name}<br />
+              <strong>Phone:</strong> {placedOrderDetails.customerPhone || placedOrderDetails.phone}<br />
+              <strong>Address:</strong> {placedOrderDetails.address?.street}, {placedOrderDetails.address?.city} - {placedOrderDetails.address?.pincode}
+            </div>
+            <div style={{ borderTop: `1px dashed ${T.gray200}`, marginTop: 14, paddingTop: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: T.gray600 }}>Payment Method</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: T.tealDark }}>
+                {placedOrderDetails.paymentMethod === 'cod' ? 'Cash on Delivery' : 'UPI Payment'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: T.gray600 }}>Total Amount</span>
+              <span style={{ fontSize: 16, fontWeight: 900, color: T.tealDark }}>{formatPrice(placedOrderDetails.total)}</span>
+            </div>
+          </div>
+
+          {/* Optional Account Creation Prompts */}
+          {user && !user.hasPassword && !accountCreated ? (
+            <div className="save-account-box">
+              <h3 style={{ margin: '0 0 6px', fontSize: 16, fontWeight: 800, color: T.tealDark }}>
+                🌿 Save your details & create an account?
+              </h3>
+              <p style={{ margin: '0 0 16px', fontSize: 13, color: T.gray600, lineHeight: 1.45 }}>
+                Enter a password below to register. You can track this order, view your purchase history, and checkout faster next time!
+              </p>
+              <form onSubmit={handleCreateAccount} style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <input
+                  type="password"
+                  required
+                  placeholder="Choose a password (min 8 chars)"
+                  value={passwordValue}
+                  onChange={e => setPasswordValue(e.target.value)}
+                  className="pwd-input"
+                  style={{ flex: 1, minWidth: 200 }}
+                />
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="otp-btn otp-btn--confirm"
+                  style={{ width: 'auto', padding: '12px 24px', margin: 0 }}
+                >
+                  {passwordLoading ? 'Saving...' : 'Save Account'}
+                </button>
+              </form>
+            </div>
+          ) : accountCreated ? (
+            <div className="save-account-box" style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}>
+              <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, color: '#16a34a' }}>
+                ✓ Account Created Successfully!
+              </h3>
+              <p style={{ margin: 0, fontSize: 13, color: '#166534' }}>
+                You can now log in using your phone number <strong>{form.phone}</strong> and the password you set.
+              </p>
+            </div>
+          ) : null}
+
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            <Link to="/products" className="otp-btn otp-btn--confirm" style={{ textDecoration: 'none', display: 'inline-block', width: 'auto', padding: '14px 28px', margin: 0 }}>
+              Continue Shopping
+            </Link>
+            {user && (
+              <Link to="/profile" className="otp-btn otp-btn--cancel" style={{ textDecoration: 'none', display: 'inline-block', width: 'auto', padding: '14px 28px', margin: 0 }}>
+                View My Orders
+              </Link>
+            )}
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="checkout-page" style={{ background: '#F7F6F3', minHeight: '100vh', fontFamily: T.font }}>
       <style>{css}</style>
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
+      {isOtpModalOpen && (
+        <div className="otp-modal-overlay">
+          <div className="otp-modal">
+            <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 900, color: T.gray900 }}>
+              Verify Your Email Address
+            </h3>
+            <p style={{ margin: '0 0 16px', fontSize: 13, color: T.gray500, lineHeight: 1.45 }}>
+              We've sent a 6-digit OTP code to <strong style={{ color: T.teal }}>{form.email}</strong> to confirm your order.
+            </p>
+            <form onSubmit={handleVerifyOtp}>
+              <input
+                type="text"
+                maxLength={6}
+                required
+                pattern="\d{6}"
+                placeholder="•••••"
+                value={otpValue}
+                onChange={e => setOtpValue(e.target.value.replace(/\D/g, ''))}
+                className="otp-input"
+              />
+              <button
+                type="submit"
+                disabled={otpLoading}
+                className="otp-btn otp-btn--confirm"
+              >
+                {otpLoading ? 'Verifying...' : 'Verify & Confirm Order'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsOtpModalOpen(false)}
+                className="otp-btn otp-btn--cancel"
+              >
+                Cancel
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
       <div style={{ padding: '32px 16px 80px', maxWidth: 1100, margin: '0 auto' }}>
 
         {/* ─── Page Header ─── */}
@@ -485,15 +828,52 @@ const Checkout = () => {
           ))}
         </div>
 
-        {/* ─── Login Nudge (if not logged in) ─── */}
+        {/* ─── Checkout Option Selector (if not logged in) ─── */}
         {!user && (
-          <div className="login-nudge" style={{ marginBottom: 20 }} onClick={() => setIsLoginModalOpen(true)}>
-            <span style={{ fontSize: 18 }}>👋</span>
-            <div>
-              <div style={{ fontWeight: 800, marginBottom: 1 }}>Returning customer?</div>
-              <div style={{ opacity: 0.8 }}>Sign in to auto-fill your delivery details</div>
+          <div style={{
+            display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24,
+            background: T.white, border: `1.5px solid ${T.gray200}`, borderRadius: 20,
+            padding: 20, boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+            animation: 'slideInUp 0.4s cubic-bezier(0.22,1,0.36,1) both'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 18 }}>🛍️</span>
+              <div style={{ fontWeight: 800, fontSize: 15, color: T.gray900 }}>How would you like to checkout?</div>
             </div>
-            <span style={{ marginLeft: 'auto', fontSize: 13, color: '#92400e', fontWeight: 800 }}>Login →</span>
+            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+              <button
+                type="button"
+                onClick={() => setCheckoutMode('guest')}
+                style={{
+                  flex: 1, padding: '12px 16px', borderRadius: 12, border: '1.5px solid',
+                  fontSize: 13, fontWeight: 800, cursor: 'pointer',
+                  borderColor: checkoutMode === 'guest' ? T.teal : T.gray200,
+                  background: checkoutMode === 'guest' ? T.tealLight : T.white,
+                  color: checkoutMode === 'guest' ? T.tealDark : T.gray600,
+                  transition: 'all 0.25s',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                }}
+              >
+                🌿 Guest Checkout (Email OTP)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  navigate('/login', { state: { from: '/checkout' } });
+                }}
+                style={{
+                  flex: 1, padding: '12px 16px', borderRadius: 12, border: '1.5px solid',
+                  fontSize: 13, fontWeight: 800, cursor: 'pointer',
+                  borderColor: checkoutMode === 'login' ? T.teal : T.gray200,
+                  background: checkoutMode === 'login' ? T.tealLight : T.white,
+                  color: checkoutMode === 'login' ? T.tealDark : T.gray600,
+                  transition: 'all 0.25s',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                }}
+              >
+                🔑 Sign In / Login
+              </button>
+            </div>
           </div>
         )}
 
@@ -529,6 +909,18 @@ const Checkout = () => {
                     />
                   </div>
                 </div>
+                {!user && checkoutMode === 'guest' && (
+                  <div>
+                    <label className="field-label">Email Address *</label>
+                    <input
+                      type="email"
+                      name="email" value={form.email} onChange={handleChange}
+                      onFocus={() => setFocus('email')} onBlur={() => setFocus(null)}
+                      required placeholder="yourname@domain.com"
+                      className={`field-input ${form.email ? 'filled' : ''}`}
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="field-label">Street Address *</label>
                   <input
@@ -606,7 +998,7 @@ const Checkout = () => {
                   <div key={it.uid || it._id} className="summary-item" style={{ animation: `slideInUp 0.4s ${idx * 0.06}s cubic-bezier(0.22,1,0.36,1) both` }}>
                     <div className="summary-img">
                       {(it.image || it.images?.[0])
-                        ? <img src={it.image || it.images?.[0]} alt={it.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ? <img src={it.image || it.images?.[0]} alt={it.name} width={50} height={50} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : <span style={{ fontSize: 20 }}>🧴</span>
                       }
                     </div>

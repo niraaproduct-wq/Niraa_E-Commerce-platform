@@ -145,7 +145,7 @@ const createProduct = async (req, res) => {
   try {
     const { db } = getFirebase();
     logger.info('Admin Create Product:', { name: req.body.name, category: req.body.category });
-    const { name, description, price, comparePrice, category, images, stock, variants, tags, isActive, isFeatured, shortBenefit, highlightBadge, salesCount, rating } = req.body;
+    const { name, description, price, comparePrice, category, images, stock, variants, tags, isActive, isFeatured, shortBenefit, highlightBadge, salesCount, rating, barcode, sku, size, productType, comboItems, image } = req.body;
 
     const productData = {
       name,
@@ -163,7 +163,26 @@ const createProduct = async (req, res) => {
       highlightBadge: highlightBadge || '',
       salesCount: salesCount || '',
       rating: Number(rating) || 4.8,
+      barcode: barcode || '',
+      sku: sku || '',
+      size: size || 'NA',
+      productType: productType || 'single',
+      comboItems: comboItems || [],
+      image: image || ''
     };
+
+    // Advanced Smart SKU / Barcode Generator fallback
+    if (!productData.sku || !productData.barcode) {
+      const brand = 'NIR';
+      const catCode = (productData.category || 'GEN').toUpperCase().replace(/-/g, '').slice(0, 3);
+      const prdCode = (productData.name || 'PRD').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+      const sizeCode = (productData.size || 'NA').toUpperCase().replace(/\s/g, '');
+      const typeCode = productData.productType === 'combo' ? 'C' : (productData.productType === 'bulk' ? 'B' : 'S');
+      
+      const generatedSKU = `${brand}-${catCode}-${prdCode}-${sizeCode}-${typeCode}`;
+      productData.sku = productData.sku || generatedSKU;
+      productData.barcode = productData.barcode || generatedSKU;
+    }
 
     // Synchronize with all variants if they are provided
     if (Array.isArray(productData.variants) && productData.variants.length > 0) {

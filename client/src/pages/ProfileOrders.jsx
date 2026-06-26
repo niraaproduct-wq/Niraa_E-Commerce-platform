@@ -41,8 +41,6 @@ const STATUS = {
 const ORDER_STEPS = ['placed', 'confirmed', 'packed', 'shipped', 'out_for_delivery', 'delivered'];
 
 const GLOBAL_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Outfit:wght@400;500;600;700;800&display=swap');
-
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   @keyframes fadeUp {
@@ -895,7 +893,7 @@ function OrderCard({ order, onCancel, animDelay }) {
               <div className="item-row">
                 <div className="item-thumb">
                   {img
-                    ? <img src={img} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ? <img src={img} alt={item.name} width={52} height={52} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     : <span style={{ fontSize: '1.4rem' }}>🧴</span>
                   }
                 </div>

@@ -147,11 +147,11 @@ export default function Navbar() {
                 e.currentTarget.style.boxShadow = '0 4px 16px rgba(42,125,114,0.12)';
               }}
             >
-              <img src={logoImage} alt="NIRAA logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={logoImage} alt="NIRAA logo" width={46} height={46} decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
             <div>
               <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.2rem', color: 'var(--teal-dark)', letterSpacing: '0.06em' }}>NIRAA</div>
-              <div style={{ fontSize: '0.6rem', color: 'var(--gray-400)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: -2 }}>Wellness & Home Essentials</div>
+              <div style={{ fontSize: '0.6rem', color: 'var(--gray-600)', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: -2 }}>Wellness & Home Essentials</div>
             </div>
           </Link>
 
@@ -173,6 +173,7 @@ export default function Navbar() {
               href={`https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}`}
               target="_blank" rel="noreferrer"
               className="nav-wa-btn"
+              aria-label="WhatsApp"
             >
               <AiOutlineWhatsApp size={20} />
               <span className="hide-mobile" style={{ fontWeight: 700 }}>WhatsApp</span>
@@ -181,13 +182,13 @@ export default function Navbar() {
             {user ? (
               <UserDropdown user={user} />
             ) : (
-              <button onClick={() => navigate('/login')} className="nav-login-btn">
+              <button onClick={() => navigate('/login')} className="nav-login-btn" aria-label="Login">
                 <FiUser size={18} />
                 <span className="hide-mobile">Login</span>
               </button>
             )}
 
-            <Link to="/cart" className="nav-cart-link">
+            <Link to="/cart" className="nav-cart-link" aria-label="Shopping Cart">
               <FiShoppingCart
                 size={22}
                 color="var(--teal-dark)"
@@ -211,6 +212,7 @@ export default function Navbar() {
             <button
               className="hide-desktop"
               onClick={() => setOpen(!open)}
+              aria-label="Toggle menu"
               style={{
                 background: 'none', padding: 6, color: 'var(--teal-dark)',
                 border: 'none', cursor: 'pointer',

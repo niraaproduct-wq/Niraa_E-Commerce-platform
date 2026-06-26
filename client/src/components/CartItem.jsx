@@ -85,6 +85,10 @@ export default function CartItem({ item }) {
             borderRadius: 10, background: 'var(--cream)',
             padding: 6, flexShrink: 0,
           }}
+          width={70}
+          height={70}
+          loading="lazy"
+          decoding="async"
           onError={e => { e.target.src = placeholderImage(item.name); }}
         />
 

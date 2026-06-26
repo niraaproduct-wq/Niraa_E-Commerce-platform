@@ -131,12 +131,16 @@ const HeroBannerSection = ({ data }) => {
     >
       {data.imageUrl && (
         <img
-          src={data.imageUrl} alt=""
+          src={data.imageUrl} alt={data.heading || "NIRAA Hero Banner"}
           className="sr-hero-slide-img"
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%',
             objectFit: 'cover', opacity: data.overlay ? 0.45 : 1,
           }}
+          width={1280}
+          height={400}
+          loading="lazy"
+          decoding="async"
         />
       )}
       <div
@@ -199,13 +203,17 @@ const SliderSection = ({ data }) => {
       {slide.imageUrl && (
         <img
           key={current}
-          src={slide.imageUrl} alt={slide.heading || ''}
+          src={slide.imageUrl} alt={slide.heading || 'NIRAA slide'}
           className="sr-hero-slide-img"
           style={{
             position: 'absolute', inset: 0, width: '100%', height: '100%',
             objectFit: 'cover', opacity: 0.5,
             animation: 'srReveal 0.55s ease',
           }}
+          width={1280}
+          height={400}
+          loading="lazy"
+          decoding="async"
         />
       )}
       <div style={{
@@ -385,7 +393,17 @@ const PromoCardSection = ({ data }) => {
         onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 24px 60px rgba(15,26,24,0.25)'; }}
         onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 16px 48px rgba(15,26,24,0.18)'; }}
       >
-        {data.imageUrl && <img src={data.imageUrl} alt="" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 14, flexShrink: 0, transition: 'transform 0.3s ease' }} />}
+        {data.imageUrl && (
+          <img
+            src={data.imageUrl}
+            alt={data.heading || "Promo Image"}
+            width={120}
+            height={120}
+            loading="lazy"
+            decoding="async"
+            style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 14, flexShrink: 0, transition: 'transform 0.3s ease' }}
+          />
+        )}
         <div style={{ flex: 1, color: '#fff' }}>
           {data.badge && <div style={{ display: 'inline-block', background: '#c8a84b', color: '#fff', fontSize: '0.7rem', fontWeight: 800, padding: '3px 12px', borderRadius: 999, marginBottom: 10, textTransform: 'uppercase' }}>{data.badge}</div>}
           {data.heading && <h2 style={{ fontSize: 'clamp(1.2rem,2.5vw,1.8rem)', fontWeight: 900, margin: '0 0 8px', lineHeight: 1.2 }}>{data.heading}</h2>}
@@ -574,6 +592,10 @@ const FeaturedSection = ({ data }) => {
             src={img} alt={product.name}
             className="sr-featured-img"
             style={{ width: 160, height: 160, objectFit: 'cover', borderRadius: 16, flexShrink: 0, boxShadow: '0 12px 28px rgba(0,0,0,0.25)' }}
+            width={160}
+            height={160}
+            loading="lazy"
+            decoding="async"
           />
         )}
         <div style={{ color: '#fff', flex: 1 }}>

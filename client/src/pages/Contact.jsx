@@ -21,7 +21,6 @@ const T = {
 };
 
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@700;800;900&family=DM+Sans:wght@400;500;600;700;800&display=swap');
   
   .contact-page * { box-sizing: border-box; }
   .contact-grid {
