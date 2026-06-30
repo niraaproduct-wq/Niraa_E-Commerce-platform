@@ -42,3 +42,14 @@ export const addProductReview = async (productId, reviewData) => {
   if (!res.ok) throw new Error(data.message || 'Failed to add review');
   return data;
 };
+
+/**
+ * Fetch a single product by Barcode/SKU
+ * @param {string} barcode 
+ */
+export const getProductByBarcode = async (barcode) => {
+  const res = await fetch(`${API_BASE_URL}/products/barcode/${barcode}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Product not found');
+  return data;
+};

@@ -2,7 +2,7 @@ const express = require('express');
 const router  = express.Router();
 const {
   getProducts, getProduct, createProduct,
-  updateProduct, deleteProduct, addReview,
+  updateProduct, deleteProduct, addReview, getProductByBarcode
 } = require('../controllers/productController');
 const { protect, adminOnly } = require('../middleware/authMiddleware');
 const upload = require('../middleware/upload');
@@ -12,6 +12,7 @@ const { apiLimiter } = require('../middleware/security');
 
 // Public routes — rate limited to prevent scraping
 router.get('/', apiLimiter, getProducts);
+router.get('/barcode/:barcode', apiLimiter, getProductByBarcode);
 router.get('/:id', apiLimiter, getProduct);
 
 // Admin-only write routes

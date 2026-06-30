@@ -106,6 +106,40 @@ const ProductDetails = () => {
     }
   }, [selectedVariant, product]);
 
+  const currentPrice = selectedVariant ? selectedVariant.price : (product?.price || 0);
+  const currentStock = selectedVariant ? selectedVariant.stockQuantity : (product?.stock || 0);
+
+  const productSchema = useMemo(() => {
+    if (!product) return null;
+    return {
+      "@context": "https://schema.org/",
+      "@type": "Product",
+      "name": product.name,
+      "image": imageList.map(src => src.startsWith('http') ? src : `${window.location.origin}${src}`),
+      "description": product.description || `Buy ${product.name} online from Niraa Care.`,
+      "sku": product.sku || product.barcode || product.id,
+      "mpn": product.barcode || product.sku || product.id,
+      "gtin13": product.barcode && /^\d{13}$/.test(product.barcode) ? product.barcode : undefined,
+      "brand": {
+        "@type": "Brand",
+        "name": "Niraa Care"
+      },
+      "offers": {
+        "@type": "Offer",
+        "url": window.location.href,
+        "priceCurrency": "INR",
+        "price": currentPrice,
+        "priceValidUntil": new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
+        "itemCondition": "https://schema.org/NewCondition",
+        "availability": currentStock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        "seller": {
+          "@type": "Organization",
+          "name": "Niraa Care"
+        }
+      }
+    };
+  }, [product, imageList, currentPrice, currentStock]);
+
   if (loading) return (
     <main className="container page" style={{ paddingTop: 12 }}>
       <div className="pd-layout">
@@ -215,11 +249,9 @@ const ProductDetails = () => {
     </main>
   );
 
-  const currentPrice = selectedVariant ? selectedVariant.price : (product.price || 0);
   const currentOriginalPrice = selectedVariant
     ? (selectedVariant.originalPrice || selectedVariant.comparePrice || product.comparePrice || product.originalPrice || 0)
     : (product.comparePrice || product.originalPrice || 0);
-  const currentStock = selectedVariant ? selectedVariant.stockQuantity : (product.stock || 0);
   const discountPct = currentOriginalPrice ? Math.round((1 - currentPrice / currentOriginalPrice) * 100) : (product.discount || 0);
   const savings = currentOriginalPrice ? currentOriginalPrice - currentPrice : 0;
 
@@ -273,7 +305,13 @@ const ProductDetails = () => {
       <Helmet>
         <title>{`${product.name} | Niraa Care`}</title>
         <meta name="description" content={product.description ? (product.description.length > 155 ? `${product.description.substring(0, 152)}...` : product.description) : `Buy ${product.name} online from Niraa Care. Eco-friendly cleaning products with fast delivery in Dharmapuri.`} />
+        {productSchema && (
+          <script type="application/ld+json">
+            {JSON.stringify(productSchema)}
+          </script>
+        )}
       </Helmet>
+
       <style>{`
         .pd-layout { display: grid; grid-template-columns: 1fr; gap: 32px; }
         @media (min-width: 900px) { .pd-layout { grid-template-columns: 1fr 1.1fr; } }
@@ -540,13 +578,21 @@ const ProductDetails = () => {
               {product.name}
             </h1>
             {/* Rating stars (mock) */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: 2 }}>
                 {[1, 2, 3, 4, 5].map(s => (
                   <span key={s} style={{ color: s <= 4 ? '#f59e0b' : '#e5e7eb', fontSize: '1rem' }}>★</span>
                 ))}
               </div>
               <span style={{ fontSize: '0.78rem', color: 'var(--gray-500)', fontWeight: 600 }}>4.6 (120+ reviews)</span>
+              {(product.barcode || product.sku) && (
+                <>
+                  <span style={{ color: 'var(--gray-300)' }}>•</span>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--gray-500)', fontWeight: 600, fontFamily: 'monospace' }}>
+                    {product.barcode ? `Barcode: ${product.barcode}` : `SKU: ${product.sku}`}
+                  </span>
+                </>
+              )}
             </div>
           </div>
 

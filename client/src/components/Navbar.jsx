@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { FiShoppingCart, FiMenu, FiX, FiUser } from 'react-icons/fi';
+import { FiShoppingCart, FiMenu, FiX, FiUser, FiCamera } from 'react-icons/fi';
 import { AiOutlineWhatsApp } from 'react-icons/ai';
 import { WHATSAPP_NUMBER } from '../utils/constants.js';
 import logoImage from '../assets/images/logo.jpeg';
@@ -169,6 +169,29 @@ export default function Navbar() {
 
           {/* Right Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Link
+              to="/scan"
+              className="nav-scan-btn"
+              aria-label="Scan Product QR/Barcode"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                color: 'var(--teal-dark)', textDecoration: 'none',
+                padding: '6px 10px', borderRadius: '8px',
+                transition: 'background 0.2s ease, transform 0.2s ease',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'rgba(42,125,114,0.08)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'none';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              <FiCamera size={20} />
+              <span className="hide-mobile" style={{ fontWeight: 700 }}>Scan Label</span>
+            </Link>
+
             <a
               href={`https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}`}
               target="_blank" rel="noreferrer"
@@ -240,6 +263,13 @@ export default function Navbar() {
                 style={{ color: pathname === to ? 'var(--teal)' : 'var(--gray-800)' }}
               >{label}</Link>
             ))}
+            <Link
+              to="/scan"
+              className="mobile-nav-link"
+              style={{ color: pathname === '/scan' ? 'var(--teal)' : 'var(--gray-800)', display: 'flex', alignItems: 'center', gap: 8 }}
+            >
+              <FiCamera size={18} /> Scan Product Label
+            </Link>
           </div>
         )}
       </nav>

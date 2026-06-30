@@ -12,6 +12,7 @@
     "@sentry/react": "^10.55.0",
     "axios": "^1.16.0",
     "firebase": "^12.12.1",
+    "html5-qrcode": "^2.3.8",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-helmet-async": "^3.0.0",

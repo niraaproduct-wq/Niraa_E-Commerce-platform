@@ -17,6 +17,8 @@ import ScrollToTop    from '../components/ScrollToTop.jsx';
 import FloatingWhatsApp from '../components/FloatingWhatsApp.jsx';
 import Profile        from '../pages/Profile.jsx';
 import ProfileOrders  from '../pages/ProfileOrders.jsx';
+import Scan           from '../pages/Scan.jsx';
+import BarcodeRedirect from '../pages/BarcodeRedirect.jsx';
 
 const AdminRedirect = () => {
   React.useEffect(() => {
@@ -79,6 +81,9 @@ export default function AppRoutes() {
         <Route path="/" element={<><Navbar /><Home /><Footer /></>} />
         <Route path="/products" element={<><Navbar /><Products /><Footer /></>} />
         <Route path="/products/:slug" element={<><Navbar /><ProductDetails /><Footer /></>} />
+        <Route path="/scan" element={<><Navbar /><Scan /><Footer /></>} />
+        <Route path="/barcode/:barcode" element={<><Navbar /><BarcodeRedirect /><Footer /></>} />
+        <Route path="/p/:barcode" element={<><Navbar /><BarcodeRedirect /><Footer /></>} />
         <Route path="/combos/:slug" element={<><Navbar /><ComboDetails /><Footer /></>} />
         <Route path="/cart" element={<><Navbar /><Cart /><Footer /></>} />
         <Route path="/checkout" element={<><Navbar /><Checkout /><Footer /></>} />

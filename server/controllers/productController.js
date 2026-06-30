@@ -287,4 +287,39 @@ const addReview = async (req, res) => {
   }
 };
 
-module.exports = { getProducts, getProduct, createProduct, updateProduct, deleteProduct, addReview };
+// @desc    Get single product by barcode/SKU
+// @route   GET /api/products/barcode/:barcode
+// @access  Public
+const getProductByBarcode = async (req, res) => {
+  try {
+    const { db } = getFirebase();
+    const barcode = req.params.barcode;
+    
+    // Query by barcode
+    let query = await db.collection(PRODUCTS_COLLECTION)
+      .where('barcode', '==', barcode)
+      .where('isActive', '==', true)
+      .limit(1)
+      .get();
+      
+    // Fallback: query by SKU
+    if (query.empty) {
+      query = await db.collection(PRODUCTS_COLLECTION)
+        .where('sku', '==', barcode)
+        .where('isActive', '==', true)
+        .limit(1)
+        .get();
+    }
+    
+    if (query.empty) {
+      return res.status(404).json({ message: 'Product not found with this barcode/SKU' });
+    }
+    
+    const product = toPlainProduct(query.docs[0]);
+    res.json(product);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+module.exports = { getProducts, getProduct, createProduct, updateProduct, deleteProduct, addReview, getProductByBarcode };
