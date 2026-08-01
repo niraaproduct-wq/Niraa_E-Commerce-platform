@@ -524,35 +524,6 @@ export default function Products() {
             </div>
           ) : (
             <>
-              {displayedGroups.map((group, gIdx) => (
-                <Reveal key={group.id} delay={gIdx * 60}>
-                  <section className="np-section">
-                    <div className="np-section__header">
-                      <div className="np-section__icon">{group.icon}</div>
-                      <div>
-                        <h2 className="np-section__title">{group.label}</h2>
-                        <div className="np-section__desc">{group.desc?.split('.')[0]}</div>
-                      </div>
-                      <span className="np-section__count">
-                        {group.products.length} item{group.products.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-
-                    {group.desc && (
-                      <div className="np-section__body-desc">{group.desc}</div>
-                    )}
-
-                    <div className="np-grid">
-                      {group.products.map((p, pIdx) => (
-                        <Reveal key={p._id} delay={pIdx * 55}>
-                          <ProductCard product={p} />
-                        </Reveal>
-                      ))}
-                    </div>
-                  </section>
-                </Reveal>
-              ))}
-
               {/* ── COMBOS ── */}
               {showCombos && combos.length > 0 && (
                 <Reveal>
@@ -590,6 +561,35 @@ export default function Products() {
                   </section>
                 </Reveal>
               )}
+
+              {displayedGroups.map((group, gIdx) => (
+                <Reveal key={group.id} delay={gIdx * 60}>
+                  <section className="np-section">
+                    <div className="np-section__header">
+                      <div className="np-section__icon">{group.icon}</div>
+                      <div>
+                        <h2 className="np-section__title">{group.label}</h2>
+                        <div className="np-section__desc">{group.desc?.split('.')[0]}</div>
+                      </div>
+                      <span className="np-section__count">
+                        {group.products.length} item{group.products.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+
+                    {group.desc && (
+                      <div className="np-section__body-desc">{group.desc}</div>
+                    )}
+
+                    <div className="np-grid">
+                      {group.products.map((p, pIdx) => (
+                        <Reveal key={p._id} delay={pIdx * 55}>
+                          <ProductCard product={p} />
+                        </Reveal>
+                      ))}
+                    </div>
+                  </section>
+                </Reveal>
+              ))}
 
               {/* ── NO RESULTS ── */}
               {displayedGroups.length === 0 && !showCombos && (

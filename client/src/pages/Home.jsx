@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import ProductCard from '../components/ProductCard';
 import { WHATSAPP_NUMBER } from '../utils/constants.js';
@@ -8,6 +8,7 @@ import { CATEGORIES } from '../utils/categories.js';
 import SectionRenderer from '../components/SectionRenderer';
 import { useRealtime } from '../context/RealtimeContext.jsx';
 import { useFirestoreProducts } from '../hooks/useFirestoreProducts';
+import { useCart } from '../context/CartContext.jsx';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL
   ? (import.meta.env.VITE_API_BASE_URL.endsWith('/api') ? import.meta.env.VITE_API_BASE_URL : `${import.meta.env.VITE_API_BASE_URL}/api`)
@@ -97,6 +98,9 @@ const SectionHeading = ({ label, title, cta, to }) => (
 );
 
 export default function Home() {
+  const navigate = useNavigate();
+  const { addToCart } = useCart();
+  const [toastMessage, setToastMessage] = useState(null);
   const [combos, setCombos] = useState([]);
   const [individuals, setIndividuals] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -160,6 +164,27 @@ export default function Home() {
 
   const waText = `Hello NIRAA, I want to order the Complete Home Combo. Please contact me!`;
   const waLink = `https://wa.me/${WHATSAPP_NUMBER.replace(/^\+/, '')}?text=${encodeURIComponent(waText)}`;
+
+  const featuredCombo = useMemo(() => {
+    return combos.find(c => c.name?.toLowerCase().includes('complete')) || combos[0];
+  }, [combos]);
+
+  const handleBuyNow = useCallback((product) => {
+    const itemToBuy = product || featuredCombo || liveProducts[0];
+    if (itemToBuy) {
+      addToCart(itemToBuy);
+    }
+    navigate('/checkout');
+  }, [featuredCombo, liveProducts, addToCart, navigate]);
+
+  const handleAddToCart = useCallback((product) => {
+    const itemToAdd = product || featuredCombo || liveProducts[0];
+    if (itemToAdd) {
+      addToCart(itemToAdd);
+      setToastMessage(`Added "${itemToAdd.name}" to cart!`);
+      setTimeout(() => setToastMessage(null), 3500);
+    }
+  }, [featuredCombo, liveProducts, addToCart]);
 
   const categoryMetadata = useMemo(() => {
     const dynamicCats = [...new Set(liveProducts.map(p => p.category))].filter(c => c && c !== 'combo');
@@ -1152,8 +1177,8 @@ export default function Home() {
               <a href={waLink} target="_blank" rel="noreferrer" className="niraa-btn-wa">
                 📱 Order on WhatsApp
               </a>
-              <Link to="/products" className="niraa-cta-link" style={{ padding: '13px 28px', borderRadius: '14px', background: '#fff' }}>
-                Browse Products →
+              <Link to="/products" className="niraa-btn-primary">
+                Explore Products →
               </Link>
             </div>
 
@@ -1209,23 +1234,29 @@ export default function Home() {
                 <span role="img" aria-label="fire">🔥</span> BEST VALUE DEAL
               </div>
               <h2 className="hero-combo-title">
-                {combos.find(c => c.name.toLowerCase().includes('complete'))?.name || 'Complete Home Combo'}
+                {featuredCombo?.name || 'Complete Home Combo'}
               </h2>
               <div className="hero-combo-price">
-                {combos.find(c => c.name.toLowerCase().includes('complete'))?.price || combos[0]?.price || '700'}
+                {featuredCombo?.price || '700'}
               </div>
               
               <div className="hero-combo-actions">
-                <Link 
-                  to={combos.find(c => c.name.toLowerCase().includes('complete'))?.slug 
-                    ? `/combos/${combos.find(c => c.name.toLowerCase().includes('complete')).slug}` 
-                    : '/products?category=combo'} 
-                  className="hero-combo-btn-outline"
+                <button 
+                  onClick={() => handleBuyNow(featuredCombo)} 
+                  className="hero-combo-btn-solid"
+                  style={{ background: 'linear-gradient(135deg, #22c55e, #16a34a)', border: 'none', cursor: 'pointer' }}
                 >
-                  View Combo Deal
-                </Link>
-                <a href={waLink} className="hero-combo-btn-solid">
-                  Order via WA
+                  ⚡ Buy Now
+                </button>
+                <button 
+                  onClick={() => handleAddToCart(featuredCombo)} 
+                  className="hero-combo-btn-outline"
+                  style={{ cursor: 'pointer' }}
+                >
+                  🛒 Add to Cart
+                </button>
+                <a href={waLink} target="_blank" rel="noreferrer" className="hero-combo-btn-solid" style={{ background: '#25D366' }}>
+                  📱 WA Order
                 </a>
               </div>
             </div>
@@ -1263,6 +1294,45 @@ export default function Home() {
             </div>
           </div>
 
+          {/* ── COMBO DEALS — featured product grid ── */}
+          {combos.length > 0 && (
+            <div className="niraa-section">
+              <Reveal>
+                <div className="niraa-combo-banner">
+                  <div className="niraa-combo-banner__inner">
+                    <div>
+                      <div className="niraa-combo-banner__eyebrow">✦ Special Bundles</div>
+                      <h2 className="niraa-combo-banner__title">Combo Deals & Offers</h2>
+                      <p className="niraa-combo-banner__sub">
+                        Save up to <strong>38%</strong> when you bundle your favourites together. 
+                        Premium eco-friendly cleaning solutions, delivered to your door.
+                      </p>
+                    </div>
+                    <div className="niraa-combo-banner__count">
+                      <span className="niraa-combo-banner__count-val">{combos.length}</span>
+                      <span className="niraa-combo-banner__count-label">Active Bundles</span>
+                    </div>
+                  </div>
+                </div>
+              </Reveal>
+
+              <div className="niraa-prod-grid">
+                {combos.map((p, idx) => (
+                  <Reveal key={p._id} delay={idx * 80}>
+                    <div style={{ position: 'relative' }}>
+                      {p.comboTag && (
+                        <div className="niraa-combo-tag" style={{ background: p.comboColor || 'var(--teal)', color: '#fff' }}>
+                          {p.comboTag}
+                        </div>
+                      )}
+                      <ProductCard product={p} />
+                    </div>
+                  </Reveal>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* ── INDIVIDUAL PRODUCT SECTIONS ── */}
           {groupedSections.map((section, sIdx) => (
             <div key={section.id} className="niraa-section">
@@ -1288,45 +1358,6 @@ export default function Home() {
               </div>
             </div>
           ))}
-
-          {/* ── COMBO DEALS — featured product grid ── */}
-          {combos.length > 0 && (
-            <div className="niraa-section">
-              <Reveal>
-                <div className="niraa-combo-banner">
-                  <div className="niraa-combo-banner__inner">
-                    <div>
-                      <div className="niraa-combo-banner__eyebrow">✦ Special Bundles</div>
-                      <h2 className="niraa-combo-banner__title">Combo Deals & Offers</h2>
-                      <p className="niraa-combo-banner__sub">
-                        Save up to <strong>38%</strong> when you bundle your favourites together. 
-                        Premium eco-friendly cleaning solutions, delivered to your door.
-                      </p>
-                    </div>
-                    <div className="niraa-combo-banner__count">
-                      <span className="niraa-combo-banner__count-val">{combos.length}</span>
-                      <span className="niraa-combo-banner__count-label">Active Bundles</span>
-                    </div>
-                  </div>
-                </div>
-              </Reveal>
-
-              <div className="niraa-prod-grid">
-                {combos.slice(0, 4).map((p, idx) => (
-                  <Reveal key={p._id} delay={idx * 80}>
-                    <div style={{ position: 'relative' }}>
-                      {p.comboTag && (
-                        <div className="niraa-combo-tag" style={{ background: p.comboColor || 'var(--teal)', color: '#fff' }}>
-                          {p.comboTag}
-                        </div>
-                      )}
-                      <ProductCard product={p} />
-                    </div>
-                  </Reveal>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* ── STATS ── */}
           <Reveal>
@@ -1416,6 +1447,31 @@ export default function Home() {
 
         </div>
 
+        {/* Floating Add to Cart Toast */}
+        {toastMessage && (
+          <div style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            background: '#0f4f47',
+            color: '#fff',
+            padding: '14px 22px',
+            borderRadius: '16px',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            fontSize: '0.9rem',
+            fontWeight: '600',
+            border: '1px solid rgba(74,222,128,0.3)'
+          }}>
+            <span>✅ {toastMessage}</span>
+            <Link to="/checkout" style={{ color: '#4ade80', textDecoration: 'underline', fontWeight: '700' }}>
+              Checkout Now →
+            </Link>
+          </div>
+        )}
 
       </main>
     </>
